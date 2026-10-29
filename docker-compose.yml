@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: colabora
+      POSTGRES_PASSWORD: colabora
+      POSTGRES_DB: colabora
+    ports:
+      - "5432:5432"
+    volumes:
+      - colabora_pg:/var/lib/postgresql/data
+
+volumes:
+  colabora_pg:

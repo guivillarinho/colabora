@@ -1,0 +1,15 @@
+{
+  "extends": "@rocketseat/eslint-config/node",
+  "ignorePatterns": ["dist", "node_modules", "coverage"],
+  "rules": {
+    "no-useless-constructor": "off"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.spec.ts", "test/**/*.ts"],
+      "env": {
+        "jest": true
+      }
+    }
+  ]
+}
