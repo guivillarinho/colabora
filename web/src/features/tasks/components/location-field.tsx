@@ -21,20 +21,25 @@ export function LocationField({ id, value, onChange }: LocationFieldProps) {
   const [results, setResults] = useState<Place[]>([])
   const [selected, setSelected] = useState<Place | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
+  const [searching, setSearching] = useState(false)
 
   useEffect(() => {
     if (selected && query === selected.label) {
+      setSearching(false)
       return
     }
 
     if (query.trim().length < 2) {
       setResults([])
       setSearchError(null)
+      setSearching(false)
       return
     }
 
     const controller = new AbortController()
     const timer = setTimeout(() => {
+      setResults([])
+      setSearching(true)
       searchPlaces(query, controller.signal)
         .then((places) => {
           setResults(places)
@@ -48,6 +53,11 @@ export function LocationField({ id, value, onChange }: LocationFieldProps) {
           setResults([])
           setSearchError('Não foi possível buscar endereços.')
         })
+        .finally(() => {
+          if (!controller.signal.aborted) {
+            setSearching(false)
+          }
+        })
     }, 150)
 
     return () => {
@@ -60,6 +70,8 @@ export function LocationField({ id, value, onChange }: LocationFieldProps) {
     setSelected(place)
     setQuery(place.label)
     setResults([])
+    setSearching(false)
+    setSearchError(null)
     onChange(place.label.slice(0, 200))
   }
 
@@ -77,30 +89,15 @@ export function LocationField({ id, value, onChange }: LocationFieldProps) {
           <p className="px-3 py-2 text-sm font-medium">{selected.label}</p>
         </div>
       ) : null}
-      {searchError ? (
-        <p className="text-sm text-destructive">{searchError}</p>
-      ) : null}
-      {results.length > 0 ? (
-        <ul className="overflow-hidden rounded-lg border">
-          {results.map((place) => (
-            <li key={place.id}>
-              <button
-                className="w-full min-w-0 px-3 py-2 text-left text-sm wrap-break-word hover:bg-muted"
-                type="button"
-                onClick={() => {
-                  choosePlace(place)
-                }}
-              >
-                {place.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
       <Input
+        aria-autocomplete="list"
+        aria-controls={`${id}-suggestions`}
+        aria-expanded={results.length > 0}
+        aria-haspopup="listbox"
         autoComplete="off"
         id={id}
         placeholder="Busque um endereço"
+        role="combobox"
         value={query}
         onChange={(event) => {
           const next = event.target.value
@@ -114,6 +111,39 @@ export function LocationField({ id, value, onChange }: LocationFieldProps) {
           }
         }}
       />
+      {searching ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          Buscando endereços...
+        </p>
+      ) : null}
+      {searchError ? (
+        <p className="text-sm text-destructive" role="alert">
+          {searchError}
+        </p>
+      ) : null}
+      {results.length > 0 ? (
+        <ul
+          className="max-h-56 overflow-y-auto rounded-lg border bg-popover text-popover-foreground shadow-md"
+          id={`${id}-suggestions`}
+          role="listbox"
+        >
+          {results.map((place) => (
+            <li key={place.id} role="presentation">
+              <button
+                aria-selected={false}
+                className="w-full min-w-0 px-3 py-2 text-left text-sm wrap-break-word hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+                role="option"
+                type="button"
+                onClick={() => {
+                  choosePlace(place)
+                }}
+              >
+                {place.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   )
 }
