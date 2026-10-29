@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { CalendarDays, Plus, Timer } from 'lucide-react'
 import { useState, type FormEvent, type ReactNode } from 'react'
 
 import { pastelSwatches } from '@/components/pastel'
@@ -74,7 +74,9 @@ export function TaskFormDialog({
   const [attachmentName, setAttachmentName] = useState<string | null>(
     task?.attachments[0] ?? null,
   )
-  const [startImmediately, setStartImmediately] = useState(false)
+  const [creationMode, setCreationMode] = useState<'scheduled' | 'timer'>(
+    'scheduled',
+  )
   const [formKey, setFormKey] = useState(0)
   const editing = Boolean(task)
   const fieldPrefix = task ? `edit-${task.id}` : 'create'
@@ -85,7 +87,7 @@ export function TaskFormDialog({
     setCategoryName(categoryByName(task?.category).name)
     setLocation(task?.location ?? '')
     setAttachmentName(task?.attachments[0] ?? null)
-    setStartImmediately(false)
+    setCreationMode('scheduled')
     setFormKey((current) => current + 1)
   }
 
@@ -118,8 +120,10 @@ export function TaskFormDialog({
       estimatedTime: Number(formData.get('estimatedTime') ?? 60),
       location: location.trim(),
       attachments: attachmentName ? [attachmentName] : [],
-      ...(!task ? { startImmediately } : {}),
-      ...(dueDate ? { dueDate: new Date(dueDate).toISOString() } : {}),
+      ...(!task && creationMode === 'timer' ? { startImmediately: true } : {}),
+      ...(dueDate && creationMode !== 'timer'
+        ? { dueDate: new Date(dueDate).toISOString() }
+        : {}),
     }
 
     try {
@@ -154,6 +158,52 @@ export function TaskFormDialog({
               : 'Comece pelo título. Anexos e localização ficam nas opções avançadas.'}
           </DialogDescription>
         </DialogHeader>
+        {!editing ? (
+          <div
+            aria-label="Tipo da nova atividade"
+            className="grid shrink-0 grid-cols-2 gap-2"
+            role="group"
+          >
+            <button
+              aria-pressed={creationMode === 'scheduled'}
+              className={cn(
+                'grid justify-items-start gap-2 rounded-lg border p-3 text-left transition-colors',
+                creationMode === 'scheduled'
+                  ? 'border-primary bg-accent'
+                  : 'border-border bg-card hover:bg-muted',
+              )}
+              type="button"
+              onClick={() => setCreationMode('scheduled')}
+            >
+              <CalendarDays aria-hidden="true" className="size-5" />
+              <span className="grid gap-0.5">
+                <span className="text-sm font-medium">Tarefa agendada</span>
+                <span className="text-xs text-muted-foreground">
+                  Defina data e horário
+                </span>
+              </span>
+            </button>
+            <button
+              aria-pressed={creationMode === 'timer'}
+              className={cn(
+                'grid justify-items-start gap-2 rounded-lg border p-3 text-left transition-colors',
+                creationMode === 'timer'
+                  ? 'border-primary bg-accent'
+                  : 'border-border bg-card hover:bg-muted',
+              )}
+              type="button"
+              onClick={() => setCreationMode('timer')}
+            >
+              <Timer aria-hidden="true" className="size-5" />
+              <span className="grid gap-0.5">
+                <span className="text-sm font-medium">Atividade rápida</span>
+                <span className="text-xs text-muted-foreground">
+                  Inicie o cronômetro
+                </span>
+              </span>
+            </button>
+          </div>
+        ) : null}
         <form
           className="flex min-h-0 min-w-0 flex-1 flex-col gap-4"
           key={`${task?.id ?? 'new'}-${formKey}`}
@@ -225,16 +275,23 @@ export function TaskFormDialog({
                 })}
               </div>
             </fieldset>
-            <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-              <div className="grid min-w-0 gap-2">
-                <Label htmlFor={`${fieldPrefix}-due`}>Data e hora</Label>
-                <Input
-                  defaultValue={toDateTimeLocal(task?.dueDate ?? null)}
-                  id={`${fieldPrefix}-due`}
-                  name="dueDate"
-                  type="datetime-local"
-                />
-              </div>
+            <div
+              className={cn(
+                'grid min-w-0 gap-2',
+                (editing || creationMode !== 'timer') && 'sm:grid-cols-2',
+              )}
+            >
+              {editing || creationMode !== 'timer' ? (
+                <div className="grid min-w-0 gap-2">
+                  <Label htmlFor={`${fieldPrefix}-due`}>Data e hora</Label>
+                  <Input
+                    defaultValue={toDateTimeLocal(task?.dueDate ?? null)}
+                    id={`${fieldPrefix}-due`}
+                    name="dueDate"
+                    type="datetime-local"
+                  />
+                </div>
+              ) : null}
               <div className="grid min-w-0 gap-2">
                 <Label htmlFor={`${fieldPrefix}-estimate`}>
                   Tempo estimado (min)
@@ -249,25 +306,10 @@ export function TaskFormDialog({
                 />
               </div>
             </div>
-            {!editing ? (
-              <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
-                <input
-                  checked={startImmediately}
-                  className="mt-0.5 size-4 accent-primary"
-                  type="checkbox"
-                  onChange={(event) => {
-                    setStartImmediately(event.target.checked)
-                  }}
-                />
-                <span className="grid gap-0.5">
-                  <span className="text-sm font-medium">
-                    Iniciar cronômetro ao salvar
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    A contagem começa assim que a tarefa for criada.
-                  </span>
-                </span>
-              </label>
+            {!editing && creationMode === 'timer' ? (
+              <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
+                Sem data e horário. O cronômetro começa ao salvar.
+              </p>
             ) : null}
             <Collapsible>
               <CollapsibleTrigger asChild>
