@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { UserRound } from 'lucide-react'
+
 import { ThemeToggle } from '@/components/theme-toggle'
 import { AgendaPage } from '@/features/dashboard/agenda-page'
 import { DashboardPage } from '@/features/dashboard/dashboard-page'
@@ -16,9 +19,10 @@ export function AppShell() {
   return (
     <div className="min-h-svh bg-background md:grid md:grid-cols-[16rem_minmax(0,1fr)]">
       <aside className="sticky top-0 hidden h-svh flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
-        <div className="grid gap-1 px-5 py-6">
-          <p className="text-lg font-semibold tracking-tight">Colabora</p>
-          <p className="text-sm text-muted-foreground">Tarefas no seu ritmo</p>
+        <div className="flex items-center gap-3 px-5 py-6">
+          <p className="text-sm font-medium text-muted-foreground">
+            Tarefas no seu ritmo
+          </p>
         </div>
         <AppNav layout="sidebar" />
       </aside>
@@ -26,9 +30,11 @@ export function AppShell() {
       <div className="flex min-h-svh min-w-0 flex-col">
         <header className="sticky top-0 z-20 border-b bg-background/95 px-4 py-4 backdrop-blur md:px-8">
           <div className="flex items-center justify-between gap-4">
-            <div className="grid gap-1">
-              <p className="text-4xl font-semibold tracking-tight">Colabora</p>
-              <p className="text-lg text-muted-foreground">Olá, Guilherme</p>
+            <div className="flex min-w-0 items-center gap-3">
+              <UserAvatar />
+              <p className="truncate text-lg font-medium text-muted-foreground">
+                Olá, Guilherme
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <div className="hidden md:block">
@@ -51,6 +57,32 @@ export function AppShell() {
         <AppNav center={<CreateTaskDialog variant="icon" />} layout="bottom" />
       </div>
       <ProductivityAdviceDialog advice={advice} onClose={clearAdvice} />
+    </div>
+  )
+}
+
+function UserAvatar() {
+  const [imageUnavailable, setImageUnavailable] = useState(false)
+  const imageUrl =
+    import.meta.env.VITE_USER_AVATAR_URL ||
+    'https://randomuser.me/api/portraits/men/75.jpg'
+
+  return (
+    <div
+      aria-label="Perfil de Guilherme"
+      className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/20 bg-secondary text-secondary-foreground"
+      role="img"
+    >
+      {imageUrl && !imageUnavailable ? (
+        <img
+          alt="Avatar ilustrativo do perfil"
+          className="size-full object-cover"
+          src={imageUrl}
+          onError={() => setImageUnavailable(true)}
+        />
+      ) : (
+        <UserRound aria-hidden="true" className="size-6" />
+      )}
     </div>
   )
 }
