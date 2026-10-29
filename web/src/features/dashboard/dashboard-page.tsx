@@ -1,4 +1,5 @@
 import { MutedText, PageTitle } from '@/components/typography'
+import { useNavigation } from '@/components/layout/navigation'
 import { useTasks } from '@/features/tasks/tasks-context'
 
 import { ProgressSummary } from './components/progress-summary'
@@ -7,6 +8,7 @@ import { ActiveTimer } from './components/active-timer'
 
 export function DashboardPage() {
   const { tasks, completeTask } = useTasks()
+  const { goTo } = useNavigation()
 
   const completed = tasks.filter((task) => task.status === 'completed').length
 
@@ -23,7 +25,9 @@ export function DashboardPage() {
       <ProgressSummary completed={completed} total={tasks.length} />
       <TaskTimeline
         tasks={tasks}
+        preview
         onComplete={(taskId, actualTime) => completeTask(taskId, actualTime)}
+        onViewAll={() => goTo('agenda')}
       />
     </div>
   )

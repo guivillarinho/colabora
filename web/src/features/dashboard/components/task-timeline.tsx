@@ -15,21 +15,45 @@ import { TaskFormDialog } from '../../tasks/components/task-form-dialog'
 type TaskTimelineProps = {
   tasks: Task[]
   onComplete: (taskId: string, actualTime?: number) => Promise<void>
+  preview?: boolean
+  onViewAll?: () => void
 }
 
-export function TaskTimeline({ tasks, onComplete }: TaskTimelineProps) {
+const previewLimit = 3
+
+export function TaskTimeline({
+  tasks,
+  onComplete,
+  preview = false,
+  onViewAll,
+}: TaskTimelineProps) {
   const ordered = sortTasks(tasks, 'dueDate')
+  const visibleTasks = preview ? ordered.slice(0, previewLimit) : ordered
+  const remaining = ordered.length - visibleTasks.length
 
   return (
     <section className="grid gap-4">
-      <SectionTitle>Linha do tempo</SectionTitle>
+      <div className="flex items-center justify-between gap-3">
+        <SectionTitle>Linha do tempo</SectionTitle>
+        {remaining > 0 && onViewAll ? (
+          <Button
+            className="h-8 rounded-full bg-transparent px-4 text-pastel-green-foreground shadow-none hover:bg-transparent hover:text-pastel-green-foreground hover:underline"
+            size="sm"
+            type="button"
+            variant="ghost"
+            onClick={onViewAll}
+          >
+            Ver tudo
+          </Button>
+        ) : null}
+      </div>
       {ordered.length === 0 ? (
         <MutedText>
           Nada agendado. As tarefas com data e hora aparecem aqui.
         </MutedText>
       ) : (
         <ol className="grid gap-3">
-          {ordered.map((task) => (
+          {visibleTasks.map((task) => (
             <TimelineTask key={task.id} task={task} onComplete={onComplete} />
           ))}
         </ol>
