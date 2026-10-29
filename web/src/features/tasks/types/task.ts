@@ -33,6 +33,7 @@ export type TaskInput = {
   location?: string
   attachments?: string[]
   estimatedTime: number
+  startImmediately?: boolean
 }
 
 export type TaskCompletion = {

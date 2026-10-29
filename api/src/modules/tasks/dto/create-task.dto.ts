@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer'
 import {
   ArrayMaxSize,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -58,4 +59,8 @@ export class CreateTaskDto {
   @Min(1)
   @Max(10080)
   estimatedTime: number
+
+  @IsOptional()
+  @IsBoolean()
+  startImmediately?: boolean
 }

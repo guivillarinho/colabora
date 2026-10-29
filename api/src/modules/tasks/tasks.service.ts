@@ -39,8 +39,8 @@ export class TasksService {
       attachments: dto.attachments ?? [],
       estimatedTime: dto.estimatedTime,
       actualTime: null,
-      status: TaskStatus.Pending,
-      startedAt: null,
+      status: dto.startImmediately ? TaskStatus.InProgress : TaskStatus.Pending,
+      startedAt: dto.startImmediately ? new Date() : null,
     })
 
     return this.tasksRepository.save(task)

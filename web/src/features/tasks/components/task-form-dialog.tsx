@@ -74,6 +74,7 @@ export function TaskFormDialog({
   const [attachmentName, setAttachmentName] = useState<string | null>(
     task?.attachments[0] ?? null,
   )
+  const [startImmediately, setStartImmediately] = useState(false)
   const [formKey, setFormKey] = useState(0)
   const editing = Boolean(task)
   const fieldPrefix = task ? `edit-${task.id}` : 'create'
@@ -84,6 +85,7 @@ export function TaskFormDialog({
     setCategoryName(categoryByName(task?.category).name)
     setLocation(task?.location ?? '')
     setAttachmentName(task?.attachments[0] ?? null)
+    setStartImmediately(false)
     setFormKey((current) => current + 1)
   }
 
@@ -116,6 +118,7 @@ export function TaskFormDialog({
       estimatedTime: Number(formData.get('estimatedTime') ?? 60),
       location: location.trim(),
       attachments: attachmentName ? [attachmentName] : [],
+      ...(!task ? { startImmediately } : {}),
       ...(dueDate ? { dueDate: new Date(dueDate).toISOString() } : {}),
     }
 
@@ -246,6 +249,26 @@ export function TaskFormDialog({
                 />
               </div>
             </div>
+            {!editing ? (
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+                <input
+                  checked={startImmediately}
+                  className="mt-0.5 size-4 accent-primary"
+                  type="checkbox"
+                  onChange={(event) => {
+                    setStartImmediately(event.target.checked)
+                  }}
+                />
+                <span className="grid gap-0.5">
+                  <span className="text-sm font-medium">
+                    Iniciar cronômetro ao salvar
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    A contagem começa assim que a tarefa for criada.
+                  </span>
+                </span>
+              </label>
+            ) : null}
             <Collapsible>
               <CollapsibleTrigger asChild>
                 <Button className="w-full" type="button" variant="outline">
