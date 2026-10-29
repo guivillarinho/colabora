@@ -4,7 +4,7 @@ import { useTasks } from '@/features/tasks/tasks-context'
 import { TaskTimeline } from './components/task-timeline'
 
 export function AgendaPage() {
-  const { tasks } = useTasks()
+  const { tasks, completeTask } = useTasks()
 
   return (
     <div className="grid gap-8">
@@ -12,7 +12,10 @@ export function AgendaPage() {
         <PageTitle>Agenda</PageTitle>
         <MutedText>A linha do tempo do seu dia.</MutedText>
       </div>
-      <TaskTimeline tasks={tasks} />
+      <TaskTimeline
+        tasks={tasks}
+        onComplete={(taskId, actualTime) => completeTask(taskId, actualTime)}
+      />
     </div>
   )
 }

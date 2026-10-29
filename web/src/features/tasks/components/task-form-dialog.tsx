@@ -146,7 +146,9 @@ export function TaskFormDialog({
         <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>{editing ? 'Editar tarefa' : 'Nova tarefa'}</DialogTitle>
           <DialogDescription>
-            Comece pelo título. Anexos e localização ficam nas opções avançadas.
+            {editing
+              ? `Editando “${task.title}”. As alterações serão salvas somente nesta tarefa.`
+              : 'Comece pelo título. Anexos e localização ficam nas opções avançadas.'}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -268,8 +270,10 @@ export function TaskFormDialog({
                 {formError}
               </p>
             ) : null}
-            <DialogFooter className="mx-0 mb-0">
-              <Button type="submit">Salvar tarefa</Button>
+            <DialogFooter className="mx-0 mb-0 px-0 py-3 sm:p-4">
+              <Button className="h-9 w-full text-sm sm:w-auto" type="submit">
+                Salvar tarefa
+              </Button>
             </DialogFooter>
           </div>
         </form>

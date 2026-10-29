@@ -5,7 +5,7 @@ import { ProgressSummary } from './components/progress-summary'
 import { TaskTimeline } from './components/task-timeline'
 
 export function DashboardPage() {
-  const { tasks } = useTasks()
+  const { tasks, completeTask } = useTasks()
 
   const completed = tasks.filter((task) => task.status === 'completed').length
 
@@ -16,7 +16,10 @@ export function DashboardPage() {
         <MutedText>Seu progresso e o que vem a seguir.</MutedText>
       </div>
       <ProgressSummary completed={completed} total={tasks.length} />
-      <TaskTimeline tasks={tasks} />
+      <TaskTimeline
+        tasks={tasks}
+        onComplete={(taskId, actualTime) => completeTask(taskId, actualTime)}
+      />
     </div>
   )
 }
