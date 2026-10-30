@@ -1,4 +1,4 @@
-import { CalendarDays, House, ListTodo, UserRound } from 'lucide-react'
+import { CalendarDays, House, Timer, UserRound } from 'lucide-react'
 import {
   createContext,
   useContext,
@@ -8,7 +8,7 @@ import {
 } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
-export type AppSection = 'hoje' | 'tarefas' | 'agenda' | 'perfil'
+export type AppSection = 'hoje' | 'timer' | 'agenda' | 'perfil'
 
 export type NavItem = {
   id: AppSection
@@ -18,8 +18,8 @@ export type NavItem = {
 
 export const navItems: NavItem[] = [
   { id: 'hoje', label: 'Hoje', icon: House },
-  { id: 'tarefas', label: 'Tarefas', icon: ListTodo },
   { id: 'agenda', label: 'Agenda', icon: CalendarDays },
+  { id: 'timer', label: 'Timer', icon: Timer },
   { id: 'perfil', label: 'Perfil', icon: UserRound },
 ]
 

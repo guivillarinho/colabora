@@ -22,6 +22,7 @@ export function LocationField({ id, value, onChange }: LocationFieldProps) {
   const [selected, setSelected] = useState<Place | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
+  const [mapError, setMapError] = useState(false)
 
   useEffect(() => {
     if (selected && query === selected.label) {
@@ -68,6 +69,7 @@ export function LocationField({ id, value, onChange }: LocationFieldProps) {
 
   function choosePlace(place: Place) {
     setSelected(place)
+    setMapError(false)
     setQuery(place.label)
     setResults([])
     setSearching(false)
@@ -80,13 +82,30 @@ export function LocationField({ id, value, onChange }: LocationFieldProps) {
       <Label htmlFor={id}>Localização</Label>
       {selected ? (
         <div className="min-w-0 overflow-hidden rounded-xl border">
-          <iframe
-            className="block h-48 w-full max-w-full min-w-0"
-            loading="lazy"
-            src={mapUrl(selected)}
-            title={`Mapa de ${selected.label}`}
-          />
+          {mapError ? (
+            <p className="p-3 text-sm text-muted-foreground">
+              A prévia do mapa não carregou. Use o link abaixo para abrir o
+              endereço.
+            </p>
+          ) : (
+            <iframe
+              className="block h-48 w-full max-w-full min-w-0"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              src={mapUrl(selected)}
+              title={`Mapa de ${selected.label}`}
+              onError={() => setMapError(true)}
+            />
+          )}
           <p className="px-3 py-2 text-sm font-medium">{selected.label}</p>
+          <a
+            className="block px-3 pb-3 text-sm text-primary underline"
+            href={`https://www.openstreetmap.org/?mlat=${selected.latitude}&mlon=${selected.longitude}#map=16/${selected.latitude}/${selected.longitude}`}
+            rel="noreferrer"
+            target="_blank"
+          >
+            Abrir no OpenStreetMap
+          </a>
         </div>
       ) : null}
       <Input
@@ -202,8 +221,11 @@ function placeLabel(properties: PhotonFeature['properties']): string {
 }
 
 function mapUrl(place: Place): string {
-  const latitudeSpan = 0.01
-  const longitudeSpan = 0.01
+  const latitudeSpan = 0.006
+  const longitudeSpan = Math.min(
+    0.02,
+    latitudeSpan / Math.max(Math.cos((place.latitude * Math.PI) / 180), 0.2),
+  )
   const bbox = [
     place.longitude - longitudeSpan,
     place.latitude - latitudeSpan,
@@ -211,5 +233,5 @@ function mapUrl(place: Place): string {
     place.latitude + latitudeSpan,
   ].join(',')
 
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${place.latitude}%2C${place.longitude}`
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${place.latitude},${place.longitude}`
 }

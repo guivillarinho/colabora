@@ -45,7 +45,7 @@ export function CreateTaskDialog({
     variant === 'icon' ? (
       <Button
         aria-label="Criar tarefa"
-        className="h-12 rounded-xl bg-black px-6 text-white hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90"
+        className="h-12 rounded-xl bg-primary px-6 text-primary-foreground hover:bg-primary/90"
         type="button"
       >
         <Plus className="size-5" />
@@ -220,29 +220,33 @@ export function TaskFormDialog({
             />
           </div>
           <div className="grid min-h-0 min-w-0 flex-1 content-start gap-4 overflow-x-hidden overflow-y-auto">
-            <div className="grid gap-2">
-              <Label htmlFor={`${fieldPrefix}-description`}>Descrição</Label>
-              <textarea
-                className="min-h-28 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
-                defaultValue={task?.description ?? ''}
-                id={`${fieldPrefix}-description`}
-                name="description"
-                placeholder="Conte o contexto, o que precisa acontecer e como você vai saber que terminou."
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor={`${fieldPrefix}-priority`}>Prioridade</Label>
-              <select
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
-                defaultValue={task?.priority ?? 'medium'}
-                id={`${fieldPrefix}-priority`}
-                name="priority"
-              >
-                <option value="high">Alta</option>
-                <option value="medium">Média</option>
-                <option value="low">Baixa</option>
-              </select>
-            </div>
+            {editing || creationMode !== 'timer' ? (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor={`${fieldPrefix}-description`}>Descrição</Label>
+                  <textarea
+                    className="min-h-28 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
+                    defaultValue={task?.description ?? ''}
+                    id={`${fieldPrefix}-description`}
+                    name="description"
+                    placeholder="Conte o contexto, o que precisa acontecer e como você vai saber que terminou."
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor={`${fieldPrefix}-priority`}>Prioridade</Label>
+                  <select
+                    className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                    defaultValue={task?.priority ?? 'medium'}
+                    id={`${fieldPrefix}-priority`}
+                    name="priority"
+                  >
+                    <option value="high">Alta</option>
+                    <option value="medium">Média</option>
+                    <option value="low">Baixa</option>
+                  </select>
+                </div>
+              </>
+            ) : null}
             <fieldset className="grid min-w-0 gap-2">
               <legend className="text-sm font-medium">Categoria</legend>
               <div className="flex min-w-0 flex-wrap gap-2 p-1.5">
@@ -307,11 +311,11 @@ export function TaskFormDialog({
               </div>
             </div>
             {!editing && creationMode === 'timer' ? (
-              <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
-                Sem data e horário. O cronômetro começa ao salvar.
+              <p className="text-sm text-muted-foreground">
+                O cronômetro começa ao salvar.
               </p>
             ) : null}
-            <Collapsible>
+            {editing || creationMode !== 'timer' ? <Collapsible>
               <CollapsibleTrigger asChild>
                 <Button className="w-full" type="button" variant="outline">
                   Opções avançadas
@@ -329,7 +333,7 @@ export function TaskFormDialog({
                   onChange={setLocation}
                 />
               </CollapsibleContent>
-            </Collapsible>
+            </Collapsible> : null}
             {formError ? (
               <p className="text-sm text-destructive" role="alert">
                 {formError}

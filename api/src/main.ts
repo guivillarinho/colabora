@@ -1,5 +1,8 @@
 import { ValidationPipe } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
+import { mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+import express from 'express'
 
 import { AppModule } from './app.module'
 
@@ -17,6 +20,10 @@ async function bootstrap() {
   app.enableCors({
     origin: webOrigins(),
   })
+
+  const uploadDirectory = join(process.cwd(), 'uploads', 'agenda')
+  mkdirSync(uploadDirectory, { recursive: true })
+  app.use('/uploads/agenda', express.static(uploadDirectory))
 
   await app.listen(process.env.PORT ?? 3000)
 }

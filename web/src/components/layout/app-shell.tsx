@@ -6,11 +6,17 @@ import { AgendaPage } from '@/features/dashboard/agenda-page'
 import { DashboardPage } from '@/features/dashboard/dashboard-page'
 import { ProductivityAdviceDialog } from '@/features/tasks/components/productivity-advice-dialog'
 import { CreateTaskDialog } from '@/features/tasks/components/task-form-dialog'
-import { TasksPage } from '@/features/tasks/tasks-page'
+import { TimerPage } from '@/features/timer/timer-page'
 import { useTasks } from '@/features/tasks/tasks-context'
 
 import { AppNav } from './app-nav'
 import { useNavigation } from './navigation'
+
+declare const process: {
+  env: {
+    VITE_USER_AVATAR_URL?: string
+  }
+}
 
 export function AppShell() {
   const { section } = useNavigation()
@@ -50,7 +56,7 @@ export function AppShell() {
             <p className="mb-4 text-sm text-destructive">{error}</p>
           ) : null}
           {section === 'hoje' ? <DashboardPage /> : null}
-          {section === 'tarefas' ? <TasksPage /> : null}
+          {section === 'timer' ? <TimerPage /> : null}
           {section === 'agenda' ? <AgendaPage /> : null}
         </main>
 
@@ -64,7 +70,7 @@ export function AppShell() {
 function UserAvatar() {
   const [imageUnavailable, setImageUnavailable] = useState(false)
   const imageUrl =
-    import.meta.env.VITE_USER_AVATAR_URL ||
+    process.env.VITE_USER_AVATAR_URL ||
     'https://randomuser.me/api/portraits/men/75.jpg'
 
   return (

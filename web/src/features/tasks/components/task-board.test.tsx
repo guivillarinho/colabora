@@ -20,7 +20,7 @@ jest.mock('@/features/tasks/api/tasks-api', () => ({
 
 const api = tasksApi as jest.Mocked<typeof tasksApi>
 
-function renderApp(initialSection: 'hoje' | 'tarefas' = 'tarefas') {
+function renderApp(initialSection: 'hoje' | 'timer' = 'timer') {
   return render(
     <ThemeProvider>
       <TasksProvider>
@@ -91,7 +91,7 @@ describe('TaskBoard', () => {
     expect(screen.getByRole('heading', { name: 'Nova tarefa' })).toBeVisible()
   })
 
-  it('adds a task from the essential fields', async () => {
+  it('creates a task from the essential fields', async () => {
     const user = userEvent.setup()
 
     renderApp()
@@ -100,9 +100,47 @@ describe('TaskBoard', () => {
     await user.type(screen.getByLabelText('Título'), 'Comprar café')
     await user.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
 
+    expect(api.create).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Comprar café' }),
+    )
+    expect(await screen.findByRole('heading', { name: 'Timer' })).toBeVisible()
+  })
+
+  it('creates a quick activity with its focus timer started', async () => {
+    const user = userEvent.setup()
+
+    renderApp()
+
+    await user.click(screen.getAllByRole('button', { name: 'Criar tarefa' })[0])
+    await user.click(screen.getByRole('button', { name: /Atividade rápida/ }))
+    await user.type(screen.getByLabelText('Título'), 'Ler documentação')
+    await user.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
+
+    expect(api.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Ler documentação',
+        startImmediately: true,
+      }),
+    )
+    expect(api.create.mock.calls[0][0]).not.toHaveProperty('dueDate')
+  })
+
+  it('keeps quick activity creation focused on title, category and estimate', async () => {
+    const user = userEvent.setup()
+
+    renderApp()
+
+    await user.click(screen.getAllByRole('button', { name: 'Criar tarefa' })[0])
+    await user.click(screen.getByRole('button', { name: /Atividade rápida/ }))
+
+    expect(screen.getByLabelText('Título')).toBeVisible()
+    expect(screen.getByText('Categoria')).toBeVisible()
+    expect(screen.getByLabelText('Tempo estimado (min)')).toBeVisible()
+    expect(screen.queryByLabelText('Descrição')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Prioridade')).not.toBeInTheDocument()
     expect(
-      await screen.findByRole('heading', { name: 'Comprar café' }),
-    ).toBeVisible()
+      screen.queryByRole('button', { name: 'Opções avançadas' }),
+    ).not.toBeInTheDocument()
   })
 })
 
@@ -116,7 +154,7 @@ describe('App shell', () => {
 
     expect(await screen.findByRole('heading', { name: 'Hoje' })).toBeVisible()
     expect(
-      screen.getByRole('progressbar', { name: 'Progresso do dia' }),
+      screen.getByRole('progressbar', { name: 'Progresso das tarefas' }),
     ).toBeVisible()
     expect(
       screen.getByRole('heading', { name: 'Linha do tempo' }),
@@ -125,7 +163,7 @@ describe('App shell', () => {
     expect(
       screen.queryByRole('heading', { name: 'Cores' }),
     ).not.toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Tarefas' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'Timer' })).toHaveLength(2)
     expect(screen.getAllByRole('button', { name: 'Perfil' })).toHaveLength(2)
     expect(screen.getByRole('button', { name: /tema/i })).toBeVisible()
   })
