@@ -26,10 +26,10 @@ export function ProgressSummary({ total, completed }: ProgressSummaryProps) {
     total === 0
       ? 'bg-muted-foreground'
       : percent === 100
-        ? 'bg-pastel-green-foreground'
+        ? 'bg-pastel-green-foreground dark:bg-pastel-green-foreground'
         : percent < 34
-          ? 'bg-pastel-red-foreground'
-          : 'bg-pastel-yellow-foreground'
+          ? 'bg-pastel-red dark:bg-pastel-red-foreground'
+          : 'bg-pastel-yellow dark:bg-pastel-yellow-foreground'
 
   useEffect(() => {
     if (percent === 100 && previousPercent.current < 100) {
