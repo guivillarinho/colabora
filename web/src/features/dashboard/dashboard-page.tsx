@@ -7,7 +7,7 @@ import { TaskTimeline } from './components/task-timeline'
 import { ActiveTimer } from './components/active-timer'
 
 export function DashboardPage() {
-  const { tasks, completeTask } = useTasks()
+  const { tasks, completeTask, removeTask } = useTasks()
   const { goTo } = useNavigation()
 
   const completed = tasks.filter((task) => task.status === 'completed').length
@@ -27,6 +27,7 @@ export function DashboardPage() {
         tasks={tasks}
         preview
         onComplete={(taskId, actualTime) => completeTask(taskId, actualTime)}
+        onDelete={(taskId) => removeTask(taskId)}
         onViewAll={() => goTo('agenda')}
       />
     </div>

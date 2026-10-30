@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { CheckIcon } from 'lucide-react'
+import { useRef, useState, type PointerEvent } from 'react'
+import { CheckIcon, Trash2 } from 'lucide-react'
 
 import { pastelSwatches } from '@/components/pastel'
 import { Button } from '@/components/ui/button'
@@ -11,10 +11,19 @@ import type { Task } from '@/features/tasks/types/task'
 
 import { CompleteTaskDialog } from '../../tasks/components/complete-task-dialog'
 import { TaskFormDialog } from '../../tasks/components/task-form-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 type TaskTimelineProps = {
   tasks: Task[]
   onComplete: (taskId: string, actualTime?: number) => Promise<void>
+  onDelete: (taskId: string) => Promise<void>
   preview?: boolean
   onViewAll?: () => void
 }
@@ -24,6 +33,7 @@ const previewLimit = 3
 export function TaskTimeline({
   tasks,
   onComplete,
+  onDelete,
   preview = false,
   onViewAll,
 }: TaskTimelineProps) {
@@ -54,7 +64,12 @@ export function TaskTimeline({
       ) : (
         <ol className="grid gap-3">
           {visibleTasks.map((task) => (
-            <TimelineTask key={task.id} task={task} onComplete={onComplete} />
+            <TimelineTask
+              key={task.id}
+              task={task}
+              onComplete={onComplete}
+              onDelete={onDelete}
+            />
           ))}
         </ol>
       )}
@@ -65,11 +80,18 @@ export function TaskTimeline({
 type TimelineTaskProps = {
   task: Task
   onComplete: TaskTimelineProps['onComplete']
+  onDelete: TaskTimelineProps['onDelete']
 }
 
-function TimelineTask({ task, onComplete }: TimelineTaskProps) {
+function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
   const [completing, setCompleting] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [offset, setOffset] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const dragStartX = useRef<number | null>(null)
+  const dragStartOffset = useRef(0)
+  const currentOffset = useRef(0)
   const swatch =
     pastelSwatches.find((item) => item.id === task.color) ?? pastelSwatches[1]
   const date = task.dueDate ? new Date(task.dueDate) : null
@@ -84,11 +106,71 @@ function TimelineTask({ task, onComplete }: TimelineTaskProps) {
     : 'Sem horário'
   const isCompleted = task.status === 'completed'
 
+  function updateOffset(value: number) {
+    const next = Math.max(-96, Math.min(0, value))
+    currentOffset.current = next
+    setOffset(next)
+  }
+
+  function handlePointerDown(event: PointerEvent<HTMLLIElement>) {
+    const target = event.target
+    if (
+      target instanceof Element &&
+      target.closest(
+        '[data-delete-action], button, input, textarea, select, a, [role="dialog"]',
+      )
+    ) {
+      return
+    }
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+
+    dragStartX.current = event.clientX
+    dragStartOffset.current = currentOffset.current
+    setDragging(true)
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+  }
+
+  function handlePointerMove(event: PointerEvent<HTMLLIElement>) {
+    if (dragStartX.current === null) return
+    updateOffset(dragStartOffset.current + event.clientX - dragStartX.current)
+  }
+
+  function finishPointerDrag(event: PointerEvent<HTMLLIElement>) {
+    if (dragStartX.current === null) return
+    dragStartX.current = null
+    setDragging(false)
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+    updateOffset(currentOffset.current <= -48 ? -96 : 0)
+  }
+
   return (
-    <li className="relative">
+    <li
+      className="relative touch-pan-y overflow-hidden rounded-xl"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={finishPointerDrag}
+      onPointerCancel={finishPointerDrag}
+    >
+      {offset < 0 ? (
+        <div
+          className="absolute inset-y-0 right-0 z-20 flex w-24 items-center justify-center rounded-r-xl bg-destructive text-destructive-foreground"
+          data-delete-action
+          onClick={() => setConfirmingDelete(true)}
+        >
+          <button
+            aria-label={`Excluir tarefa ${task.title}`}
+            className="grid size-12 place-items-center rounded-xl text-white transition hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            type="button"
+          >
+            <Trash2 aria-hidden="true" className="size-6" />
+          </button>
+        </div>
+      ) : null}
       <article
+        style={{ transform: `translateX(${offset}px)` }}
         className={cn(
-          'grid gap-2 rounded-xl border bg-card p-3 sm:p-4',
+          'relative z-10 grid cursor-grab select-none gap-2 rounded-xl border bg-card p-3 active:cursor-grabbing sm:p-4',
+          !dragging && 'transition-transform duration-200 ease-out',
           isCompleted && 'opacity-70',
         )}
       >
@@ -150,6 +232,37 @@ function TimelineTask({ task, onComplete }: TimelineTaskProps) {
         onOpenChange={setCompleting}
       />
       <TaskFormDialog open={editing} task={task} onOpenChange={setEditing} />
+      <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir tarefa?</DialogTitle>
+            <DialogDescription>
+              Tem certeza de que deseja excluir “{task.title}”? Essa ação não
+              pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmingDelete(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              type="button"
+              onClick={async () => {
+                setConfirmingDelete(false)
+                updateOffset(0)
+                await onDelete(task.id)
+              }}
+            >
+              Excluir tarefa
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </li>
   )
 }

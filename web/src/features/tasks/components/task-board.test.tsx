@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { App } from '@/app/App'
@@ -167,6 +167,49 @@ describe('App shell', () => {
     expect(screen.getAllByRole('button', { name: 'Perfil' })).toHaveLength(2)
     expect(screen.getByRole('button', { name: /tema/i })).toBeVisible()
   })
+
+  it('reveals delete on drag and waits for confirmation before removing a task', async () => {
+    const user = userEvent.setup()
+    api.list.mockResolvedValue([
+      buildTask({
+        title: 'Revisar orçamento',
+        category: 'Trabalho',
+        priority: 'medium',
+        color: 'red',
+        estimatedTime: 30,
+        dueDate: '2026-10-30T12:00:00.000Z',
+      }),
+    ])
+    api.remove.mockResolvedValue(undefined)
+
+    renderApp('hoje')
+    const taskHeading = await screen.findByRole('heading', {
+      name: 'Revisar orçamento',
+    })
+    const taskCard = taskHeading.closest('li')
+    expect(taskCard).not.toBeNull()
+
+    expect(
+      screen.queryByRole('button', {
+        name: 'Excluir tarefa Revisar orçamento',
+      }),
+    ).not.toBeInTheDocument()
+    dispatchPointer(taskCard!, 'pointerdown', 220)
+    dispatchPointer(taskCard!, 'pointermove', 120)
+    dispatchPointer(taskCard!, 'pointerup', 120)
+
+    const deleteButton = screen.getByRole('button', {
+      name: 'Excluir tarefa Revisar orçamento',
+    })
+    const trashIcon = deleteButton.querySelector('svg')
+    expect(trashIcon).not.toBeNull()
+    await user.click(trashIcon!)
+    expect(screen.getByText(/Tem certeza de que deseja excluir/)).toBeVisible()
+    expect(api.remove).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Excluir tarefa' }))
+    expect(api.remove).toHaveBeenCalledWith('task-1')
+  })
 })
 
 function buildTask(input: TaskInput): Task {
@@ -187,4 +230,18 @@ function buildTask(input: TaskInput): Task {
     createdAt: '2026-10-29T12:00:00.000Z',
     updatedAt: '2026-10-29T12:00:00.000Z',
   }
+}
+
+function dispatchPointer(target: Element, type: string, clientX: number) {
+  const event = new MouseEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    button: 0,
+    clientX,
+  })
+  Object.defineProperties(event, {
+    pointerId: { value: 1 },
+    pointerType: { value: 'mouse' },
+  })
+  fireEvent(target, event)
 }
