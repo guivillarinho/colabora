@@ -45,7 +45,7 @@ export function TaskBoard() {
                 task={task}
                 onComplete={(actualTime) => completeTask(task.id, actualTime)}
                 onDelete={() => {
-                  removeTask(task.id)
+                  return removeTask(task.id)
                 }}
                 onStart={() => {
                   startTask(task.id)

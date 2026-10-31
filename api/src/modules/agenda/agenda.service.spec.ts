@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common'
+import { BadRequestException, NotFoundException } from '@nestjs/common'
 import { getRepositoryToken } from '@nestjs/typeorm'
 import { Test } from '@nestjs/testing'
 
@@ -11,6 +11,7 @@ describe('AgendaService', () => {
     find: jest.fn(),
     create: jest.fn((item) => item),
     save: jest.fn(async (item) => item),
+    delete: jest.fn(),
   }
 
   beforeEach(async () => {
@@ -50,5 +51,16 @@ describe('AgendaService', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException)
     expect(repository.save).not.toHaveBeenCalled()
+  })
+
+  it('removes an agenda item', async () => {
+    repository.delete.mockResolvedValue({ affected: 1 })
+    await expect(service.remove('item-1')).resolves.toBeUndefined()
+    expect(repository.delete).toHaveBeenCalledWith('item-1')
+  })
+
+  it('reports when the item does not exist', async () => {
+    repository.delete.mockResolvedValue({ affected: 0 })
+    await expect(service.remove('missing')).rejects.toBeInstanceOf(NotFoundException)
   })
 })

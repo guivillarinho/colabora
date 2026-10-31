@@ -2,7 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
   Post,
   UploadedFiles,
   UseInterceptors,
@@ -27,6 +31,12 @@ export class AgendaController {
   @Post()
   create(@Body() dto: CreateAgendaItemDto) {
     return this.agenda.create(dto)
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  remove(@Param('id', ParseUUIDPipe) id: string) {
+    return this.agenda.remove(id)
   }
 
   @Post('uploads')

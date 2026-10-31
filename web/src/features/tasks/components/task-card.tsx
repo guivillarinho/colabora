@@ -1,3 +1,4 @@
+import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -6,6 +7,7 @@ import { cn } from 'cn'
 import { pastelSwatches } from '@/components/pastel'
 
 import { CompleteTaskDialog } from './complete-task-dialog'
+import { TaskAttachmentIndicator } from './task-attachment-indicator'
 import { TaskFormDialog } from './task-form-dialog'
 import type { Task } from '../types/task'
 
@@ -25,7 +27,7 @@ type TaskCardProps = {
   task: Task
   onStart: () => void
   onComplete: (actualTime?: number) => Promise<void>
-  onDelete: () => void
+  onDelete: () => void | Promise<void>
 }
 
 export function TaskCard({
@@ -34,6 +36,7 @@ export function TaskCard({
   onComplete,
   onDelete,
 }: TaskCardProps) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [editing, setEditing] = useState(false)
   const [completing, setCompleting] = useState(false)
   const swatch =
@@ -44,7 +47,10 @@ export function TaskCard({
       className={cn('grid gap-3 rounded-xl border p-4', swatch.className)}
     >
       <div className="flex items-start justify-between gap-3">
-        <h2 className="text-xl font-semibold">{task.title}</h2>
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="text-xl font-semibold">{task.title}</h2>
+          <TaskAttachmentIndicator count={task.attachments.length} />
+        </div>
         <span className="rounded-full bg-background/70 px-2 py-1 text-xs font-medium text-foreground">
           {statusLabel[task.status]}
         </span>
@@ -84,10 +90,22 @@ export function TaskCard({
             Concluir
           </Button>
         ) : null}
-        <Button size="sm" type="button" variant="ghost" onClick={onDelete}>
+        <Button
+          size="sm"
+          type="button"
+          variant="destructive"
+          onClick={() => setConfirmingDelete(true)}
+        >
           Excluir
         </Button>
       </div>
+      <DeleteConfirmationDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        entity="tarefa"
+        name={task.title}
+        onConfirm={onDelete}
+      />
       <TaskFormDialog open={editing} task={task} onOpenChange={setEditing} />
       <CompleteTaskDialog
         open={completing}

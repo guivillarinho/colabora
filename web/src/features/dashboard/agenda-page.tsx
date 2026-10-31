@@ -1,3 +1,4 @@
+import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   ArrowLeft,
@@ -9,6 +10,7 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
+  Trash2,
 } from 'lucide-react'
 
 import { MutedText, PageTitle, SectionTitle } from '@/components/typography'
@@ -53,7 +55,7 @@ const icons = [
 ]
 
 export function AgendaPage() {
-  const { tasks, completeTask } = useTasks()
+  const { tasks, completeTask, removeTask } = useTasks()
   const [items, setItems] = useState<AgendaItem[]>([])
   const [selectedDay, setSelectedDay] = useState(startOfDay(new Date()))
   const [query, setQuery] = useState('')
@@ -387,10 +389,26 @@ export function AgendaPage() {
         onCreate={createItem}
       />
       <AgendaDetails
+        key={details ? `${details.type}-${details.id}` : 'closed'}
         item={details}
         onClose={() => setDetails(null)}
         onComplete={async (task) => {
           await completeTask(task.id)
+          setDetails(null)
+        }}
+        onDelete={async (item) => {
+          if (item.type === 'task') {
+            await removeTask(item.id)
+            setDetails(null)
+            return
+          }
+          const response = await fetch(`${apiBase}/agenda-items/${item.id}`, {
+            method: 'DELETE',
+          })
+          if (!response.ok) {
+            throw new Error('Não foi possível excluir. Tente novamente.')
+          }
+          setItems((current) => current.filter((entry) => entry.id !== item.id))
           setDetails(null)
         }}
       />
@@ -465,12 +483,21 @@ function AgendaDetails({
   item,
   onClose,
   onComplete,
+  onDelete,
 }: {
   item: NormalAgendaItem | null
   onClose: () => void
   onComplete: (task: Task) => Promise<void>
+  onDelete: (item: NormalAgendaItem) => Promise<void>
 }) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const task = item?.type === 'task' ? (item.task ?? null) : null
+  const entity =
+    item?.type === 'task'
+      ? 'tarefa'
+      : item?.type === 'event'
+        ? 'evento'
+        : 'projeto'
   return (
     <Dialog open={Boolean(item)} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-lg">
@@ -533,6 +560,22 @@ function AgendaDetails({
                 Concluir tarefa
               </Button>
             ) : null}
+            <Button
+              type="button"
+              variant="destructive"
+              className="w-full"
+              onClick={() => setConfirmingDelete(true)}
+            >
+              <Trash2 aria-hidden="true" />
+              Excluir {entity}
+            </Button>
+            <DeleteConfirmationDialog
+              open={confirmingDelete}
+              onOpenChange={setConfirmingDelete}
+              entity={entity}
+              name={item.title}
+              onConfirm={() => onDelete(item)}
+            />
           </div>
         ) : null}
       </DialogContent>

@@ -65,6 +65,76 @@ describe('AgendaPage', () => {
     ).toBeVisible()
   })
 
+  it.each(['event', 'project'])(
+    'deletes a %s only after confirmation',
+    async (type) => {
+      const user = userEvent.setup()
+      const fetchMock = globalThis.fetch as jest.Mock
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [
+            {
+              id: 'agenda-1',
+              title: 'Reunião de planejamento',
+              type,
+              startDate: dueDate,
+              endDate: dueDate,
+              description: null,
+              location: null,
+              attachments: [],
+              icon: null,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ ok: true })
+      render(
+        <TasksProvider>
+          <AgendaPage />
+        </TasksProvider>,
+      )
+      await user.click(
+        await screen.findByRole('button', { name: /Reunião de planejamento/ }),
+      )
+      await user.click(
+        screen.getByRole('button', {
+          name: type === 'event' ? 'Excluir evento' : 'Excluir projeto',
+        }),
+      )
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      await user.click(
+        screen.getByRole('button', { name: 'Confirmar exclusão' }),
+      )
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        expect.stringContaining('/agenda-items/agenda-1'),
+        { method: 'DELETE' },
+      )
+      expect(
+        screen.queryByRole('button', { name: /Reunião de planejamento/ }),
+      ).not.toBeInTheDocument()
+    },
+  )
+
+  it('deletes a task from the agenda after confirmation', async () => {
+    const user = userEvent.setup()
+    api.remove.mockResolvedValue(undefined)
+    render(
+      <TasksProvider>
+        <AgendaPage />
+      </TasksProvider>,
+    )
+    await user.click(
+      await screen.findByRole('button', { name: /Enviar proposta/ }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Excluir tarefa' }))
+    expect(api.remove).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
+    expect(api.remove).toHaveBeenCalledWith('task-1')
+    expect(
+      screen.queryByRole('button', { name: /Enviar proposta/ }),
+    ).not.toBeInTheDocument()
+  })
+
   it('searches task descriptions and opens item details', async () => {
     const user = userEvent.setup()
     render(

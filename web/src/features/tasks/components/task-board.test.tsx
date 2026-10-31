@@ -198,16 +198,10 @@ describe('App shell', () => {
     dispatchPointer(taskCard!, 'pointermove', 120)
     dispatchPointer(taskCard!, 'pointerup', 120)
 
-    const deleteButton = screen.getByRole('button', {
-      name: 'Excluir tarefa Revisar orçamento',
-    })
-    const trashIcon = deleteButton.querySelector('svg')
-    expect(trashIcon).not.toBeNull()
-    await user.click(trashIcon!)
     expect(screen.getByText(/Tem certeza de que deseja excluir/)).toBeVisible()
     expect(api.remove).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: 'Excluir tarefa' }))
+    await user.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
     expect(api.remove).toHaveBeenCalledWith('task-1')
   })
 })

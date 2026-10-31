@@ -2,13 +2,7 @@ import { Paperclip, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
 import { Label } from '@/components/ui/label'
 import { cn } from 'cn'
 
@@ -124,7 +118,7 @@ export function AttachmentField({
             aria-label="Excluir anexo"
             size="icon"
             type="button"
-            variant="ghost"
+            variant="destructive"
             onClick={() => {
               setConfirming(true)
             }}
@@ -154,35 +148,13 @@ export function AttachmentField({
         <Paperclip />
         Escolher arquivo
       </Button>
-      <Dialog open={confirming} onOpenChange={setConfirming}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Excluir anexo?</DialogTitle>
-            <DialogDescription>
-              Tem certeza de que deseja excluir este arquivo?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-2">
-            <Button
-              className="bg-pastel-red text-pastel-red-foreground hover:bg-pastel-red/80"
-              type="button"
-              onClick={removeFile}
-            >
-              Excluir
-            </Button>
-            <Button
-              className="border border-black bg-white text-black hover:bg-neutral-100"
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setConfirming(false)
-              }}
-            >
-              Cancelar
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <DeleteConfirmationDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        entity="anexo"
+        name={name}
+        onConfirm={removeFile}
+      />
     </div>
   )
 }

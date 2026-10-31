@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 
@@ -14,6 +14,13 @@ export class AgendaService {
 
   findAll(): Promise<AgendaItem[]> {
     return this.items.find({ order: { startDate: 'ASC' } })
+  }
+
+  async remove(id: string): Promise<void> {
+    const result = await this.items.delete(id)
+    if (!result.affected) {
+      throw new NotFoundException('Evento ou projeto não encontrado.')
+    }
   }
 
   create(dto: CreateAgendaItemDto): Promise<AgendaItem> {
