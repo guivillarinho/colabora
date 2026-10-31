@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/dialog'
 import { useTasks } from '@/features/tasks/tasks-context'
 import { LocationField } from '@/features/tasks/components/location-field'
+import { uploadAgendaFiles } from './upload-agenda-files'
 import type { Task } from '@/features/tasks/types/task'
 
 type AgendaKind = 'event' | 'project' | 'task'
@@ -759,23 +760,10 @@ function AgendaCreateDialog({
                   10,
                 )
                 if (!selected.length) return
-                const formData = new FormData()
-                selected.forEach((file) => formData.append('files', file))
                 setUploading(true)
                 setError('')
                 try {
-                  const response = await fetch(
-                    `${apiBase}/agenda-items/uploads`,
-                    { method: 'POST', body: formData },
-                  )
-                  if (!response.ok)
-                    throw new Error(
-                      'Não foi possível enviar os documentos. Limite: 10 MB por arquivo.',
-                    )
-                  const uploaded = (await response.json()) as Array<{
-                    name: string
-                    url: string
-                  }>
+                  const uploaded = await uploadAgendaFiles(selected)
                   setFiles((current) =>
                     [
                       ...current,

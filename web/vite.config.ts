@@ -15,6 +15,9 @@ export default defineConfig({
     'process.env.VITE_USER_AVATAR_URL': JSON.stringify(
       process.env.VITE_USER_AVATAR_URL ?? '',
     ),
+    'process.env.VITE_CLOUD_UPLOADS': JSON.stringify(
+      process.env.VITE_CLOUD_UPLOADS ?? 'false',
+    ),
   },
   resolve: {
     alias: {

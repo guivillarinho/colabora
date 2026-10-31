@@ -24,3 +24,5 @@ A interface sobe em `http://localhost:5173` e a API em `http://localhost:3000`. 
 Na raiz: `npm run dev:web`, `npm run dev:api`, `npm run build`, `npm run lint`, `npm run test` e `npm run format`.
 
 O relato de como o projeto foi construído está em [docs/processo.md](docs/processo.md).
+
+As configurações e os requisitos de produção estão em [docs/hospedagem.md](docs/hospedagem.md).

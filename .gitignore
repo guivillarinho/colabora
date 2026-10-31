@@ -9,3 +9,7 @@ coverage
 .idea
 *.tsbuildinfo
 .husky/_
+api/uploads/
+.vercel/
+.env*
+!.env.example
