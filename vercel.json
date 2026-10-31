@@ -1,6 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null,
-  "installCommand": "npm ci --ignore-scripts --include=dev && npm --prefix web ci --include=dev && npm --prefix api ci --include=dev",
-  "buildCommand": "npm run build:vercel"
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "zeroConfig": true,
+        "installCommand": "npm ci --ignore-scripts --include=dev && npm --prefix web ci --include=dev && npm --prefix api ci --include=dev",
+        "buildCommand": "npm run build:vercel"
+      }
+    }
+  ]
 }

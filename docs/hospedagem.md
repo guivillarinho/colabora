@@ -13,6 +13,10 @@ configurar CORS entre front e API nem expor credenciais no JavaScript do navegad
 - Instalação e build: definidos no `vercel.json`.
 - Pacote gerado: `.vercel/output`, seguindo a Build Output API da Vercel.
 
+O `vercel.json` seleciona explicitamente o builder do `package.json`. Isso impede
+que a pasta de código-fonte `api` seja interpretada como dezenas de funções
+independentes. O pacote final contém apenas uma função para a API completa.
+
 Cada push na `main` dispara uma publicação. O endereço principal permanece o
 mesmo. Páginas que já estavam abertas podem precisar ser recarregadas para usar
 a nova versão. Alterações apenas no computador não atualizam o site publicado.
