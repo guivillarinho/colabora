@@ -66,6 +66,12 @@ module.exports = async function handler(req, res) {
     initialization ||= createApplication().then(async app => { await app.init(); return app.getHttpAdapter().getInstance(); }).catch(error => { initialization = undefined; throw error; });
     const server = await initialization;
     server(req, res);
+    // Keep the Vercel invocation alive until Express has finished streaming the response.
+    await new Promise(resolve => {
+      if (res.writableEnded) return resolve();
+      res.once('finish', resolve);
+      res.once('close', resolve);
+    });
   } catch {
     res.statusCode = 503;
     res.setHeader('Content-Type', 'application/json');
