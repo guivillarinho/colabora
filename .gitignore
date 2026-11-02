@@ -13,3 +13,4 @@ api/uploads/
 .vercel/
 .env*
 !.env.example
+.neon
