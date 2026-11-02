@@ -22,6 +22,7 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>
   register: (name: string, email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  clearLocalSession?: () => void
 }
 export const AuthContext = createContext<AuthContextValue | null>(null)
 
@@ -116,9 +117,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     channel.current?.postMessage('changed')
   }
 
+  function clearLocalSession() {
+    generation.current += 1
+    clearHttpSession()
+    setUser(null)
+    setExpired(false)
+    channel.current?.postMessage('changed')
+  }
+
   return (
     <AuthContext.Provider
-      value={{ user, checking, expired, login, register, logout }}
+      value={{
+        user,
+        checking,
+        expired,
+        login,
+        register,
+        logout,
+        clearLocalSession,
+      }}
     >
       {children}
     </AuthContext.Provider>

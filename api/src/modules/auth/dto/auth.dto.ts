@@ -24,6 +24,33 @@ export class RegisterDto extends LoginDto {
   name: string
 
   @IsString()
-  @Length(12, 128)
+  @Length(6, 128)
+  @Matches(/(?=.*\p{Lu})(?=.*\p{Ll})(?=.*\d)(?=.*[^\p{L}\p{N}\s])/u, {
+    message:
+      'Use letras maiúsculas e minúsculas, um número e um caractere especial.',
+  })
   declare password: string
+}
+
+export class PasswordResetRequestDto {
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsEmail()
+  @MaxLength(254)
+  email: string
+}
+
+export class PasswordResetDto {
+  @IsString()
+  @Length(43, 128)
+  token: string
+
+  @IsString()
+  @Length(6, 128)
+  @Matches(/(?=.*\p{Lu})(?=.*\p{Ll})(?=.*\d)(?=.*[^\p{L}\p{N}\s])/u, {
+    message:
+      'Use letras maiúsculas e minúsculas, um número e um caractere especial.',
+  })
+  password: string
 }

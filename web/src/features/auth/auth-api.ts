@@ -16,6 +16,18 @@ export const authApi = {
       { method: 'POST', body: JSON.stringify({ name, email, password }) },
       false,
     ),
+  requestPasswordReset: (email: string) =>
+    apiRequest<{ message: string }>(
+      '/auth/password-reset/request',
+      { method: 'POST', body: JSON.stringify({ email }) },
+      false,
+    ),
+  resetPassword: (token: string, password: string) =>
+    apiRequest<void>(
+      '/auth/password-reset/complete',
+      { method: 'POST', body: JSON.stringify({ token, password }) },
+      false,
+    ),
   logout: async () => {
     if (
       typeof navigator !== 'undefined' &&

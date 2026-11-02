@@ -6,6 +6,7 @@ import { useAuth } from './auth-context'
 
 export function AuthGate() {
   const { user, checking } = useAuth()
+  const isPasswordReset = window.location.pathname === '/redefinir-senha'
   useEffect(() => {
     if (user && ['/entrar', '/cadastro'].includes(window.location.pathname))
       window.history.replaceState(null, '', '/hoje')
@@ -16,7 +17,7 @@ export function AuthGate() {
         <p role="status">Verificando sua sessão...</p>
       </main>
     )
-  if (!user) return <AuthPage />
+  if (!user || isPasswordReset) return <AuthPage />
   return (
     <TasksProvider key={user.id}>
       <App />

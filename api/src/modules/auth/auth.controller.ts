@@ -4,7 +4,12 @@ import { randomBytes } from 'node:crypto'
 import type { Request, Response } from 'express'
 import { AuthService } from './auth.service'
 import { CurrentUser, Public } from './auth.decorators'
-import { LoginDto, RegisterDto } from './dto/auth.dto'
+import {
+  LoginDto,
+  PasswordResetDto,
+  PasswordResetRequestDto,
+  RegisterDto,
+} from './dto/auth.dto'
 import { sessionSettings } from './session-settings'
 import type { Identity } from './entities/user.entity'
 import type { SessionResponse } from './auth.types'
@@ -54,6 +59,44 @@ export class AuthController {
       await this.auth.login(dto, request.ip ?? 'unknown'),
       request,
     )
+  }
+
+  @Public()
+  @Post('password-reset/request')
+  @HttpCode(202)
+  async requestPasswordReset(
+    @Body() dto: PasswordResetRequestDto,
+    @Req() request: Request,
+  ): Promise<{ message: string }> {
+    await this.auth.requestPasswordReset(dto, request.ip ?? 'unknown')
+    return {
+      message:
+        'Se o e-mail estiver cadastrado, enviaremos um link de recuperação.',
+    }
+  }
+
+  @Public()
+  @Post('password-reset/complete')
+  @HttpCode(204)
+  async completePasswordReset(
+    @Body() dto: PasswordResetDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.auth.resetPassword(dto, request.ip ?? 'unknown')
+    if (!request.user) return
+
+    await this.auth.revokeSession(request.sessionID)
+    await new Promise<void>((resolve, reject) =>
+      request.session.destroy((error) => (error ? reject(error) : resolve())),
+    )
+    const settings = sessionSettings(this.config)
+    response.clearCookie(settings.name, {
+      path: '/',
+      httpOnly: true,
+      secure: settings.secure,
+      sameSite: 'lax',
+    })
   }
 
   @Get('me')

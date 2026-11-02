@@ -30,26 +30,45 @@ Conectar ao projeto, pelo painel Storage da Vercel:
 
 Variáveis utilizadas no servidor:
 
-| Variável                | Uso                                                         |
-| ----------------------- | ----------------------------------------------------------- |
-| `DATABASE_URL`          | Conexão PostgreSQL; fornecida pela integração               |
-| `DATABASE_URL_UNPOOLED` | Conexão direta para migrações, quando fornecida pelo Neon   |
-| `DB_SSL`                | `true` se o provedor exigir TLS; certificados são validados |
-| `DB_POOL_SIZE`          | Máximo de conexões por instância; padrão `5`                |
-| `BLOB_READ_WRITE_TOKEN` | Acesso ao armazenamento privado; somente no servidor        |
-| `NODE_ENV`              | `production`                                                |
-| `SESSION_SECRET`         | Segredo aleatório de pelo menos 32 caracteres, apenas no servidor |
-| `SESSION_IDLE_MINUTES`   | Inatividade máxima; padrão `30` |
-| `SESSION_ABSOLUTE_HOURS` | Duração máxima da sessão; padrão `168` |
-| `WEB_ORIGIN`             | Origem HTTPS exata, se houver front em outra origem; nunca `*` |
-| `VAPID_PUBLIC_KEY`       | Chave pública usada pelo navegador para registrar o push |
-| `VAPID_PRIVATE_KEY`      | Chave privada Web Push, somente no servidor |
-| `VAPID_SUBJECT`          | Contato VAPID no formato `mailto:` |
-| `REMINDER_DISPATCH_SECRET` | Segredo compartilhado entre a API Vercel e a função agendada Neon |
+| Variável                    | Uso                                                                        |
+| --------------------------- | -------------------------------------------------------------------------- |
+| `DATABASE_URL`              | Conexão PostgreSQL; fornecida pela integração                              |
+| `DATABASE_URL_UNPOOLED`     | Conexão direta para migrações, quando fornecida pelo Neon                  |
+| `DB_SSL`                    | `true` se o provedor exigir TLS; certificados são validados                |
+| `DB_POOL_SIZE`              | Máximo de conexões por instância; padrão `5`                               |
+| `BLOB_READ_WRITE_TOKEN`     | Acesso ao armazenamento privado; somente no servidor                       |
+| `NODE_ENV`                  | `production`                                                               |
+| `SESSION_SECRET`            | Segredo aleatório de pelo menos 32 caracteres, apenas no servidor          |
+| `SESSION_IDLE_MINUTES`      | Inatividade máxima; padrão `30`                                            |
+| `SESSION_ABSOLUTE_HOURS`    | Duração máxima da sessão; padrão `168`                                     |
+| `WEB_ORIGIN`                | Origem HTTPS exata, se houver front em outra origem; nunca `*`             |
+| `VAPID_PUBLIC_KEY`          | Chave pública usada pelo navegador para registrar o push                   |
+| `VAPID_PRIVATE_KEY`         | Chave privada Web Push, somente no servidor                                |
+| `VAPID_SUBJECT`             | Contato VAPID no formato `mailto:`                                         |
+| `REMINDER_DISPATCH_SECRET`  | Segredo compartilhado entre a API Vercel e a função agendada Neon          |
+| `BREVO_API_KEY`             | Chave da API Brevo para enviar e-mails de recuperação; somente no servidor |
+| `PASSWORD_RESET_FROM_EMAIL` | Remetente verificado no Brevo                                              |
+| `PASSWORD_RESET_FROM_NAME`  | Nome do remetente; padrão `Colabora`                                       |
+| `PUBLIC_APP_URL`            | Origem HTTPS usada nos links de redefinição                                |
 
 O build usa `VITE_API_URL` vazio para acessar a API no mesmo domínio e habilita
 `VITE_CLOUD_UPLOADS`. Não colocar senhas, tokens ou a conexão do banco em variáveis
 `VITE_*`.
+
+### Recuperação de senha
+
+O cadastro exige senha com pelo menos 6 caracteres, incluindo letra maiúscula,
+minúscula, número e caractere especial. A tela de login permite mostrar/ocultar
+a senha e solicitar um link de recuperação. O link expira em 30 minutos, só pode
+ser usado uma vez, e a troca encerra as sessões existentes da conta.
+
+Para enviar os links, configure uma conta Brevo no plano gratuito, crie e valide
+um remetente e cadastre `BREVO_API_KEY`, `PASSWORD_RESET_FROM_EMAIL` e
+`PUBLIC_APP_URL=https://colabora-rouge.vercel.app` nas variáveis de produção da
+Vercel. A conta gratuita permite 300 envios por dia. O Brevo permite verificar
+um endereço remetente por código de e-mail; autenticar um domínio próprio melhora
+a entrega. Sem chave e remetente configurados, a API retorna indisponibilidade
+para a tela de recuperação e não consulta a existência da conta.
 
 ### Push e lembretes
 

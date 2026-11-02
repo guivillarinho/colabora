@@ -44,7 +44,6 @@ Data: 1 de novembro de 2026. Repositório limpo no início.
 - https://github.com/ranisalt/node-argon2
 - https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html
 
-
 ## B. Alterações realizadas
 
 ### Backend
@@ -86,12 +85,12 @@ Atualizações compatíveis dos lockfiles e overrides corrigem os avisos altos d
 
 ### Permissões
 
-| Recurso/ação | Criador da tarefa | Responsável | Terceiro |
-| --- | --- | --- | --- |
-| Listar e ler tarefa | Sim | Sim | 404 / ausente da lista |
-| Editar, atribuir e excluir | Sim | 403 | 404 |
-| Iniciar, alterar status e concluir | Sim | Sim | 404 |
-| Ler anexo vinculado | Sim | Enquanto tiver acesso à tarefa | 404 |
+| Recurso/ação                       | Criador da tarefa | Responsável                    | Terceiro               |
+| ---------------------------------- | ----------------- | ------------------------------ | ---------------------- |
+| Listar e ler tarefa                | Sim               | Sim                            | 404 / ausente da lista |
+| Editar, atribuir e excluir         | Sim               | 403                            | 404                    |
+| Iniciar, alterar status e concluir | Sim               | Sim                            | 404                    |
+| Ler anexo vinculado                | Sim               | Enquanto tiver acesso à tarefa | 404                    |
 
 Agenda e foco são privados por dono. E-mail somente aparece no perfil da própria conta. Busca de responsáveis exige 3–254 caracteres, retorna até 10 nomes/IDs e limita 30 consultas/minuto/usuário; e-mail só é comparado por igualdade. Os campos de propriedade nunca são aceitos do cliente.
 
@@ -114,17 +113,17 @@ Cadastro sem verificação de e-mail não comprova titularidade. A busca de resp
 
 Resultados finais em ambiente local, com fixtures e banco exclusivos. Nenhuma suíte foi executada contra produção ou contra registros pessoais.
 
-| Categoria | Comando (a partir da raiz, salvo indicação) | Resultado |
-| --- | --- | --- |
-| Lint front/API | `npm run lint` | Passou; sem desativar regras |
-| Tipos front | `npm --prefix web run build` (`tsc -b`) | Passou |
-| Tipos completos API, incluindo testes | na pasta api: `node node_modules/typescript/bin/tsc --noEmit` | Passou |
-| Testes de interface/HTTP client | `npm --prefix web run test -- --runInBand` | 44 testes, 10 suítes, zero falhas |
-| Unitários da API | `npm --prefix api run test -- --runInBand` | 23 testes, 6 suítes, zero falhas |
-| Integração/E2E com PostgreSQL | `npm --prefix api run test:e2e -- --runInBand` | 24 testes, 1 suíte, zero falhas |
-| Build front/API | builds individuais e `npm run build:vercel` | Passaram |
-| CommonJS e módulo nativo Argon2 | Node com `--no-experimental-require-module`, require do bootstrap, hash + verify | Passou no Node local 26.13.0 |
-| Espaços/conflitos | `git diff --check` | Passou |
+| Categoria                             | Comando (a partir da raiz, salvo indicação)                                      | Resultado                         |
+| ------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------- |
+| Lint front/API                        | `npm run lint`                                                                   | Passou; sem desativar regras      |
+| Tipos front                           | `npm --prefix web run build` (`tsc -b`)                                          | Passou                            |
+| Tipos completos API, incluindo testes | na pasta api: `node node_modules/typescript/bin/tsc --noEmit`                    | Passou                            |
+| Testes de interface/HTTP client       | `npm --prefix web run test -- --runInBand`                                       | 44 testes, 10 suítes, zero falhas |
+| Unitários da API                      | `npm --prefix api run test -- --runInBand`                                       | 23 testes, 6 suítes, zero falhas  |
+| Integração/E2E com PostgreSQL         | `npm --prefix api run test:e2e -- --runInBand`                                   | 24 testes, 1 suíte, zero falhas   |
+| Build front/API                       | builds individuais e `npm run build:vercel`                                      | Passaram                          |
+| CommonJS e módulo nativo Argon2       | Node com `--no-experimental-require-module`, require do bootstrap, hash + verify | Passou no Node local 26.13.0      |
+| Espaços/conflitos                     | `git diff --check`                                                               | Passou                            |
 
 Total: **91 testes aprovados**, sem skips ou regras de segurança desativadas. O empacotamento gera uma função de API e front estático; não equivale a teste de deployment Linux/Node 24 nem a publicação na Vercel.
 
@@ -148,13 +147,13 @@ A suíte usa PostgreSQL 17 na porta 55432, aceita apenas host local e banco `col
 
 Comandos executados em raiz, api e web: `npm audit --json`; também `npm audit --omit=dev --json` nos dois pacotes. npm audit encerra com status não zero quando há alertas; isso não foi tratado como uma auditoria limpa.
 
-| Escopo final | Baixos | Moderados | Altos | Críticos |
-| --- | --- | --- | --- | --- |
-| Raiz | 0 | 0 | 0 | 0 |
-| API completa | 3 | 43 | 0 | 0 |
-| Front completo | 4 | 42 | 0 | 0 |
-| API, omitindo dev | 0 | 3 | 0 | 0 |
-| Front, omitindo dev | 2 | 4 | 0 | 0 |
+| Escopo final        | Baixos | Moderados | Altos | Críticos |
+| ------------------- | ------ | --------- | ----- | -------- |
+| Raiz                | 0      | 0         | 0     | 0        |
+| API completa        | 3      | 43        | 0     | 0        |
+| Front completo      | 4      | 42        | 0     | 0        |
+| API, omitindo dev   | 0      | 3         | 0     | 0        |
+| Front, omitindo dev | 2      | 4         | 0     | 0        |
 
 Os números contam pacotes afetados na árvore, não vulnerabilidades independentes. Inicialmente havia 13 alertas altos na API e 11 no front.
 
@@ -170,23 +169,23 @@ Copiar exemplos de ambiente apenas se ainda não existirem (não sobrescrever `.
 
 Manter PostgreSQL e executar `npm run dev:api` / `npm run dev:web`. A API aplica as migrações pendentes ao iniciar localmente. Front/API locais devem usar o mesmo hostname (`localhost` nos exemplos); HTTP com cookie de produção não é suportado.
 
-| Variável do servidor | Padrão / finalidade |
-| --- | --- |
-| `SESSION_SECRET` | Obrigatória, segredo aleatório, somente servidor |
-| `SESSION_IDLE_MINUTES` | 30; aceita 1 a 1440 minutos |
-| `SESSION_ABSOLUTE_HOURS` | 168; pelo menos idle, até 720 horas |
-| `AUTH_LOGIN_LIMIT` | 10 por e-mail a cada 15 minutos |
-| `AUTH_IP_LIMIT` | 30 logins/IP a cada 15 minutos |
-| `AUTH_REGISTER_LIMIT` | 10 cadastros/IP a cada 15 minutos |
-| `AUTH_CSRF_LIMIT` | 60 preparações de sessão/IP/minuto |
-| `WEB_ORIGIN` | Origem exata do front para requests com credenciais e CSRF |
-| `DATABASE_URL` ou `DB_HOST/PORT/USER/PASSWORD/NAME` | PostgreSQL existente |
-| `DATABASE_URL_UNPOOLED` | Conexão direta opcional para migrações/vinculação |
-| `DB_SSL` | `true` com validação de certificado quando exigido pelo provedor |
-| `DB_POOL_SIZE` | 5 para ORM; store de sessão usa mais 2 conexões por instância |
-| `DB_SCHEMA` | `public`; schema validado para isolamento local dos testes |
-| `BLOB_READ_WRITE_TOKEN` | Somente servidor, armazenamento privado na Vercel |
-| `UPLOADS_DIRECTORY` | Pasta privada local para anexos fora da Vercel |
+| Variável do servidor                                | Padrão / finalidade                                              |
+| --------------------------------------------------- | ---------------------------------------------------------------- |
+| `SESSION_SECRET`                                    | Obrigatória, segredo aleatório, somente servidor                 |
+| `SESSION_IDLE_MINUTES`                              | 30; aceita 1 a 1440 minutos                                      |
+| `SESSION_ABSOLUTE_HOURS`                            | 168; pelo menos idle, até 720 horas                              |
+| `AUTH_LOGIN_LIMIT`                                  | 10 por e-mail a cada 15 minutos                                  |
+| `AUTH_IP_LIMIT`                                     | 30 logins/IP a cada 15 minutos                                   |
+| `AUTH_REGISTER_LIMIT`                               | 10 cadastros/IP a cada 15 minutos                                |
+| `AUTH_CSRF_LIMIT`                                   | 60 preparações de sessão/IP/minuto                               |
+| `WEB_ORIGIN`                                        | Origem exata do front para requests com credenciais e CSRF       |
+| `DATABASE_URL` ou `DB_HOST/PORT/USER/PASSWORD/NAME` | PostgreSQL existente                                             |
+| `DATABASE_URL_UNPOOLED`                             | Conexão direta opcional para migrações/vinculação                |
+| `DB_SSL`                                            | `true` com validação de certificado quando exigido pelo provedor |
+| `DB_POOL_SIZE`                                      | 5 para ORM; store de sessão usa mais 2 conexões por instância    |
+| `DB_SCHEMA`                                         | `public`; schema validado para isolamento local dos testes       |
+| `BLOB_READ_WRITE_TOKEN`                             | Somente servidor, armazenamento privado na Vercel                |
+| `UPLOADS_DIRECTORY`                                 | Pasta privada local para anexos fora da Vercel                   |
 
 As variáveis `VITE_*` não podem conter senhas/chaves. O build Vercel fixa API na mesma origem (`/api`) e habilita upload direto privado. A sessão não usa token Bearer persistido no navegador. CORS não substitui autenticação.
 
@@ -202,7 +201,7 @@ Não são necessários serviços pagos novos: usa PostgreSQL, Vercel e Blob já 
 
 1. **Código implementado e validado localmente; sem commit/push/deploy desta etapa.** A versão de produção ainda depende de configurar o segredo, publicar e validar HTTPS real. O teste local de proxy não é prova de comportamento da infraestrutura publicada.
 2. **Dados antigos preservados e não vinculados em produção.** Falta a conta real de destino e a conferência administrativa do ID para executar a vinculação solicitada. Não foram apagados nem alterados dados reais para testes.
-3. **Recuperação de senha e verificação de e-mail pendentes:** não existe infraestrutura de envio. Não foram criados endpoints/tokens ou telas incompletos. Não é seguro oferecer recuperação fictícia; até configurar envio, manter acesso pessoal protegido.
+3. **Atualização de 2 de novembro de 2026 — recuperação de senha:** as telas, endpoints e tokens de uso único foram implementados. O envio depende de configurar `BREVO_API_KEY` e um remetente verificado nas variáveis de produção; sem isso, a solicitação retorna indisponibilidade e não consulta a existência da conta. A verificação de e-mail no cadastro continua fora do escopo.
 4. **Dependências baixas/moderadas:** conforme auditoria; atualização major do ORM e manutenção da cadeia de ferramentas exigem trabalho separado. Não há alerta alto/crítico na auditoria final.
 5. **Teste manual pós-publicação:** confirmar login/logout, permanência nos dispositivos reais, cota Blob e acesso aos anexos históricos. Arquivos locais não são enviados automaticamente para a nuvem. O pacote foi construído localmente, sem comprovar runtime Linux/Node 24 na Vercel.
 

@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm'
 import { InitialSchema1793448000000 } from './migrations/1793448000000-initial-schema'
 import { UserSecurity1793534400000 } from './migrations/1793534400000-user-security'
 import { PushNotifications1793620800000 } from './migrations/1793620800000-push-notifications'
+import { PasswordReset1793707200000 } from './migrations/1793707200000-password-reset'
 import { databaseSchema } from './schema'
 
 @Module({
@@ -33,6 +34,7 @@ import { databaseSchema } from './schema'
           InitialSchema1793448000000,
           UserSecurity1793534400000,
           PushNotifications1793620800000,
+          PasswordReset1793707200000,
         ],
         migrationsRun: !process.env.VERCEL,
       }),
