@@ -39,7 +39,7 @@ describe('FocusSessionsService', () => {
   it('starts a named focus session when no other session is active', async () => {
     repository.findOne.mockResolvedValue(null)
 
-    const result = await service.start({ title: 'Escrever proposta' })
+    const result = await service.start({ title: 'Escrever proposta' }, 'owner')
 
     expect(result.title).toBe('Escrever proposta')
     expect(result.startedAt).toBeInstanceOf(Date)
@@ -49,7 +49,7 @@ describe('FocusSessionsService', () => {
   it('uses a default title when the session name is empty', async () => {
     repository.findOne.mockResolvedValue(null)
 
-    const result = await service.start({ title: '  ' })
+    const result = await service.start({ title: '  ' }, 'owner')
 
     expect(result.title).toBe('Foco livre')
   })
@@ -57,7 +57,9 @@ describe('FocusSessionsService', () => {
   it('prevents starting a second active session', async () => {
     repository.findOne.mockResolvedValue({ id: sessionId })
 
-    await expect(service.start({})).rejects.toBeInstanceOf(ConflictException)
+    await expect(service.start({}, 'owner')).rejects.toBeInstanceOf(
+      ConflictException,
+    )
     expect(repository.save).not.toHaveBeenCalled()
   })
 
@@ -69,7 +71,7 @@ describe('FocusSessionsService', () => {
       endedAt: null,
     })
 
-    const result = await service.finish(sessionId)
+    const result = await service.finish(sessionId, 'owner')
 
     expect(result.endedAt).toBeInstanceOf(Date)
   })
@@ -81,7 +83,7 @@ describe('FocusSessionsService', () => {
       endedAt,
     })
 
-    const result = await service.finish(sessionId)
+    const result = await service.finish(sessionId, 'owner')
 
     expect(result.endedAt).toBe(endedAt)
     expect(repository.save).not.toHaveBeenCalled()
@@ -90,7 +92,7 @@ describe('FocusSessionsService', () => {
   it('returns not found when finishing an unknown session', async () => {
     repository.findOneBy.mockResolvedValue(null)
 
-    await expect(service.finish(sessionId)).rejects.toBeInstanceOf(
+    await expect(service.finish(sessionId, 'owner')).rejects.toBeInstanceOf(
       NotFoundException,
     )
   })

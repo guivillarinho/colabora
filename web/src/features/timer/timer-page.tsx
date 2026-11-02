@@ -22,9 +22,10 @@ export function TimerPage() {
 
   useEffect(() => {
     let mounted = true
+    const controller = new AbortController()
 
     focusSessionsApi
-      .list()
+      .list(controller.signal)
       .then((data) => {
         if (mounted) {
           setSessions(data)
@@ -43,6 +44,7 @@ export function TimerPage() {
 
     return () => {
       mounted = false
+      controller.abort()
     }
   }, [])
 
@@ -57,7 +59,7 @@ export function TimerPage() {
 
     const interval = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(interval)
-  }, [activeSession?.id])
+  }, [activeSession])
 
   async function handleStart(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -167,7 +169,9 @@ export function TimerPage() {
                   onSubmit={handleStart}
                 >
                   <div className="grid gap-2 text-left">
-                    <Label htmlFor="focus-session-title">No que vai focar?</Label>
+                    <Label htmlFor="focus-session-title">
+                      No que vai focar?
+                    </Label>
                     <Input
                       autoComplete="off"
                       id="focus-session-title"
@@ -195,21 +199,21 @@ export function TimerPage() {
           aria-label="Resumo do foco"
           className="order-2 grid gap-3 sm:grid-cols-3"
         >
-        <StatCard
-          icon={<Check aria-hidden="true" className="size-4" />}
-          label="Sessões de hoje"
-          value={String(stats.sessionsToday)}
-        />
-        <StatCard
-          icon={<Clock3 aria-hidden="true" className="size-4" />}
-          label="Foco hoje"
-          value={formatMinutes(stats.todayMinutes)}
-        />
-        <StatCard
-          icon={<Timer aria-hidden="true" className="size-4" />}
-          label="Tempo total"
-          value={formatMinutes(stats.totalMinutes)}
-        />
+          <StatCard
+            icon={<Check aria-hidden="true" className="size-4" />}
+            label="Sessões de hoje"
+            value={String(stats.sessionsToday)}
+          />
+          <StatCard
+            icon={<Clock3 aria-hidden="true" className="size-4" />}
+            label="Foco hoje"
+            value={formatMinutes(stats.todayMinutes)}
+          />
+          <StatCard
+            icon={<Timer aria-hidden="true" className="size-4" />}
+            label="Tempo total"
+            value={formatMinutes(stats.totalMinutes)}
+          />
         </section>
       </div>
 

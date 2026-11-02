@@ -20,8 +20,16 @@ run("npm", ["run", "build"], path.join(root, "web"), {
 });
 run("npm", ["run", "build"], path.join(root, "api"));
 if (process.env.VERCEL) {
+  if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32)
+    throw new Error("Configure SESSION_SECRET aleatório antes de publicar autenticação.");
   if (!process.env.BLOB_READ_WRITE_TOKEN)
     throw new Error("Conecte um armazenamento Blob privado antes de publicar.");
+  if (
+    !process.env.VAPID_PUBLIC_KEY ||
+    !process.env.VAPID_PRIVATE_KEY ||
+    !process.env.REMINDER_DISPATCH_SECRET
+  )
+    throw new Error("Configure chaves VAPID e REMINDER_DISPATCH_SECRET para notificações push.");
   run("node", ["dist/database/migrate.js"], path.join(root, "api"));
 }
 await rm(output, { recursive: true, force: true });
@@ -83,7 +91,17 @@ await writeFile(
     version: 3,
     routes: [
       {
-        src: "/(health|tasks|agenda-items|focus-sessions|uploads)(/.*)?",
+        src: "/.*",
+        headers: {
+          "X-Content-Type-Options": "nosniff",
+          "Referrer-Policy": "strict-origin-when-cross-origin",
+          "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+          "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://nominatim.openstreetmap.org https://blob.vercel-storage.com https://*.blob.vercel-storage.com; frame-src https://www.openstreetmap.org; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        },
+        continue: true,
+      },
+      {
+        src: "/(health|api)(/.*)?",
         dest: "/server",
         headers: { "Cache-Control": "private, no-store" },
       },

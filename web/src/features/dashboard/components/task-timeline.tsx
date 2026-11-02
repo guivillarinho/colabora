@@ -1,8 +1,8 @@
+import { TaskPeople } from '@/features/tasks/components/task-people'
 import { useRef, useState, type PointerEvent } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
-  CheckIcon,
   CircleCheck,
   MapPin,
   Trash2,
@@ -46,7 +46,10 @@ export function TaskTimeline({
       return true
     }
   })
-  const ordered = sortTasks(tasks, 'dueDate')
+  const ordered = sortTasks(
+    tasks.filter((task) => task.status !== 'completed'),
+    'dueDate',
+  )
   const visibleTasks = preview ? ordered.slice(0, previewLimit) : ordered
   const remaining = ordered.length - visibleTasks.length
 
@@ -104,7 +107,9 @@ export function TaskTimeline({
       ) : null}
       {ordered.length === 0 ? (
         <MutedText>
-          Nada agendado. As tarefas com data e hora aparecem aqui.
+          {tasks.some((task) => task.status === 'completed')
+            ? 'Nenhuma tarefa pendente.'
+            : 'Nada agendado. As tarefas com data e hora aparecem aqui.'}
         </MutedText>
       ) : (
         <ol className="grid gap-3">
@@ -151,6 +156,8 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
     : 'Sem horário'
   const isCompleted = task.status === 'completed'
   const revealProgress = Math.abs(offset) / 96
+  const canDelete = task.permissions.delete
+  const canComplete = task.permissions.changeStatus && !isCompleted
   const completingSwipe = offset > 0
   const swipeColor = completingSwipe ? '#bbf7d0' : 'var(--pastel-red)'
   const swipeTransition = dragging
@@ -158,7 +165,10 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
     : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1), background-color 320ms ease, border-color 320ms ease, border-radius 320ms cubic-bezier(0.22, 1, 0.36, 1)'
 
   function updateOffset(value: number) {
-    const next = Math.max(-96, Math.min(isCompleted ? 0 : 96, value))
+    const next = Math.max(
+      canDelete ? -96 : 0,
+      Math.min(canComplete ? 96 : 0, value),
+    )
     currentOffset.current = next
     setOffset(next)
   }
@@ -195,10 +205,10 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
       updateOffset(0)
       return
     }
-    if (currentOffset.current >= 48 && !isCompleted) {
+    if (currentOffset.current >= 48 && canComplete) {
       updateOffset(96)
       setCompleting(true)
-    } else if (currentOffset.current <= -48) {
+    } else if (currentOffset.current <= -48 && canDelete) {
       updateOffset(-96)
       setConfirmingDelete(true)
     } else {
@@ -218,7 +228,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
       onPointerUp={finishPointerDrag}
       onPointerCancel={finishPointerDrag}
     >
-      {!isCompleted ? (
+      {canComplete ? (
         <button
           aria-label={`Concluir tarefa ${task.title}`}
           aria-hidden={offset <= 0}
@@ -230,27 +240,29 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           <CircleCheck aria-hidden="true" className="size-6" />
         </button>
       ) : null}
-      <button
-        aria-label={`Excluir tarefa ${task.title}`}
-        aria-hidden={offset >= 0}
-        tabIndex={offset < 0 ? 0 : -1}
-        className="absolute inset-y-0 right-0 grid w-24 place-items-center text-pastel-red-foreground transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-pastel-red-foreground motion-reduce:transition-none"
-        data-delete-action
-        type="button"
-        onClick={() => setConfirmingDelete(true)}
-      >
-        <Trash2 aria-hidden="true" className="size-6" />
-      </button>
+      {canDelete ? (
+        <button
+          aria-label={`Excluir tarefa ${task.title}`}
+          aria-hidden={offset >= 0}
+          tabIndex={offset < 0 ? 0 : -1}
+          className="absolute inset-y-0 right-0 grid w-24 place-items-center text-pastel-red-foreground transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-pastel-red-foreground motion-reduce:transition-none"
+          data-delete-action
+          type="button"
+          onClick={() => setConfirmingDelete(true)}
+        >
+          <Trash2 aria-hidden="true" className="size-6" />
+        </button>
+      ) : null}
       <article
         tabIndex={0}
-        aria-label={`${task.title}. Arraste para a esquerda para excluir${isCompleted ? '' : ' ou para a direita para concluir'}.`}
+        aria-label={`${task.title}.${canDelete ? ' Arraste para a esquerda para excluir.' : ''}${canComplete ? ' Arraste para a direita para concluir.' : ''}`}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return
-          if (event.key === 'ArrowLeft') {
+          if (event.key === 'ArrowLeft' && canDelete) {
             event.preventDefault()
             updateOffset(-96)
             setConfirmingDelete(true)
-          } else if (event.key === 'ArrowRight' && !isCompleted) {
+          } else if (event.key === 'ArrowRight' && canComplete) {
             event.preventDefault()
             updateOffset(96)
             setCompleting(true)
@@ -270,7 +282,6 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
         }}
         className={cn(
           'relative z-10 grid cursor-grab select-none gap-2 rounded-xl border bg-card p-3 active:cursor-grabbing motion-reduce:!transition-none sm:p-4',
-          isCompleted && 'opacity-70',
         )}
       >
         <div className="flex items-center justify-between gap-3">
@@ -283,6 +294,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           <h3 className="font-semibold leading-snug">{task.title}</h3>
           <TaskAttachmentIndicator count={task.attachments.length} />
         </div>
+        <TaskPeople task={task} />
         {task.description ? (
           <p className="line-clamp-2 text-sm text-muted-foreground">
             {task.description}
@@ -300,20 +312,16 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           <span className="text-xs text-muted-foreground">
             {formatDuration(task.estimatedTime)} estimados
           </span>
-          <Button
-            className="ml-auto h-8"
-            size="sm"
-            type="button"
-            variant="outline"
-            onClick={() => setEditing(true)}
-          >
-            Editar
-          </Button>
-          {isCompleted ? (
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-pastel-green-foreground">
-              <CheckIcon aria-hidden="true" className="size-3.5" />
-              Concluída
-            </span>
+          {task.permissions.edit ? (
+            <Button
+              className="ml-auto h-8"
+              size="sm"
+              type="button"
+              variant="outline"
+              onClick={() => setEditing(true)}
+            >
+              Editar
+            </Button>
           ) : null}
         </div>
         {task.location?.trim() ? (

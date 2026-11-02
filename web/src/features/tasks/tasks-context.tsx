@@ -44,9 +44,10 @@ export function TasksProvider({ children }: TasksProviderProps) {
 
   useEffect(() => {
     let active = true
+    const controller = new AbortController()
 
     tasksApi
-      .list()
+      .list(controller.signal)
       .then((data) => {
         if (active) {
           setTasks(data)
@@ -66,6 +67,7 @@ export function TasksProvider({ children }: TasksProviderProps) {
 
     return () => {
       active = false
+      controller.abort()
     }
   }, [])
 
@@ -102,6 +104,7 @@ export function TasksProvider({ children }: TasksProviderProps) {
       setError(null)
     } catch (cause) {
       setError(errorMessage(cause))
+      throw cause
     }
   }, [])
 
@@ -112,6 +115,7 @@ export function TasksProvider({ children }: TasksProviderProps) {
         setError(null)
       } catch (cause) {
         setError(errorMessage(cause))
+        throw cause
       }
     },
     [replaceTask],

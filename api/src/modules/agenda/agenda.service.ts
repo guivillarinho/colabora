@@ -1,29 +1,47 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 
 import { CreateAgendaItemDto } from './dto/create-agenda-item.dto'
+import { AttachmentsService } from './attachments.service'
 import { AgendaItem } from './entities/agenda-item.entity'
+import { NotificationsService } from '../notifications/notifications.service'
 
 @Injectable()
 export class AgendaService {
   constructor(
     @InjectRepository(AgendaItem)
     private readonly items: Repository<AgendaItem>,
+    private readonly attachments: AttachmentsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
-  findAll(): Promise<AgendaItem[]> {
-    return this.items.find({ order: { startDate: 'ASC' } })
+  findAll(actor: string): Promise<AgendaItem[]> {
+    return this.items.find({
+      where: { ownerId: actor },
+      order: { startDate: 'ASC' },
+    })
   }
 
-  async remove(id: string): Promise<void> {
-    const result = await this.items.delete(id)
+  async remove(id: string, actor: string): Promise<void> {
+    const item = await this.items.findOneBy({ id, ownerId: actor })
+    if (!item) throw new NotFoundException('Evento ou projeto não encontrado.')
+    const result = await this.items.delete({ id, ownerId: actor })
     if (!result.affected) {
       throw new NotFoundException('Evento ou projeto não encontrado.')
     }
+    await this.notifications.notifyUsers(
+      [actor],
+      item.type === 'project' ? 'Projeto removido' : 'Evento removido',
+      item.title,
+    )
   }
 
-  create(dto: CreateAgendaItemDto): Promise<AgendaItem> {
+  async create(dto: CreateAgendaItemDto, actor: string): Promise<AgendaItem> {
     const startDate = new Date(dto.startDate)
     const endDate = new Date(dto.endDate)
 
@@ -33,9 +51,11 @@ export class AgendaService {
       )
     }
 
-    return this.items.save(
+    await this.attachments.assertOwnReferences(dto.attachments ?? [], actor)
+    const item = await this.items.save(
       this.items.create({
         ...dto,
+        ownerId: actor,
         description: dto.description?.trim() || null,
         location: dto.location?.trim() || null,
         icon: dto.icon?.trim() || null,
@@ -44,5 +64,13 @@ export class AgendaService {
         endDate,
       }),
     )
+    await this.notifications.notifyUsers(
+      [actor],
+      item.type === 'project'
+        ? 'Projeto adicionado à agenda'
+        : 'Evento adicionado à agenda',
+      item.title,
+    )
+    return item
   }
 }

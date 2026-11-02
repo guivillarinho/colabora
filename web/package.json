@@ -48,5 +48,11 @@
     "prettier": "^3.6.2",
     "typescript": "~5.9.3",
     "vite": "^8.3.5"
+  },
+  "overrides": {
+    "@vercel/cli-config": {
+      "zod": "^4.6.7"
+    },
+    "minimatch@^9.0.0": "^9.0.7"
   }
 }

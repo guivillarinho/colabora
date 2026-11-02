@@ -1,4 +1,3 @@
-import { Type } from 'class-transformer'
 import {
   ArrayMaxSize,
   IsBoolean,
@@ -11,18 +10,25 @@ import {
   Max,
   MaxLength,
   Min,
+  IsUUID,
+  ValidateIf,
+  IsArray,
 } from 'class-validator'
 
 import { TaskColor } from '../task-color.enum'
 import { TaskPriority } from '../task-priority.enum'
 
 export class CreateTaskDto {
+  @IsOptional()
+  @IsUUID()
+  assignedToId?: string | null
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)
   title: string
 
-  @IsOptional()
+  @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsString()
   @MaxLength(2000)
   description?: string
@@ -32,35 +38,35 @@ export class CreateTaskDto {
   @MaxLength(40)
   category: string
 
-  @IsOptional()
+  @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsEnum(TaskPriority)
   priority?: TaskPriority
 
   @IsEnum(TaskColor)
   color: TaskColor
 
-  @IsOptional()
+  @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsDateString()
   dueDate?: string
 
-  @IsOptional()
+  @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsString()
   @MaxLength(200)
   location?: string
 
-  @IsOptional()
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsArray()
   @IsString({ each: true })
   @MaxLength(255, { each: true })
   @ArrayMaxSize(10)
   attachments?: string[]
 
-  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(10080)
   estimatedTime: number
 
-  @IsOptional()
+  @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsBoolean()
   startImmediately?: boolean
 }

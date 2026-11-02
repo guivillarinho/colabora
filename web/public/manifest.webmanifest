@@ -1,0 +1,16 @@
+{
+  "name": "Colabora — Tarefas e agenda",
+  "short_name": "Colabora",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf9fd",
+  "theme_color": "#7e48c5",
+  "icons": [
+    {
+      "src": "/colabora-push.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,5 +1,8 @@
+import { useAuth } from '@/features/auth/auth-context'
+import { AssigneeField } from './assignee-field'
+import { MinutesInput, parseMinutes } from './minutes-input'
 import { CalendarDays, Plus, Timer } from 'lucide-react'
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 
 import { pastelSwatches } from '@/components/pastel'
 import { Button } from '@/components/ui/button'
@@ -66,6 +69,12 @@ export function TaskFormDialog({
   trigger,
 }: TaskFormDialogProps & { trigger?: ReactNode }) {
   const { createTask, updateTask } = useTasks()
+  const { user } = useAuth()
+  const [assignee, setAssignee] = useState(
+    task ? task.assignedTo : user ? { id: user.id, name: user.name } : null,
+  )
+  const [saving, setSaving] = useState(false)
+  const submitting = useRef(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [categoryName, setCategoryName] = useState(
     categoryByName(task?.category).name,
@@ -84,6 +93,9 @@ export function TaskFormDialog({
 
   function resetFields() {
     setFormError(null)
+    setAssignee(
+      task ? task.assignedTo : user ? { id: user.id, name: user.name } : null,
+    )
     setCategoryName(categoryByName(task?.category).name)
     setLocation(task?.location ?? '')
     setAttachmentName(task?.attachments[0] ?? null)
@@ -101,6 +113,7 @@ export function TaskFormDialog({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (submitting.current) return
     setFormError(null)
     const form = event.currentTarget
     const formData = new FormData(form)
@@ -110,14 +123,26 @@ export function TaskFormDialog({
       return
     }
 
+    const estimatedTime = parseMinutes(
+      String(formData.get('estimatedTime') ?? ''),
+      1,
+    )
+    if (estimatedTime === null) {
+      setFormError(
+        'Informe o tempo estimado em minutos inteiros, de 1 a 10080.',
+      )
+      return
+    }
+
     const dueDate = String(formData.get('dueDate') ?? '')
     const input: TaskInput = {
+      assignedToId: assignee?.id ?? null,
       title,
       description: String(formData.get('description') ?? '').trim(),
       category: selectedCategory.name,
       priority: String(formData.get('priority') ?? 'medium') as TaskPriority,
       color: selectedCategory.color,
-      estimatedTime: Number(formData.get('estimatedTime') ?? 60),
+      estimatedTime,
       location: location.trim(),
       attachments: attachmentName ? [attachmentName] : [],
       ...(!task && creationMode === 'timer' ? { startImmediately: true } : {}),
@@ -126,6 +151,8 @@ export function TaskFormDialog({
         : {}),
     }
 
+    submitting.current = true
+    setSaving(true)
     try {
       if (task) {
         await updateTask(task.id, input)
@@ -139,6 +166,9 @@ export function TaskFormDialog({
           : 'Não foi possível salvar a tarefa.',
       )
       return
+    } finally {
+      submitting.current = false
+      setSaving(false)
     }
 
     resetFields()
@@ -223,7 +253,9 @@ export function TaskFormDialog({
             {editing || creationMode !== 'timer' ? (
               <>
                 <div className="grid gap-2">
-                  <Label htmlFor={`${fieldPrefix}-description`}>Descrição</Label>
+                  <Label htmlFor={`${fieldPrefix}-description`}>
+                    Descrição
+                  </Label>
                   <textarea
                     className="min-h-28 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
                     defaultValue={task?.description ?? ''}
@@ -300,13 +332,12 @@ export function TaskFormDialog({
                 <Label htmlFor={`${fieldPrefix}-estimate`}>
                   Tempo estimado (min)
                 </Label>
-                <Input
+                <MinutesInput
                   defaultValue={task?.estimatedTime ?? 60}
                   id={`${fieldPrefix}-estimate`}
-                  min={1}
+                  minimum={1}
                   name="estimatedTime"
                   required
-                  type="number"
                 />
               </div>
             </div>
@@ -315,32 +346,39 @@ export function TaskFormDialog({
                 O cronômetro começa ao salvar.
               </p>
             ) : null}
-            {editing || creationMode !== 'timer' ? <Collapsible>
-              <CollapsibleTrigger asChild>
-                <Button className="w-full" type="button" variant="outline">
-                  Opções avançadas
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="grid min-w-0 gap-4 pt-4">
-                <AttachmentField
-                  id={`${fieldPrefix}-attachment`}
-                  initialName={task?.attachments[0]}
-                  onChange={setAttachmentName}
-                />
-                <LocationField
-                  id={`${fieldPrefix}-location`}
-                  value={location}
-                  onChange={setLocation}
-                />
-              </CollapsibleContent>
-            </Collapsible> : null}
+            {editing || creationMode !== 'timer' ? (
+              <Collapsible>
+                <AssigneeField value={assignee} onChange={setAssignee} />
+                <CollapsibleTrigger asChild>
+                  <Button className="w-full" type="button" variant="outline">
+                    Opções avançadas
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="grid min-w-0 gap-4 pt-4">
+                  <AttachmentField
+                    id={`${fieldPrefix}-attachment`}
+                    initialName={task?.attachments[0]}
+                    onChange={setAttachmentName}
+                  />
+                  <LocationField
+                    id={`${fieldPrefix}-location`}
+                    value={location}
+                    onChange={setLocation}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+            ) : null}
             {formError ? (
               <p className="text-sm text-destructive" role="alert">
                 {formError}
               </p>
             ) : null}
             <DialogFooter className="mx-0 mb-0 px-0 py-3 sm:p-4">
-              <Button className="h-9 w-full text-sm sm:w-auto" type="submit">
+              <Button
+                className="h-9 w-full text-sm sm:w-auto"
+                disabled={saving}
+                type="submit"
+              >
                 Salvar tarefa
               </Button>
             </DialogFooter>

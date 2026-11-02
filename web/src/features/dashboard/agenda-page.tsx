@@ -1,10 +1,16 @@
+import { apiBase, apiRequest } from '@/lib/http-client'
+import { useAuth } from '@/features/auth/auth-context'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { cn } from 'cn'
 import {
   ArrowLeft,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  CircleCheck,
+  CirclePlay,
+  Clock3,
   FolderKanban,
   MapPin,
   Plus,
@@ -41,10 +47,37 @@ type AgendaItem = {
   attachments: string[]
   icon: string | null
 }
+type NormalAgendaItem = Omit<AgendaItem, 'type'> & {
+  type: AgendaKind
+  category?: string
+  status?: Task['status']
+  task?: Task
+}
 type SortMode = 'date' | 'name' | 'type'
 
-declare const process: { env: { VITE_API_URL?: string } }
-const apiBase = process.env.VITE_API_URL ?? 'http://localhost:3000'
+const taskStatusAppearance = {
+  pending: {
+    label: 'Pendente',
+    icon: Clock3,
+    card: 'border-l-4 border-amber-500/50 bg-amber-50/70 hover:border-amber-500 dark:bg-amber-950/20',
+    badge:
+      'bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200',
+  },
+  in_progress: {
+    label: 'Em andamento',
+    icon: CirclePlay,
+    card: 'border-l-4 border-sky-500/50 bg-sky-50/70 hover:border-sky-500 dark:bg-sky-950/20',
+    badge: 'bg-sky-100 text-sky-900 dark:bg-sky-900/50 dark:text-sky-200',
+  },
+  completed: {
+    label: 'Concluída',
+    icon: CircleCheck,
+    card: 'border-l-4 border-emerald-500/50 bg-emerald-50/70 hover:border-emerald-500 dark:bg-emerald-950/25',
+    badge:
+      'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200',
+  },
+}
+
 const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const icons = [
   { value: '📌', label: 'Alfinete' },
@@ -68,14 +101,18 @@ export function AgendaPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`${apiBase}/agenda-items`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Não foi possível carregar a agenda.')
-        return (await response.json()) as AgendaItem[]
+    const controller = new AbortController()
+    apiRequest<AgendaItem[]>('/agenda-items', { signal: controller.signal })
+      .then((data) => {
+        if (!controller.signal.aborted) setItems(data)
       })
-      .then(setItems)
-      .catch((cause: unknown) => setError(messageOf(cause)))
-      .finally(() => setLoading(false))
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) setError(messageOf(cause))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+    return () => controller.abort()
   }, [])
 
   const weekDays = useMemo(() => {
@@ -137,18 +174,10 @@ export function AgendaPage() {
   async function createItem(
     input: Omit<AgendaItem, 'id' | 'createdAt' | 'updatedAt'>,
   ) {
-    const response = await fetch(`${apiBase}/agenda-items`, {
+    const saved = await apiRequest<AgendaItem>('/agenda-items', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     })
-    if (!response.ok) {
-      const body = (await response.json().catch(() => ({}))) as {
-        message?: string
-      }
-      throw new Error(body.message ?? 'Não foi possível salvar o item.')
-    }
-    const saved = (await response.json()) as AgendaItem
     setItems((current) => [...current, saved])
     setCreateOpen(false)
     setError(null)
@@ -403,12 +432,9 @@ export function AgendaPage() {
             setDetails(null)
             return
           }
-          const response = await fetch(`${apiBase}/agenda-items/${item.id}`, {
+          await apiRequest<void>(`/agenda-items/${item.id}`, {
             method: 'DELETE',
           })
-          if (!response.ok) {
-            throw new Error('Não foi possível excluir. Tente novamente.')
-          }
           setItems((current) => current.filter((entry) => entry.id !== item.id))
           setDetails(null)
         }}
@@ -425,9 +451,13 @@ function AgendaCard({
   onSelect: () => void
 }) {
   const task = item.type === 'task'
+  const status = task && item.status ? taskStatusAppearance[item.status] : null
   return (
     <button
-      className="grid min-w-0 gap-2 rounded-xl border bg-card p-4 text-left shadow-sm transition hover:border-primary/40 hover:shadow-md"
+      className={cn(
+        'grid min-w-0 gap-2 rounded-xl border p-4 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        status?.card ?? 'bg-card hover:border-primary/40',
+      )}
       onClick={onSelect}
     >
       <div className="flex items-start justify-between gap-3">
@@ -454,6 +484,7 @@ function AgendaCard({
           {formatTime(item.startDate)}
         </span>
       </div>
+      {task && item.status ? <AgendaTaskStatus status={item.status} /> : null}
       {item.description ? (
         <p className="line-clamp-2 text-sm text-muted-foreground">
           {item.description}
@@ -477,6 +508,23 @@ function AgendaCard({
         ) : null}
       </div>
     </button>
+  )
+}
+
+function AgendaTaskStatus({ status }: { status: Task['status'] }) {
+  const appearance = taskStatusAppearance[status]
+  const Icon = appearance.icon
+  return (
+    <span
+      aria-label={`Situação: ${appearance.label}`}
+      className={cn(
+        'inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold',
+        appearance.badge,
+      )}
+    >
+      <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+      {appearance.label}
+    </span>
   )
 }
 
@@ -514,6 +562,7 @@ function AgendaDetails({
         </DialogHeader>
         {item ? (
           <div className="grid gap-4 text-sm">
+            {task ? <AgendaTaskStatus status={task.status} /> : null}
             <p className="whitespace-pre-wrap text-muted-foreground">
               {item.description || 'Sem descrição.'}
             </p>
@@ -557,19 +606,25 @@ function AgendaDetails({
               </div>
             ) : null}
             {task && task.status !== 'completed' ? (
-              <Button onClick={() => void onComplete(task)}>
+              <Button
+                onClick={() => {
+                  onComplete(task).catch(() => undefined)
+                }}
+              >
                 Concluir tarefa
               </Button>
             ) : null}
-            <Button
-              type="button"
-              variant="destructive"
-              className="w-full"
-              onClick={() => setConfirmingDelete(true)}
-            >
-              <Trash2 aria-hidden="true" />
-              Excluir {entity}
-            </Button>
+            {!task || task.permissions.delete ? (
+              <Button
+                type="button"
+                variant="destructive"
+                className="w-full"
+                onClick={() => setConfirmingDelete(true)}
+              >
+                <Trash2 aria-hidden="true" />
+                Excluir {entity}
+              </Button>
+            ) : null}
             <DeleteConfirmationDialog
               open={confirmingDelete}
               onOpenChange={setConfirmingDelete}
@@ -595,6 +650,7 @@ function AgendaCreateDialog({
     input: Omit<AgendaItem, 'id' | 'createdAt' | 'updatedAt'>,
   ) => Promise<void>
 }) {
+  const { user } = useAuth()
   const [type, setType] = useState<'event' | 'project'>('event')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -763,7 +819,7 @@ function AgendaCreateDialog({
                 setUploading(true)
                 setError('')
                 try {
-                  const uploaded = await uploadAgendaFiles(selected)
+                  const uploaded = await uploadAgendaFiles(selected, user!.id)
                   setFiles((current) =>
                     [
                       ...current,
@@ -861,12 +917,6 @@ function LocationPreview({ location }: { location: string }) {
   )
 }
 
-type NormalAgendaItem = Omit<AgendaItem, 'type'> & {
-  type: AgendaKind
-  category?: string
-  status?: Task['status']
-  task?: Task
-}
 function normalizeItem(
   item:
     | AgendaItem

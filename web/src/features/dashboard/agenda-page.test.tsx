@@ -1,9 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { renderAuthenticated as render, taskAccess } from '@/test/auth-fixture'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { AgendaPage } from './agenda-page'
 import { TasksProvider } from '@/features/tasks/tasks-context'
 import { tasksApi } from '@/features/tasks/api/tasks-api'
+import { acceptHttpSession } from '@/lib/http-client'
 import type { Task } from '@/features/tasks/types/task'
 
 jest.mock('@/features/tasks/api/tasks-api', () => ({
@@ -23,8 +25,10 @@ const dueDate = new Date().toISOString()
 describe('AgendaPage', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    acceptHttpSession('test-csrf-token')
     api.list.mockResolvedValue([
       {
+        ...taskAccess,
         id: 'task-1',
         title: 'Enviar proposta',
         description: 'Revisar contrato',
@@ -107,7 +111,7 @@ describe('AgendaPage', () => {
       )
       expect(fetchMock).toHaveBeenLastCalledWith(
         expect.stringContaining('/agenda-items/agenda-1'),
-        { method: 'DELETE' },
+        expect.objectContaining({ method: 'DELETE', credentials: 'include' }),
       )
       expect(
         screen.queryByRole('button', { name: /Reunião de planejamento/ }),

@@ -1,3 +1,4 @@
+import { TaskPeople } from './task-people'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
 import { useState } from 'react'
 
@@ -55,6 +56,7 @@ export function TaskCard({
           {statusLabel[task.status]}
         </span>
       </div>
+      <TaskPeople task={task} />
       {task.description ? <p>{task.description}</p> : null}
       <p className="text-sm">
         {task.category} · {priorityLabel[task.priority]} ·{' '}
@@ -64,16 +66,18 @@ export function TaskCard({
           : ''}
       </p>
       <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          type="button"
-          variant="outline"
-          onClick={() => {
-            setEditing(true)
-          }}
-        >
-          Editar
-        </Button>
+        {task.permissions.edit ? (
+          <Button
+            size="sm"
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setEditing(true)
+            }}
+          >
+            Editar
+          </Button>
+        ) : null}
         {task.status === 'pending' ? (
           <Button size="sm" type="button" onClick={onStart}>
             Iniciar
@@ -90,14 +94,16 @@ export function TaskCard({
             Concluir
           </Button>
         ) : null}
-        <Button
-          size="sm"
-          type="button"
-          variant="destructive"
-          onClick={() => setConfirmingDelete(true)}
-        >
-          Excluir
-        </Button>
+        {task.permissions.delete ? (
+          <Button
+            size="sm"
+            type="button"
+            variant="destructive"
+            onClick={() => setConfirmingDelete(true)}
+          >
+            Excluir
+          </Button>
+        ) : null}
       </div>
       <DeleteConfirmationDialog
         open={confirmingDelete}

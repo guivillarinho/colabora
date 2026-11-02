@@ -38,33 +38,100 @@ Variáveis utilizadas no servidor:
 | `DB_POOL_SIZE`          | Máximo de conexões por instância; padrão `5`                |
 | `BLOB_READ_WRITE_TOKEN` | Acesso ao armazenamento privado; somente no servidor        |
 | `NODE_ENV`              | `production`                                                |
+| `SESSION_SECRET`         | Segredo aleatório de pelo menos 32 caracteres, apenas no servidor |
+| `SESSION_IDLE_MINUTES`   | Inatividade máxima; padrão `30` |
+| `SESSION_ABSOLUTE_HOURS` | Duração máxima da sessão; padrão `168` |
+| `WEB_ORIGIN`             | Origem HTTPS exata, se houver front em outra origem; nunca `*` |
+| `VAPID_PUBLIC_KEY`       | Chave pública usada pelo navegador para registrar o push |
+| `VAPID_PRIVATE_KEY`      | Chave privada Web Push, somente no servidor |
+| `VAPID_SUBJECT`          | Contato VAPID no formato `mailto:` |
+| `REMINDER_DISPATCH_SECRET` | Segredo compartilhado entre a API Vercel e a função agendada Neon |
 
 O build usa `VITE_API_URL` vazio para acessar a API no mesmo domínio e habilita
 `VITE_CLOUD_UPLOADS`. Não colocar senhas, tokens ou a conexão do banco em variáveis
 `VITE_*`.
 
+### Push e lembretes
+
+O navegador precisa ativar notificações em cada dispositivo. No iPhone/iPad,
+primeiro adicione o site à Tela de Início e abra o app instalado; o Safari só
+permite Web Push para web apps adicionados assim. A assinatura do aparelho é
+salva na conta autenticada. A API manda avisos de criação, alteração, conclusão e
+remoção de tarefas, além de eventos e projetos da agenda.
+
+Gere uma única chave VAPID com `npx web-push generate-vapid-keys` e configure a
+chave pública, a privada e `VAPID_SUBJECT` na API (local ou variáveis de produção
+da Vercel). Gere `REMINDER_DISPATCH_SECRET` com um gerador criptográfico e grave
+o mesmo valor na Vercel e na função Neon. Nunca coloque esses segredos em
+variáveis `VITE_*` nem no Git.
+
+Os lembretes para tarefas são enfileirados 10 minutos antes e no horário marcado;
+editar prazo, reatribuir, concluir ou excluir atualiza/cancela a fila. Tarefas
+existentes com vencimento futuro são incluídas pela migração. Para o serviço
+gratuito continuar verificando os lembretes mesmo com o app fechado, publique
+`infra/neon/functions/reminders.ts` como uma Neon Function `reminders`, configure
+`COLABORA_API_URL=https://colabora-rouge.vercel.app` e
+`REMINDER_DISPATCH_SECRET` nela e crie um Function Trigger `schedule` com cron
+`* * * * *` em UTC. A Neon aceita agenda por minuto e executa mesmo com o banco
+em scale-to-zero. Isso significa que um lembrete pode chegar com até cerca de um
+minuto de atraso; não há garantia de entrega exata no segundo. Os Function
+Triggers estão disponíveis no plano gratuito da Neon; cada navegador/aparelho
+também precisa permitir notificações.
+
+Para publicar a função, instale a CLI Neon e rode `npm install` em
+`infra/neon`. Vincule esse diretório ao projeto e à branch de produção Neon com
+`neon link`, exporte `REMINDER_DISPATCH_SECRET` no terminal e rode:
+
+```bash
+neon functions deploy reminders --src functions/reminders.ts \
+  --env COLABORA_API_URL=https://colabora-rouge.vercel.app \
+  --env REMINDER_DISPATCH_SECRET="$REMINDER_DISPATCH_SECRET"
+```
+
+Depois crie o trigger na Neon Console → Functions → `reminders` → Manage
+Triggers → Create trigger, selecione Schedule e informe `* * * * *` com o trigger
+ativado. Armazene o mesmo segredo como variável de produção na Vercel. O painel
+Vercel precisa também das chaves VAPID. Configure essas variáveis antes de
+publicar a aplicação.
+
+Deploy da aplicação exige que as chaves VAPID e o segredo do despachador existam
+na Vercel. Depois de configurar esses segredos, publicar o app e ativar a função
+e o trigger Neon, o push e os lembretes ficam operacionais. A configuração da
+função Neon é separada do deploy Vercel.
+
 As migrações rodam durante o build da Vercel, antes da publicação, com bloqueio
 contra duas migrações simultâneas. O banco não usa sincronização automática de
 esquema em produção. Cada alteração futura de esquema precisa de nova migração.
-O build falha se banco ou armazenamento privado não estiverem configurados.
+O build falha se banco, armazenamento privado ou SESSION_SECRET não estiverem configurados. Não publique a versão de autenticação antes de configurar esse segredo. Trocar o segredo invalida os cookies existentes.
 
 Os arquivos de até 10 MB são enviados diretamente ao Blob privado, sem passar
 pelo limite de corpo das funções. O backend autoriza o upload e serve os arquivos
-pela rota `/uploads/agenda/:filename`, protegida junto com a aplicação.
+pela rota `/api/uploads/agenda/:filename`, protegida junto com a aplicação.
 
 Os planos gratuitos têm cotas. Não ativar Pro, cobrança por excedente ou planos
 pagos sem autorização. Na cota esgotada, o serviço pode ser suspenso até a renovação.
 
-## Acesso pessoal
+## Acesso e contas
 
-Antes de usar dados pessoais, ativar **Vercel Authentication → All Deployments**
-na proteção do projeto. Isso deve proteger o domínio principal, previews, API e
-anexos. Testar o domínio e `/tasks` sem autenticação: devem exigir login.
+A versão de autenticação implementa contas próprias da aplicação: cadastro, login, logout e propriedade por usuário. Use a mesma conta Colabora em seus dispositivos para acessar seus dados. Sessões persistem no PostgreSQL compartilhado, sem Redis. Cookie de produção: `__Host-colabora.sid`, HttpOnly, Secure, SameSite=Lax e Path=/.
 
-Nos outros dispositivos, entrar na mesma conta Vercel autorizada. A lista de
-tarefas é compartilhada entre esses dispositivos; o app não oferece contas
-separadas para múltiplos usuários. Não desativar a proteção: CORS não substitui
-controle de acesso.
+Manter **Vercel Authentication → All Deployments** ativa durante a transição. Essa proteção adicional não foi desativada. Visitantes ainda precisam ser autorizados pela Vercel para alcançar o app. A publicação da nova autenticação não foi feita nesta implementação; um build local não comprova publicação.
+
+A API usa `/api`: verificar `/api/auth/me` e `/api/tasks` sem sessão deve retornar 401 depois da barreira Vercel. `/health` continua público dentro da aplicação. Mutations requerem origem autorizada e `X-CSRF-Token`; ferramentas administrativas HTTP também devem obter uma sessão e o token.
+
+### Transição dos dados antigos
+
+A migração conserva todos os registros existentes e adiciona propriedade inicialmente nula. Esses registros ficam fora das listagens até que um administrador verifique a conta correta e faça a vinculação. **O primeiro cadastro não recebe dados antigos.** E-mail informado no cadastro não comprova titularidade; confirme também o ID da conta com o proprietário por um canal confiável.
+
+Depois de criar a conta de destino, com conexão administrativa ao banco correto em um ambiente seguro, executar na pasta `api` (os valores abaixo são exemplos):
+
+```bash
+npm run build
+# DATABASE_URL / DATABASE_URL_UNPOOLED e DB_SSL devem estar no ambiente do processo.
+npm run legacy:assign -- --user-id UUID-DA-CONTA-VERIFICADA --email dono@example.com --confirm
+```
+
+O comando verifica ID + e-mail normalizado em transação, vincula somente registros ainda sem dono e registra referências de anexos antigos. É idempotente. Não cria conta, não configura senha nem copia arquivos entre armazenamentos. Se existirem sessões de foco antigas simultaneamente ativas, examine-as com o proprietário: a constraint permite apenas uma sessão ativa por usuário, e a transação falha sem alterar dados.
 
 ## Dados locais
 

@@ -4,14 +4,31 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm'
 
 import { TaskColor } from '../task-color.enum'
 import { TaskPriority } from '../task-priority.enum'
 import { TaskStatus } from '../task-status.enum'
+import { User } from '../../auth/entities/user.entity'
 
 @Entity('tasks')
 export class Task {
+  @Column({ type: 'uuid', nullable: true })
+  createdById: string | null
+
+  @Column({ type: 'uuid', nullable: true })
+  assignedToId: string | null
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'createdById' })
+  createdBy?: User | null
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'assignedToId' })
+  assignedTo?: User | null
+
   @PrimaryGeneratedColumn('uuid')
   id: string
 

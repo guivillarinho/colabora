@@ -1,9 +1,7 @@
-import { Type } from 'class-transformer'
-import { IsInt, IsOptional, Max, Min } from 'class-validator'
+import { IsInt, ValidateIf, Max, Min } from 'class-validator'
 
 export class CompleteTaskDto {
-  @IsOptional()
-  @Type(() => Number)
+  @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsInt()
   @Min(0)
   @Max(10080)

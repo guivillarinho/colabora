@@ -1,3 +1,5 @@
+export type Person = { id: string; name: string }
+
 export type TaskColor =
   'red' | 'blue' | 'yellow' | 'green' | 'purple' | 'orange'
 
@@ -6,6 +8,16 @@ export type TaskStatus = 'pending' | 'in_progress' | 'completed'
 export type TaskPriority = 'low' | 'medium' | 'high'
 
 export type Task = {
+  createdById: string | null
+  assignedToId: string | null
+  createdBy: Person | null
+  assignedTo: Person | null
+  permissions: {
+    edit: boolean
+    assign: boolean
+    delete: boolean
+    changeStatus: boolean
+  }
   id: string
   title: string
   description: string | null
@@ -24,6 +36,7 @@ export type Task = {
 }
 
 export type TaskInput = {
+  assignedToId?: string | null
   title: string
   description?: string
   category: string

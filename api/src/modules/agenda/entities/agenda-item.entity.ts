@@ -10,6 +10,9 @@ export type AgendaItemType = 'event' | 'project'
 
 @Entity('agenda_items')
 export class AgendaItem {
+  @Column({ type: 'uuid', nullable: true })
+  ownerId: string | null
+
   @PrimaryGeneratedColumn('uuid')
   id: string
 

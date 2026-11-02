@@ -1,3 +1,7 @@
+import { CurrentUser } from '../auth/auth.decorators'
+import type { Identity } from '../auth/entities/user.entity'
+import { AttachmentsService, attachmentFilename } from './attachments.service'
+import { RateLimitService } from '../auth/rate-limit.service'
 import {
   BadRequestException,
   Body,
@@ -12,6 +16,7 @@ import {
   Req,
   ServiceUnavailableException,
   UseInterceptors,
+  UseGuards,
 } from '@nestjs/common'
 import { FilesInterceptor } from '@nestjs/platform-express'
 import { diskStorage } from 'multer'
@@ -23,28 +28,37 @@ import type { Request } from 'express'
 import { CreateAgendaItemDto } from './dto/create-agenda-item.dto'
 import { AgendaService } from './agenda.service'
 import { uploadsDirectory } from '../../uploads-directory'
+import { UploadQuotaGuard } from './upload-quota.guard'
 
 @Controller('agenda-items')
 export class AgendaController {
-  constructor(private readonly agenda: AgendaService) {}
+  constructor(
+    private readonly agenda: AgendaService,
+    private readonly attachments: AttachmentsService,
+    private readonly limits: RateLimitService,
+  ) {}
 
   @Get()
-  findAll() {
-    return this.agenda.findAll()
+  findAll(@CurrentUser() user: Identity) {
+    return this.agenda.findAll(user.id)
   }
 
   @Post()
-  create(@Body() dto: CreateAgendaItemDto) {
-    return this.agenda.create(dto)
+  create(@Body() dto: CreateAgendaItemDto, @CurrentUser() user: Identity) {
+    return this.agenda.create(dto, user.id)
   }
 
   @Delete(':id')
   @HttpCode(204)
-  remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.agenda.remove(id)
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: Identity,
+  ) {
+    return this.agenda.remove(id, user.id)
   }
 
   @Post('uploads')
+  @UseGuards(UploadQuotaGuard)
   @UseInterceptors(
     FilesInterceptor('files', 10, {
       storage: diskStorage({
@@ -61,7 +75,7 @@ export class AgendaController {
         filename: (_request, file, callback) => {
           callback(
             null,
-            `${randomUUID()}${extname(file.originalname).slice(0, 12)}`,
+            `${randomUUID()}${extname(file.originalname).toLowerCase().slice(0, 12)}`,
           )
         },
       }),
@@ -79,11 +93,18 @@ export class AgendaController {
       },
     }),
   )
-  upload(
+  async upload(
     @UploadedFiles() files: Array<{ originalname: string; filename: string }>,
+    @CurrentUser() user: Identity,
   ) {
     if (!files?.length)
       throw new BadRequestException('Selecione ao menos um arquivo.')
+    for (const file of files)
+      await this.attachments.register(
+        file.filename,
+        user.id,
+        `agenda/${file.filename}`,
+      )
     return files.map((file) => ({
       name: file.originalname.slice(0, 180),
       url: `/uploads/agenda/${file.filename}`,
@@ -91,7 +112,11 @@ export class AgendaController {
   }
 
   @Post('upload-token')
-  uploadToken(@Body() body: HandleUploadBody, @Req() request: Request) {
+  uploadToken(
+    @Body() body: HandleUploadBody,
+    @Req() request: Request,
+    @CurrentUser() user: Identity,
+  ) {
     if (!process.env.VERCEL || !process.env.BLOB_READ_WRITE_TOKEN) {
       throw new ServiceUnavailableException(
         'Armazenamento de anexos não configurado.',
@@ -101,15 +126,22 @@ export class AgendaController {
       body,
       request,
       onBeforeGenerateToken: async (pathname) => {
+        const prefix = `agenda/${user.id}/`
         if (
-          !/^agenda\/[0-9a-f-]{36}\.(pdf|docx?|xlsx?|csv|txt|png|jpe?g|webp)$/i.test(
-            pathname,
-          )
+          !pathname.startsWith(prefix) ||
+          !attachmentFilename.test(pathname.slice(prefix.length))
         ) {
           throw new BadRequestException('Tipo de arquivo não permitido.')
         }
+        await this.limits.consume('uploads', user.id, 30, 3600)
+        await this.attachments.register(
+          pathname.slice(prefix.length),
+          user.id,
+          pathname,
+        )
         return {
           maximumSizeInBytes: 10 * 1024 * 1024,
+          validUntil: Date.now() + 5 * 60_000,
           addRandomSuffix: false,
           allowOverwrite: false,
         }

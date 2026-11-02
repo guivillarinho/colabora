@@ -4,4 +4,5 @@ import { CreateTaskDto } from './create-task.dto'
 
 export class UpdateTaskDto extends PartialType(
   OmitType(CreateTaskDto, ['startImmediately'] as const),
+  { skipNullProperties: false },
 ) {}

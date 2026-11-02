@@ -1,10 +1,11 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
-import { Repository } from 'typeorm'
+import { FindOptionsWhere, Repository } from 'typeorm'
 
 import { CompleteTaskDto } from './dto/complete-task.dto'
 import { CreateTaskDto } from './dto/create-task.dto'
@@ -13,137 +14,229 @@ import { Task } from './entities/task.entity'
 import { ProductivityAdvisorService } from './productivity-advisor.service'
 import { TaskPriority } from './task-priority.enum'
 import { TaskStatus } from './task-status.enum'
+import { UsersService } from '../auth/users.service'
+import { person } from '../auth/entities/user.entity'
+import { AttachmentsService } from '../agenda/attachments.service'
+import { NotificationsService } from '../notifications/notifications.service'
 
+export type TaskView = Omit<Task, 'createdBy' | 'assignedTo'> & {
+  createdBy: ReturnType<typeof person>
+  assignedTo: ReturnType<typeof person>
+  permissions: {
+    edit: boolean
+    assign: boolean
+    delete: boolean
+    changeStatus: boolean
+  }
+}
 export type TaskCompletion = {
-  task: Task
+  task: TaskView
   productivityAdvice: string | null
 }
 
 @Injectable()
 export class TasksService {
   constructor(
-    @InjectRepository(Task)
-    private readonly tasksRepository: Repository<Task>,
+    @InjectRepository(Task) private readonly tasksRepository: Repository<Task>,
     private readonly productivityAdvisor: ProductivityAdvisorService,
+    private readonly users: UsersService,
+    private readonly attachments: AttachmentsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
-  async create(dto: CreateTaskDto): Promise<Task> {
-    const task = this.tasksRepository.create({
-      title: dto.title.trim(),
-      description: emptyToNull(dto.description),
-      category: dto.category.trim(),
-      priority: dto.priority ?? TaskPriority.Medium,
-      color: dto.color,
-      dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
-      location: emptyToNull(dto.location),
-      attachments: dto.attachments ?? [],
-      estimatedTime: dto.estimatedTime,
-      actualTime: null,
-      status: dto.startImmediately ? TaskStatus.InProgress : TaskStatus.Pending,
-      startedAt: dto.startImmediately ? new Date() : null,
-    })
-
-    return this.tasksRepository.save(task)
+  private visibility(actor: string, id?: string): FindOptionsWhere<Task>[] {
+    return [
+      { ...(id ? { id } : {}), createdById: actor },
+      { ...(id ? { id } : {}), assignedToId: actor },
+    ]
   }
 
-  findAll(): Promise<Task[]> {
-    return this.tasksRepository.find({
-      order: { createdAt: 'DESC' },
-    })
-  }
-
-  async findOne(id: string): Promise<Task> {
-    const task = await this.tasksRepository.findOneBy({ id })
-
-    if (!task) {
-      throw new NotFoundException('Tarefa não encontrada.')
+  private view(task: Task, actor: string): TaskView {
+    const owner = task.createdById === actor
+    return {
+      ...task,
+      createdBy: person(task.createdBy),
+      assignedTo: person(task.assignedTo),
+      permissions: {
+        edit: owner,
+        assign: owner,
+        delete: owner,
+        changeStatus: true,
+      },
     }
+  }
 
+  private async visible(id: string, actor: string): Promise<Task> {
+    const task = await this.tasksRepository.findOne({
+      where: this.visibility(actor, id),
+      relations: { createdBy: true, assignedTo: true },
+    })
+    if (!task) throw new NotFoundException('Tarefa não encontrada.')
     return task
   }
 
-  async update(id: string, dto: UpdateTaskDto): Promise<Task> {
-    const task = await this.findOne(id)
-
-    if (dto.title !== undefined) {
-      task.title = dto.title.trim()
-    }
-
-    if (dto.description !== undefined) {
-      task.description = emptyToNull(dto.description)
-    }
-
-    if (dto.category !== undefined) {
-      task.category = dto.category.trim()
-    }
-
-    if (dto.priority !== undefined) {
-      task.priority = dto.priority
-    }
-
-    if (dto.color !== undefined) {
-      task.color = dto.color
-    }
-
-    if (dto.dueDate !== undefined) {
-      task.dueDate = new Date(dto.dueDate)
-    }
-
-    if (dto.location !== undefined) {
-      task.location = emptyToNull(dto.location)
-    }
-
-    if (dto.attachments !== undefined) {
-      task.attachments = dto.attachments
-    }
-
-    if (dto.estimatedTime !== undefined) {
-      task.estimatedTime = dto.estimatedTime
-    }
-
-    return this.tasksRepository.save(task)
+  async create(dto: CreateTaskDto, actor: string): Promise<TaskView> {
+    await this.users.validateAssignee(dto.assignedToId)
+    await this.attachments.assertOwnReferences(dto.attachments ?? [], actor)
+    const task = await this.tasksRepository.save(
+      this.tasksRepository.create({
+        title: dto.title.trim(),
+        description: emptyToNull(dto.description),
+        category: dto.category.trim(),
+        priority: dto.priority ?? TaskPriority.Medium,
+        color: dto.color,
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+        location: emptyToNull(dto.location),
+        attachments: dto.attachments ?? [],
+        estimatedTime: dto.estimatedTime,
+        actualTime: null,
+        status: dto.startImmediately
+          ? TaskStatus.InProgress
+          : TaskStatus.Pending,
+        startedAt: dto.startImmediately ? new Date() : null,
+        createdById: actor,
+        assignedToId: dto.assignedToId === undefined ? actor : dto.assignedToId,
+      }),
+    )
+    await this.notifications.scheduleTaskReminders(task)
+    await this.notifications.notifyUsers(
+      [task.createdById, task.assignedToId],
+      'Nova tarefa no Colabora',
+      task.title,
+    )
+    return this.findOne(task.id, actor)
   }
 
-  async remove(id: string): Promise<void> {
-    const result = await this.tasksRepository.delete({ id })
-
-    if (!result.affected) {
-      throw new NotFoundException('Tarefa não encontrada.')
-    }
+  async findAll(actor: string): Promise<TaskView[]> {
+    const tasks = await this.tasksRepository.find({
+      where: this.visibility(actor),
+      relations: { createdBy: true, assignedTo: true },
+      order: { createdAt: 'DESC' },
+    })
+    return tasks.map((task) => this.view(task, actor))
   }
 
-  async start(id: string): Promise<Task> {
-    const task = await this.findOne(id)
+  async findOne(id: string, actor: string): Promise<TaskView> {
+    return this.view(await this.visible(id, actor), actor)
+  }
 
-    if (task.status === TaskStatus.Completed) {
+  async update(
+    id: string,
+    dto: UpdateTaskDto,
+    actor: string,
+  ): Promise<TaskView> {
+    const task = await this.visible(id, actor)
+    if (task.createdById !== actor)
+      throw new ForbiddenException(
+        'Somente o criador pode editar ou reatribuir a tarefa.',
+      )
+    await this.users.validateAssignee(dto.assignedToId)
+    if (dto.attachments !== undefined)
+      await this.attachments.assertOwnReferences(dto.attachments, actor)
+    const changes: Partial<Task> = {}
+    if (dto.title !== undefined) changes.title = dto.title.trim()
+    if (dto.description !== undefined)
+      changes.description = emptyToNull(dto.description)
+    if (dto.category !== undefined) changes.category = dto.category.trim()
+    if (dto.priority !== undefined) changes.priority = dto.priority
+    if (dto.color !== undefined) changes.color = dto.color
+    if (dto.dueDate !== undefined) changes.dueDate = new Date(dto.dueDate)
+    if (dto.location !== undefined) changes.location = emptyToNull(dto.location)
+    if (dto.attachments !== undefined) changes.attachments = dto.attachments
+    if (dto.estimatedTime !== undefined)
+      changes.estimatedTime = dto.estimatedTime
+    if (dto.assignedToId !== undefined) changes.assignedToId = dto.assignedToId
+    if (Object.keys(changes).length) {
+      await this.tasksRepository.update({ id, createdById: actor }, changes)
+      const updated = await this.visible(id, actor)
+      await this.notifications.scheduleTaskReminders({ ...task, ...changes })
+      await this.notifications.notifyUsers(
+        [actor, updated.assignedToId],
+        'Tarefa atualizada no Colabora',
+        updated.title,
+      )
+    }
+    return this.findOne(id, actor)
+  }
+
+  async remove(id: string, actor: string): Promise<void> {
+    const task = await this.visible(id, actor)
+    if (task.createdById !== actor)
+      throw new ForbiddenException('Somente o criador pode excluir a tarefa.')
+    const result = await this.tasksRepository.delete({ id, createdById: actor })
+    if (!result.affected) throw new NotFoundException('Tarefa não encontrada.')
+    await this.notifications.notifyUsers(
+      [task.createdById, task.assignedToId],
+      'Tarefa removida do Colabora',
+      task.title,
+    )
+  }
+
+  async start(id: string, actor: string): Promise<TaskView> {
+    const task = await this.visible(id, actor)
+    if (task.status === TaskStatus.Completed)
       throw new BadRequestException(
         'Não é possível iniciar uma tarefa concluída.',
       )
-    }
-
-    if (!task.startedAt) {
-      task.startedAt = new Date()
-    }
-
-    task.status = TaskStatus.InProgress
-
-    return this.tasksRepository.save(task)
+    const result = await this.tasksRepository.update(
+      this.visibility(actor, id),
+      {
+        status: TaskStatus.InProgress,
+        startedAt: task.startedAt ?? new Date(),
+      },
+    )
+    if (!result.affected) throw new NotFoundException('Tarefa não encontrada.')
+    const updated = await this.findOne(id, actor)
+    await this.notifications.notifyUsers(
+      [task.createdById, task.assignedToId],
+      'Tarefa iniciada no Colabora',
+      task.title,
+    )
+    return updated
   }
 
-  async complete(id: string, dto: CompleteTaskDto): Promise<TaskCompletion> {
-    const task = await this.findOne(id)
-
-    if (task.status === TaskStatus.Completed) {
+  async setPending(id: string, actor: string): Promise<TaskView> {
+    const task = await this.visible(id, actor)
+    if (task.status === TaskStatus.Completed)
       throw new BadRequestException('Esta tarefa já foi concluída.')
-    }
+    const result = await this.tasksRepository.update(
+      this.visibility(actor, id),
+      { status: TaskStatus.Pending },
+    )
+    if (!result.affected) throw new NotFoundException('Tarefa não encontrada.')
+    const updated = await this.findOne(id, actor)
+    await this.notifications.notifyUsers(
+      [task.createdById, task.assignedToId],
+      'Tarefa voltou para pendente',
+      task.title,
+    )
+    return updated
+  }
 
+  async complete(
+    id: string,
+    dto: CompleteTaskDto,
+    actor: string,
+  ): Promise<TaskCompletion> {
+    const task = await this.visible(id, actor)
+    if (task.status === TaskStatus.Completed)
+      throw new BadRequestException('Esta tarefa já foi concluída.')
     const actualTime = this.resolveActualTime(task, dto.actualTime)
-
-    task.actualTime = actualTime
-    task.status = TaskStatus.Completed
-
-    const saved = await this.tasksRepository.save(task)
-
+    const result = await this.tasksRepository.update(
+      this.visibility(actor, id),
+      { actualTime, status: TaskStatus.Completed },
+    )
+    if (!result.affected) throw new NotFoundException('Tarefa não encontrada.')
+    await this.notifications.scheduleTaskReminders({
+      ...task,
+      status: TaskStatus.Completed,
+    })
+    await this.notifications.notifyUsers(
+      [task.createdById, task.assignedToId],
+      'Tarefa concluída no Colabora',
+      task.title,
+    )
+    const saved = await this.findOne(id, actor)
     return {
       task: saved,
       productivityAdvice: this.productivityAdvisor.advise(
@@ -154,26 +247,17 @@ export class TasksService {
   }
 
   private resolveActualTime(task: Task, actualTime?: number): number {
-    if (actualTime !== undefined) {
-      return actualTime
-    }
-
-    if (!task.startedAt) {
+    if (actualTime !== undefined) return actualTime
+    if (!task.startedAt)
       throw new BadRequestException(
         'Informe o tempo real em minutos ou inicie a tarefa antes de concluir.',
       )
-    }
-
-    const elapsedMinutes = Math.round(
-      (Date.now() - task.startedAt.getTime()) / 60000,
+    return Math.max(
+      0,
+      Math.round((Date.now() - task.startedAt.getTime()) / 60000),
     )
-
-    return Math.max(0, elapsedMinutes)
   }
 }
-
 function emptyToNull(value?: string): string | null {
-  const trimmed = value?.trim() ?? ''
-
-  return trimmed.length > 0 ? trimmed : null
+  return value?.trim() || null
 }

@@ -16,7 +16,11 @@ export function TaskBoard() {
     [tasks],
   )
   const visibleTasks = sortTasks(
-    category ? tasks.filter((task) => task.category === category) : tasks,
+    tasks.filter(
+      (task) =>
+        task.status !== 'completed' &&
+        (!category || task.category === category),
+    ),
     sort,
   )
 
@@ -48,7 +52,7 @@ export function TaskBoard() {
                   return removeTask(task.id)
                 }}
                 onStart={() => {
-                  startTask(task.id)
+                  startTask(task.id).catch(() => undefined)
                 }}
               />
             </li>

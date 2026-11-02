@@ -9,8 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { MinutesInput, parseMinutes } from './minutes-input'
 
 import type { Task } from '../types/task'
 
@@ -28,14 +28,22 @@ export function CompleteTaskDialog({
   onComplete,
 }: CompleteTaskDialogProps) {
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const measured = Boolean(task.startedAt)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (saving) return
+    setError(null)
     const value = String(
       new FormData(event.currentTarget).get('actualTime') ?? '',
     )
-    const actualTime = value === '' ? undefined : Number(value)
+    const actualTime = value === '' ? undefined : parseMinutes(value, 0)
+
+    if (actualTime === null) {
+      setError('Informe o tempo real em minutos inteiros, de 0 a 10080.')
+      return
+    }
 
     if (!measured && actualTime === undefined) {
       return
@@ -45,8 +53,12 @@ export function CompleteTaskDialog({
     try {
       await onComplete(actualTime)
       onOpenChange(false)
-    } catch {
-      // The task context keeps the API error available to the page.
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Não foi possível concluir a tarefa. Tente novamente.',
+      )
     } finally {
       setSaving(false)
     }
@@ -66,15 +78,19 @@ export function CompleteTaskDialog({
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <div className="grid gap-2">
             <Label htmlFor={`actual-${task.id}`}>Tempo real (min)</Label>
-            <Input
+            <MinutesInput
               autoFocus
               id={`actual-${task.id}`}
-              min={0}
+              minimum={0}
               name="actualTime"
               required={!measured}
-              type="number"
             />
           </div>
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
           <DialogFooter>
             <Button disabled={saving} type="submit">
               {saving ? 'Salvando...' : 'Concluir tarefa'}

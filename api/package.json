@@ -17,34 +17,46 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "legacy:assign": "node dist/database/assign-legacy.js"
   },
   "dependencies": {
-    "@nestjs/common": "^11.0.1",
+    "@nestjs/common": "^11.2.8",
     "@nestjs/config": "^4.0.2",
-    "@nestjs/core": "^11.0.1",
+    "@nestjs/core": "^11.2.8",
     "@nestjs/mapped-types": "2.1.0",
-    "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/passport": "^11.0.5",
+    "@nestjs/platform-express": "^11.2.8",
     "@nestjs/typeorm": "^11.0.0",
     "@vercel/blob": "^2.8.2",
+    "argon2": "^0.45.1",
     "class-transformer": "^0.5.1",
     "class-validator": "0.14.2",
+    "connect-pg-simple": "^10.0.0",
+    "express-session": "^1.19.0",
+    "helmet": "^8.3.0",
+    "passport": "^0.7.0",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "typeorm": "^0.3.27"
+    "typeorm": "^0.3.27",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
     "@rocketseat/eslint-config": "^2.2.2",
+    "@types/connect-pg-simple": "^7.0.3",
     "@types/express": "^5.0.0",
+    "@types/express-session": "^1.19.0",
     "@types/jest": "^30.0.0",
     "@types/multer": "^2.3.0",
     "@types/node": "^24.0.0",
+    "@types/passport": "^1.0.17",
     "@types/pg": "^8.15.6",
     "@types/supertest": "^7.0.0",
+    "@types/web-push": "^3.6.4",
     "eslint": "^8.57.1",
     "jest": "^30.0.0",
     "prettier": "^3.4.2",
@@ -72,5 +84,14 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "overrides": {
+    "@vercel/cli-config": {
+      "zod": "^4.6.7"
+    },
+    "@nestjs/platform-express": {
+      "multer": "^2.5.0"
+    },
+    "minimatch@^9.0.0": "^9.0.7"
   }
 }

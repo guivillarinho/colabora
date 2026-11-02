@@ -37,13 +37,21 @@ type NavigationProviderProps = {
 
 export function NavigationProvider({
   children,
-  initialSection = 'hoje',
+  initialSection,
 }: NavigationProviderProps) {
-  const [section, setSection] = useState<AppSection>(initialSection)
+  const [section, setSection] = useState<AppSection>(
+    () =>
+      initialSection ??
+      navItems.find((item) => `/${item.id}` === window.location.pathname)?.id ??
+      'hoje',
+  )
   const value = useMemo(
     () => ({
       section,
-      goTo: setSection,
+      goTo: (next: AppSection) => {
+        setSection(next)
+        window.history.replaceState(null, '', `/${next}`)
+      },
     }),
     [section],
   )

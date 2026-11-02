@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react'
+import { renderAuthenticated as render, taskAccess } from '@/test/auth-fixture'
+import { screen } from '@testing-library/react'
 
 import { tasksApi } from '@/features/tasks/api/tasks-api'
 import { TasksProvider } from '@/features/tasks/tasks-context'
@@ -55,6 +56,7 @@ describe('TaskCard', () => {
 
 function sampleTask(color: Task['color']): Task {
   return {
+    ...taskAccess,
     id: 'task-1',
     title: 'Estudar',
     description: null,

@@ -7,6 +7,9 @@ import {
 
 @Entity('focus_sessions')
 export class FocusSession {
+  @Column({ type: 'uuid', nullable: true })
+  ownerId: string | null
+
   @PrimaryGeneratedColumn('uuid')
   id: string
 

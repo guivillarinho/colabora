@@ -83,7 +83,7 @@ export function DeleteConfirmationDialog({
             type="button"
             variant="destructive"
             disabled={pending}
-            onClick={() => void confirm()}
+            onClick={confirm}
           >
             {pending ? 'Excluindo...' : 'Confirmar exclusão'}
           </Button>

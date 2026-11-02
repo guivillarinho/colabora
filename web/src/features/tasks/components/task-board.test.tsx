@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { renderAuthenticated as render, taskAccess } from '@/test/auth-fixture'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { App } from '@/app/App'
@@ -106,6 +107,25 @@ describe('TaskBoard', () => {
     expect(await screen.findByRole('heading', { name: 'Timer' })).toBeVisible()
   })
 
+  it('accepts only digits in the estimate, including pasted text', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await user.click(screen.getAllByRole('button', { name: 'Criar tarefa' })[0])
+    await user.type(screen.getByLabelText('Título'), 'Estimar leitura')
+    const estimate = screen.getByLabelText('Tempo estimado (min)')
+    await user.clear(estimate)
+    await user.type(estimate, '12eabc+-.,3')
+    expect(estimate).toHaveValue('123')
+    await user.paste('40min')
+    expect(estimate).toHaveValue('123')
+    await user.clear(estimate)
+    await user.paste('45')
+    await user.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
+    expect(api.create).toHaveBeenCalledWith(
+      expect.objectContaining({ estimatedTime: 45 }),
+    )
+  })
+
   it('creates a quick activity with its focus timer started', async () => {
     const user = userEvent.setup()
 
@@ -146,6 +166,7 @@ describe('TaskBoard', () => {
 
 describe('App shell', () => {
   beforeEach(() => {
+    jest.clearAllMocks()
     api.list.mockResolvedValue([])
   })
 
@@ -204,10 +225,114 @@ describe('App shell', () => {
     await user.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
     expect(api.remove).toHaveBeenCalledWith('task-1')
   })
+
+  it('removes a completed card, closes its dialog and keeps progress without deleting the task', async () => {
+    const user = userEvent.setup()
+    const task = buildTask({
+      title: 'Finalizar leitura',
+      category: 'Pessoal',
+      color: 'blue',
+      priority: 'medium',
+      estimatedTime: 30,
+    })
+    api.list.mockResolvedValue([task])
+    api.complete.mockResolvedValue({
+      task: { ...task, status: 'completed', actualTime: 15 },
+      productivityAdvice: null,
+    })
+    renderApp('hoje')
+    const heading = await screen.findByRole('heading', { name: task.title })
+    const card = heading.closest('li')!
+    dispatchPointer(card, 'pointerdown', 120)
+    dispatchPointer(card, 'pointermove', 220)
+    dispatchPointer(card, 'pointerup', 220)
+    const actual = screen.getByLabelText('Tempo real (min)')
+    await user.type(actual, '1eabc+-.,5')
+    expect(actual).toHaveValue('15')
+    await user.paste('minutos')
+    expect(actual).toHaveValue('15')
+    await user.click(screen.getByRole('button', { name: 'Concluir tarefa' }))
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: task.title }),
+      ).not.toBeInTheDocument(),
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(document.body.style.pointerEvents).not.toBe('none')
+    expect(
+      screen.getByRole('progressbar', { name: 'Progresso das tarefas' }),
+    ).toHaveAttribute('aria-valuenow', '100')
+    expect(api.complete).toHaveBeenCalledWith(task.id, 15)
+    expect(api.remove).not.toHaveBeenCalled()
+    await user.click(screen.getAllByRole('button', { name: 'Criar tarefa' })[0])
+    expect(screen.getByLabelText('Título')).toBeVisible()
+  })
+
+  it('retains a pending card and shows the error when completion fails', async () => {
+    const user = userEvent.setup()
+    const task = buildTask({
+      title: 'Tentar novamente',
+      category: 'Pessoal',
+      color: 'blue',
+      priority: 'medium',
+      estimatedTime: 30,
+    })
+    api.list.mockResolvedValue([task])
+    api.complete.mockRejectedValue(new Error('Serviço indisponível.'))
+    renderApp('hoje')
+    const heading = await screen.findByRole('heading', { name: task.title })
+    fireEvent.keyDown(heading.closest('article')!, { key: 'ArrowRight' })
+    await user.type(screen.getByLabelText('Tempo real (min)'), '0')
+    await user.click(screen.getByRole('button', { name: 'Concluir tarefa' }))
+    expect(
+      await screen.findByText('Serviço indisponível.', {
+        selector: '[role="alert"]',
+      }),
+    ).toBeVisible()
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('heading', { name: task.title })).toBeVisible()
+    expect(heading.closest('article')).toHaveStyle({
+      transform: 'translateX(0px)',
+    })
+  })
+
+  it('filters completed tasks before limiting the home preview', async () => {
+    const completed = {
+      ...buildTask({
+        title: 'Já concluída',
+        category: 'Pessoal',
+        color: 'blue',
+        priority: 'medium',
+        estimatedTime: 30,
+      }),
+      status: 'completed' as const,
+    }
+    const pending = ['Primeira', 'Segunda', 'Terceira', 'Quarta'].map(
+      (title, index) => ({
+        ...completed,
+        id: `pending-${index}`,
+        title,
+        status: 'pending' as const,
+      }),
+    )
+    api.list.mockResolvedValue([completed, ...pending])
+    renderApp('hoje')
+    expect(
+      await screen.findByRole('heading', { name: 'Terceira' }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('heading', { name: 'Já concluída' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'Quarta' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ver tudo' })).toBeVisible()
+  })
 })
 
 function buildTask(input: TaskInput): Task {
   return {
+    ...taskAccess,
     id: 'task-1',
     title: input.title,
     description: input.description || null,

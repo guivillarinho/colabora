@@ -5,9 +5,11 @@ import { Task } from './entities/task.entity'
 import { ProductivityAdvisorService } from './productivity-advisor.service'
 import { TasksController } from './tasks.controller'
 import { TasksService } from './tasks.service'
+import { AgendaModule } from '../agenda/agenda.module'
+import { NotificationsModule } from '../notifications/notifications.module'
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Task])],
+  imports: [TypeOrmModule.forFeature([Task]), AgendaModule, NotificationsModule],
   controllers: [TasksController],
   providers: [TasksService, ProductivityAdvisorService],
 })

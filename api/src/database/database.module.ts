@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { InitialSchema1793448000000 } from './migrations/1793448000000-initial-schema'
+import { UserSecurity1793534400000 } from './migrations/1793534400000-user-security'
+import { PushNotifications1793620800000 } from './migrations/1793620800000-push-notifications'
+import { databaseSchema } from './schema'
 
 @Module({
   imports: [
@@ -20,13 +23,19 @@ import { InitialSchema1793448000000 } from './migrations/1793448000000-initial-s
           config.get<string>('DB_SSL') === 'true'
             ? { rejectUnauthorized: true }
             : undefined,
-        extra: { max: Number(config.get<string>('DB_POOL_SIZE', '5')) },
+        schema: databaseSchema(config.get<string>('DB_SCHEMA')),
+        extra: {
+          max: Number(config.get<string>('DB_POOL_SIZE', '5')),
+          options: `-c search_path=${databaseSchema(config.get<string>('DB_SCHEMA'))}`,
+        },
         autoLoadEntities: true,
-        synchronize: config.get<string>('NODE_ENV') !== 'production' && !process.env.VERCEL,
-        migrations: [InitialSchema1793448000000],
-        migrationsRun:
-          config.get<string>('NODE_ENV') === 'production' &&
-          !process.env.VERCEL,
+        synchronize: false,
+        migrations: [
+          InitialSchema1793448000000,
+          UserSecurity1793534400000,
+          PushNotifications1793620800000,
+        ],
+        migrationsRun: !process.env.VERCEL,
       }),
     }),
   ],
