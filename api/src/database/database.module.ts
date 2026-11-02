@@ -26,7 +26,6 @@ import { databaseSchema } from './schema'
         schema: databaseSchema(config.get<string>('DB_SCHEMA')),
         extra: {
           max: Number(config.get<string>('DB_POOL_SIZE', '5')),
-          options: `-c search_path=${databaseSchema(config.get<string>('DB_SCHEMA'))}`,
         },
         autoLoadEntities: true,
         synchronize: false,
