@@ -9,7 +9,7 @@ export function hapticFeedback(kind: 'light' | 'success' = 'light'): void {
   const now = Date.now()
   if (now - lastFeedback < 80) return
   try {
-    navigator.vibrate(kind === 'success' ? 20 : 8)
+    navigator.vibrate(kind === 'success' ? 20 : 12)
     lastFeedback = now
   } catch {
     // Haptics are optional; a browser restriction must never interrupt an action.

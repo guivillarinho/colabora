@@ -27,7 +27,7 @@ test('gives a light pulse when navigating, including clicks on button contents',
     </>,
   )
   fireEvent.click(screen.getByText('Agenda'))
-  expect(navigator.vibrate).toHaveBeenCalledWith(8)
+  expect(navigator.vibrate).toHaveBeenCalledWith(12)
 })
 test('avoids repeated pulses for rapid interactions', () => {
   hapticFeedback()

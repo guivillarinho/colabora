@@ -64,20 +64,20 @@ const taskStatusAppearance = {
   pending: {
     label: 'Pendente',
     icon: Clock3,
-    card: 'border-l-4 border-amber-500/50 bg-amber-50/70 hover:border-amber-500 dark:bg-amber-950/20',
+    card: 'border-amber-500/50 bg-amber-50/70 hover:border-amber-500 dark:bg-amber-950/20',
     badge:
       'bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200',
   },
   in_progress: {
     label: 'Em andamento',
     icon: CirclePlay,
-    card: 'border-l-4 border-sky-500/50 bg-sky-50/70 hover:border-sky-500 dark:bg-sky-950/20',
+    card: 'border-sky-500/50 bg-sky-50/70 hover:border-sky-500 dark:bg-sky-950/20',
     badge: 'bg-sky-100 text-sky-900 dark:bg-sky-900/50 dark:text-sky-200',
   },
   completed: {
     label: 'Concluída',
     icon: CircleCheck,
-    card: 'border-l-4 border-emerald-500/50 bg-emerald-50/70 hover:border-emerald-500 dark:bg-emerald-950/25',
+    card: 'border-emerald-500/50 bg-emerald-50/70 hover:border-emerald-500 dark:bg-emerald-950/25',
     badge:
       'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200',
   },
