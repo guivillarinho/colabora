@@ -460,8 +460,8 @@ function AgendaCard({
       )}
       onClick={onSelect}
     >
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+        <div className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)] items-center gap-2">
           <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-secondary text-secondary-foreground">
             {task ? (
               <CalendarDays className="size-4" />
@@ -469,7 +469,7 @@ function AgendaCard({
               item.icon || <FolderKanban className="size-4" />
             )}
           </span>
-          <div className="min-w-0">
+          <div className="min-w-0 overflow-hidden">
             <p className="truncate font-semibold" title={item.title}>
               {item.title}
             </p>
@@ -482,7 +482,7 @@ function AgendaCard({
             </p>
           </div>
         </div>
-        <span className="shrink-0 rounded-full bg-accent px-2 py-1 text-xs font-medium text-accent-foreground">
+        <span className="whitespace-nowrap rounded-full bg-accent px-2 py-1 text-xs font-medium text-accent-foreground">
           {formatTime(item.startDate)}
         </span>
       </div>
