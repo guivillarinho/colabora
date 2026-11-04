@@ -91,10 +91,12 @@ export function AppShell() {
           {error ? (
             <p className="mb-4 text-sm text-destructive">{error}</p>
           ) : null}
-          {section === 'hoje' ? <DashboardPage /> : null}
-          {section === 'timer' ? <TimerPage /> : null}
-          {section === 'agenda' ? <AgendaPage /> : null}
-          {section === 'perfil' ? <AccountPage /> : null}
+          <div key={section} className="colabora-page-enter">
+            {section === 'hoje' ? <DashboardPage /> : null}
+            {section === 'timer' ? <TimerPage /> : null}
+            {section === 'agenda' ? <AgendaPage /> : null}
+            {section === 'perfil' ? <AccountPage /> : null}
+          </div>
         </main>
 
         <AppNav center={<CreateTaskDialog variant="icon" />} layout="bottom" />

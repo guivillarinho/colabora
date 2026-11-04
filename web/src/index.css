@@ -5,6 +5,116 @@
 
 @custom-variant dark (&:is(.dark *));
 
+:root {
+  --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-fast: 160ms;
+  --motion-enter: 280ms;
+}
+
+@keyframes colabora-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes colabora-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes colabora-dialog {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.colabora-page-enter {
+  animation: colabora-enter var(--motion-enter) var(--motion-ease-out);
+}
+
+[data-slot='button'],
+.colabora-nav-item {
+  transition-property: color, background-color, border-color, box-shadow, scale, translate;
+  transition-duration: var(--motion-fast);
+  transition-timing-function: var(--motion-ease-out);
+}
+
+[data-slot='button']:enabled:active,
+.colabora-nav-item:active {
+  scale: 0.97;
+}
+
+.colabora-nav-item svg {
+  transition: translate var(--motion-fast) var(--motion-ease-out);
+}
+
+.colabora-nav-item[aria-current='page'] svg {
+  translate: 0 -2px;
+}
+
+.colabora-task-card {
+  animation: colabora-enter var(--motion-enter) var(--motion-ease-out);
+  transition: box-shadow var(--motion-fast) var(--motion-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .colabora-task-card:hover {
+    box-shadow: 0 4px 14px oklch(0 0 0 / 6%);
+  }
+}
+
+[data-slot='dialog-overlay'][data-state='open'] {
+  animation: colabora-fade 220ms var(--motion-ease-out);
+}
+
+[data-slot='dialog-overlay'][data-state='closed'] {
+  animation: colabora-fade var(--motion-fast) ease-in reverse;
+}
+
+[data-slot='dialog-content'][data-state='open'] {
+  animation: colabora-dialog var(--motion-enter) var(--motion-ease-out);
+}
+
+[data-slot='dialog-content'][data-state='closed'] {
+  animation: colabora-dialog var(--motion-fast) ease-in reverse;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .colabora-page-enter,
+  .colabora-task-card,
+  [data-slot='dialog-overlay'][data-state],
+  [data-slot='dialog-content'][data-state] {
+    animation: none;
+  }
+
+  [data-slot='button'],
+  .colabora-nav-item,
+  .colabora-nav-item svg,
+  .colabora-task-card,
+  [role='progressbar'] > div {
+    transition: none;
+    scale: 1;
+    translate: none;
+  }
+
+  [data-slot='button']:enabled:active,
+  .colabora-nav-item:active,
+  .colabora-nav-item[aria-current='page'] svg {
+    scale: 1;
+    translate: none;
+  }
+}
+
 @keyframes colabora-confetti {
   0% {
     opacity: 1;

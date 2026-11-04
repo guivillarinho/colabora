@@ -68,7 +68,7 @@ export function AppNav({ layout, center }: AppNavProps) {
       <button
         aria-current={isActive ? 'page' : undefined}
         className={cn(
-          'flex w-fit items-center rounded-lg font-medium',
+          'colabora-nav-item flex w-fit items-center rounded-lg font-medium',
           isBottom
             ? 'h-14 w-16 flex-col justify-center gap-0.5 px-1 text-[11px] leading-none'
             : 'gap-2.5 px-2.5 py-1.5 text-sm',

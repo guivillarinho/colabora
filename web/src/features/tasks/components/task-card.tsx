@@ -45,7 +45,10 @@ export function TaskCard({
 
   return (
     <article
-      className={cn('grid gap-3 rounded-xl border p-4', swatch.className)}
+      className={cn(
+        'colabora-task-card grid gap-3 rounded-xl border p-4',
+        swatch.className,
+      )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
