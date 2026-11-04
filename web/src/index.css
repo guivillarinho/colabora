@@ -9,6 +9,58 @@
   --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --motion-fast: 160ms;
   --motion-enter: 280ms;
+  --glass-surface: oklch(1 0 0 / 76%);
+  --glass-highlight: oklch(1 0 0 / 62%);
+  --glass-edge: oklch(1 0 0 / 85%);
+  --glass-shadow: oklch(0.34 0.08 300 / 7%);
+}
+
+.dark {
+  --glass-surface: oklch(0.23 0.025 300 / 82%);
+  --glass-highlight: oklch(1 0 0 / 6%);
+  --glass-edge: oklch(1 0 0 / 13%);
+  --glass-shadow: oklch(0 0 0 / 22%);
+}
+
+.colabora-app {
+  background-color: var(--background);
+  background-image:
+    radial-gradient(ellipse at 95% 0%, oklch(0.78 0.13 300 / 22%), transparent 48rem),
+    radial-gradient(ellipse at 0% 55%, oklch(0.85 0.09 285 / 16%), transparent 45rem);
+}
+
+.glass-panel,
+.glass-chrome {
+  background: linear-gradient(135deg, var(--glass-highlight), transparent 65%), var(--glass-surface);
+  border-color: var(--glass-edge);
+  box-shadow: 0 8px 32px var(--glass-shadow), inset 0 1px 0 var(--glass-edge);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  backdrop-filter: blur(22px) saturate(145%);
+}
+
+.glass-card {
+  background-image: linear-gradient(135deg, var(--glass-highlight), transparent 65%);
+  box-shadow: 0 4px 18px var(--glass-shadow), inset 0 1px 0 var(--glass-edge);
+  -webkit-backdrop-filter: blur(12px) saturate(125%);
+  backdrop-filter: blur(12px) saturate(125%);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-panel,
+  .glass-chrome {
+    background-color: var(--card);
+  }
+}
+
+[data-slot='button'][data-variant='default'] {
+  background-image: linear-gradient(180deg, oklch(1 0 0 / 13%), transparent);
+  box-shadow: 0 3px 10px var(--glass-shadow), inset 0 1px 0 oklch(1 0 0 / 16%);
+}
+
+[data-slot='button'][data-variant='default']:focus-visible,
+button.glass-card:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
 }
 
 @keyframes colabora-enter {
@@ -69,7 +121,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .colabora-task-card:hover {
-    box-shadow: 0 4px 14px oklch(0 0 0 / 6%);
+    box-shadow: 0 8px 24px var(--glass-shadow), inset 0 1px 0 var(--glass-edge);
   }
 }
 

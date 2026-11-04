@@ -1,4 +1,5 @@
 import { TaskPeople } from '@/features/tasks/components/task-people'
+import { LinkedText } from '@/components/linked-text'
 import { useRef, useState, type PointerEvent } from 'react'
 import {
   ArrowLeft,
@@ -309,7 +310,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           transition: swipeTransition,
         }}
         className={cn(
-          'relative z-10 grid min-w-0 grid-cols-[minmax(0,1fr)] cursor-grab select-none gap-2 rounded-xl border bg-card p-3 [overflow-wrap:anywhere] active:cursor-grabbing motion-reduce:!transition-none sm:p-4',
+          'glass-card relative z-10 grid min-w-0 grid-cols-[minmax(0,1fr)] cursor-grab select-none gap-2 rounded-xl border p-3 [overflow-wrap:anywhere] active:cursor-grabbing motion-reduce:!transition-none sm:p-4',
         )}
       >
         <div className="flex items-center justify-between gap-3">
@@ -335,7 +336,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
         <TaskPeople task={task} />
         {task.description ? (
           <p className="line-clamp-2 text-sm text-muted-foreground">
-            {task.description}
+            <LinkedText>{task.description}</LinkedText>
           </p>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">

@@ -20,7 +20,7 @@ export function AppNav({ layout, center }: AppNavProps) {
     return (
       <nav
         aria-label="Navegação inferior"
-        className="fixed inset-x-0 bottom-0 z-30 border-t bg-background md:hidden"
+        className="glass-panel fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 rounded-3xl border md:hidden"
       >
         <ul className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-2">
           <li>
@@ -68,12 +68,12 @@ export function AppNav({ layout, center }: AppNavProps) {
       <button
         aria-current={isActive ? 'page' : undefined}
         className={cn(
-          'colabora-nav-item flex w-fit items-center rounded-lg font-medium',
+          'colabora-nav-item flex items-center rounded-lg font-medium',
           isBottom
-            ? 'h-14 w-16 flex-col justify-center gap-0.5 px-1 text-[11px] leading-none'
-            : 'gap-2.5 px-2.5 py-1.5 text-sm',
+            ? 'h-14 w-full min-w-0 flex-col justify-center gap-0.5 text-[11px] leading-none'
+            : 'w-fit gap-2.5 px-2.5 py-1.5 text-sm',
           isActive
-            ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+            ? 'bg-sidebar-accent/75 text-sidebar-accent-foreground shadow-[inset_0_1px_0_var(--glass-edge)]'
             : 'text-muted-foreground hover:bg-muted hover:text-foreground',
         )}
         type="button"

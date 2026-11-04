@@ -378,6 +378,31 @@ describe('AgendaPage', () => {
     ).toBeGreaterThan(0)
   })
 
+  it('groups the description and makes its links clickable in details', async () => {
+    const [task] = await api.list()
+    api.list.mockResolvedValue([
+      { ...task, description: 'Contrato: https://exemplo.com/contrato' },
+    ])
+    const user = userEvent.setup()
+    render(
+      <TasksProvider>
+        <AgendaPage />
+      </TasksProvider>,
+    )
+    const card = await screen.findByRole('button', { name: /Enviar proposta/ })
+    expect(within(card).queryByRole('link')).not.toBeInTheDocument()
+    await user.click(card)
+    const description = within(screen.getByRole('dialog')).getByRole('region', {
+      name: 'Descrição',
+    })
+    expect(
+      within(description).getByRole('heading', { name: 'Descrição' }),
+    ).toBeVisible()
+    expect(
+      within(description).getByRole('link', { name: /exemplo.com\/contrato/ }),
+    ).toHaveAttribute('href', 'https://exemplo.com/contrato')
+  })
+
   it('opens an empty search-only page with sorting available', async () => {
     const user = userEvent.setup()
     render(

@@ -42,8 +42,8 @@ export function AppShell() {
   }
 
   return (
-    <div className="min-h-svh bg-background md:grid md:grid-cols-[16rem_minmax(0,1fr)]">
-      <aside className="sticky top-0 hidden h-svh flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
+    <div className="colabora-app min-h-svh md:grid md:grid-cols-[16rem_minmax(0,1fr)]">
+      <aside className="glass-chrome sticky top-0 hidden h-svh flex-col border-r text-sidebar-foreground md:flex">
         <div className="flex items-center gap-3 px-5 py-6">
           <p className="text-sm font-medium text-muted-foreground">
             Tarefas no seu ritmo
@@ -53,7 +53,7 @@ export function AppShell() {
       </aside>
 
       <div className="flex min-h-svh min-w-0 flex-col">
-        <header className="sticky top-0 z-20 border-b bg-background/95 px-4 py-4 backdrop-blur md:px-8">
+        <header className="glass-chrome sticky top-0 z-20 border-b px-4 py-4 md:px-8">
           <div className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
               <UserAvatar />
@@ -82,7 +82,7 @@ export function AppShell() {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-24 md:px-8 md:pb-8">
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-36 md:px-8 md:pb-8">
           {logoutError ? (
             <p role="alert" className="mb-4 text-sm text-destructive">
               {logoutError}

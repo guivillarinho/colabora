@@ -1,4 +1,5 @@
 import { TaskPeople } from './task-people'
+import { LinkedText } from '@/components/linked-text'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
 import { useState } from 'react'
 
@@ -46,7 +47,7 @@ export function TaskCard({
   return (
     <article
       className={cn(
-        'colabora-task-card grid gap-3 rounded-xl border p-4',
+        'colabora-task-card glass-card grid gap-3 rounded-2xl border p-4',
         swatch.className,
       )}
     >
@@ -60,7 +61,11 @@ export function TaskCard({
         </span>
       </div>
       <TaskPeople task={task} />
-      {task.description ? <p>{task.description}</p> : null}
+      {task.description ? (
+        <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+          <LinkedText>{task.description}</LinkedText>
+        </p>
+      ) : null}
       <p className="text-sm">
         {task.category} · {priorityLabel[task.priority]} ·{' '}
         {formatDuration(task.estimatedTime)} estimados

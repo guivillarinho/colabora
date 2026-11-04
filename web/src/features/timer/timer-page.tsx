@@ -124,7 +124,7 @@ export function TimerPage() {
       <div className="grid gap-6 sm:gap-8 sm:contents">
         <section aria-label="Sessão de foco" className="order-1 grid gap-3">
           <SectionTitle>Seu foco agora</SectionTitle>
-          <article className="grid justify-items-center gap-5 rounded-2xl border bg-card p-5 text-center shadow-sm sm:p-8">
+          <article className="glass-panel grid justify-items-center gap-5 rounded-2xl border p-5 text-center sm:p-8">
             {activeSession ? (
               <>
                 <div className="grid gap-1">
@@ -270,7 +270,7 @@ type StatCardProps = {
 
 function StatCard({ icon, label, value }: StatCardProps) {
   return (
-    <article className="grid gap-3 rounded-xl border bg-card p-4 shadow-sm">
+    <article className="glass-panel grid gap-3 rounded-2xl border p-4">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span className="text-primary">{icon}</span>
         {label}
@@ -308,7 +308,7 @@ function SessionCard({ session }: { session: FocusSession }) {
 
   return (
     <li>
-      <article className="grid min-w-0 gap-2 rounded-xl border bg-card p-4 shadow-sm">
+      <article className="glass-panel grid min-w-0 gap-2 rounded-2xl border p-4">
         <h3 className="truncate font-medium" title={session.title}>
           {session.title}
         </h3>

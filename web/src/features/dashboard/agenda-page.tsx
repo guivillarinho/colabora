@@ -36,6 +36,7 @@ import { LocationField } from '@/features/tasks/components/location-field'
 import { uploadAgendaFiles } from './upload-agenda-files'
 import type { Task } from '@/features/tasks/types/task'
 import { TaskExecutionTime } from '@/features/tasks/components/task-execution-time'
+import { LinkedText } from '@/components/linked-text'
 
 type AgendaKind = 'event' | 'project' | 'task'
 type AgendaItem = {
@@ -237,7 +238,7 @@ export function AgendaPage() {
       {!searchOpen ? (
         <section
           aria-label="Semana"
-          className="grid gap-3 rounded-2xl border bg-card p-4 shadow-sm sm:p-5"
+          className="glass-panel grid gap-3 rounded-2xl border p-4 sm:p-5"
         >
           <div className="flex items-center justify-between gap-2">
             <SectionTitle>{monthLabel(weekDays[0])}</SectionTitle>
@@ -475,8 +476,8 @@ function AgendaCard({
   return (
     <button
       className={cn(
-        'grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 rounded-xl border p-4 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        status?.card ?? 'bg-card hover:border-primary/40',
+        'glass-card grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 rounded-2xl border p-4 text-left transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        status?.card ?? 'bg-card/65 hover:border-primary/40',
       )}
       onClick={onSelect}
     >
@@ -605,9 +606,17 @@ function AgendaDetails({
                 <TaskExecutionTime task={task} />
               </>
             ) : null}
-            <p className="whitespace-pre-wrap text-muted-foreground">
-              {item.description || 'Sem descrição.'}
-            </p>
+            <section
+              aria-label="Descrição"
+              className="grid min-w-0 gap-2 rounded-2xl border border-zinc-200/80 bg-zinc-50/90 p-4 dark:border-zinc-700/70 dark:bg-zinc-900/55"
+            >
+              <h3 className="text-xs font-semibold text-muted-foreground">
+                Descrição
+              </h3>
+              <p className="whitespace-pre-wrap leading-relaxed text-foreground/85 [overflow-wrap:anywhere]">
+                <LinkedText>{item.description || 'Sem descrição.'}</LinkedText>
+              </p>
+            </section>
             {item.startDate && item.endDate ? (
               <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/60 p-3">
                 <div>

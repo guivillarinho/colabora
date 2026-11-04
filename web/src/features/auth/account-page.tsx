@@ -130,7 +130,7 @@ export function AccountPage() {
       <h1 className="text-2xl font-semibold">Seu perfil</h1>
       <p>{user?.name}</p>
       <p className="text-muted-foreground">{user?.email}</p>
-      <section className="grid gap-3 rounded-xl border bg-card p-4 sm:p-5">
+      <section className="glass-panel grid gap-3 rounded-2xl border p-4 sm:p-5">
         <div className="flex items-center gap-3">
           {pushEnabled ? (
             <Bell aria-hidden="true" className="size-5 text-primary" />
