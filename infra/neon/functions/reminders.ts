@@ -18,11 +18,23 @@ app.post('/', async (context) => {
       headers: { authorization: `Bearer ${secret}` },
       signal: AbortSignal.timeout(25_000),
     },
-  )
-  const payload = await result.json().catch(() => ({ message: 'API indisponível.' }))
-  return result.ok
-    ? context.json(payload)
-    : context.json(payload, 502)
+  ).catch(() => null)
+  if (!result) {
+    console.error('reminders dispatch failed', {
+      invocationId,
+      reason: 'API indisponível',
+    })
+    return context.json({ message: 'API indisponível.' }, 502)
+  }
+  const payload = await result
+    .json()
+    .catch(() => ({ message: 'API indisponível.' }))
+  console.log('reminders dispatch', {
+    invocationId,
+    status: result.status,
+    delivered: payload.delivered,
+  })
+  return result.ok ? context.json(payload) : context.json(payload, 502)
 })
 
 export default app

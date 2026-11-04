@@ -4,5 +4,8 @@
   "type": "module",
   "dependencies": {
     "hono": "^4.11.8"
+  },
+  "scripts": {
+    "test": "node --test functions/*.test.ts"
   }
 }

@@ -84,6 +84,36 @@ da Vercel). Gere `REMINDER_DISPATCH_SECRET` com um gerador criptográfico e grav
 o mesmo valor na Vercel e na função Neon. Nunca coloque esses segredos em
 variáveis `VITE_*` nem no Git.
 
+Em uma API com processo contínuo (`npm run start:prod` ou desenvolvimento),
+os lembretes são verificados automaticamente ao iniciar e a cada 15 segundos.
+Não é necessário chamar a rota de disparo manualmente nesse ambiente.
+Na Vercel, o processo pode ser suspenso entre requisições; por isso o agendador
+externo descrito abaixo continua obrigatório. Sem o trigger ativo, os avisos
+de alterações funcionam, mas os lembretes de horário ficam pendentes.
+
+A configuração de produção usa o banco `colabora-db` em São Paulo e um projeto
+separado **Free**, `colabora-reminders`, em N. Virginia (`aws-us-east-1`), apenas
+para executar o agendador. Functions não estão disponíveis em São Paulo.
+O projeto do agendador não é conectado como banco da aplicação: não substituir
+`DATABASE_URL` da Vercel por uma conexão desse projeto.
+
+| Recurso | Identificação |
+| --- | --- |
+| Projeto Neon do agendador | `mute-hat-84564929` |
+| Branch | `main` (`br-super-math-bbooes41`) |
+| Function | `reminders` |
+| Trigger | `colabora-task-reminders` |
+| Agenda | `* * * * *` (UTC, a cada minuto) |
+| API | `https://colabora-rouge.vercel.app` |
+
+O vínculo local do agendador fica em `infra/neon/.neon` (ignorado pelo Git).
+Para refazer esse vínculo sem baixar ou trocar conexões do banco:
+
+```bash
+cd infra/neon
+neon link --project-id mute-hat-84564929 --branch main --no-env-pull --no-config --yes
+```
+
 Os lembretes para tarefas são enfileirados 10 minutos antes e no horário marcado;
 editar prazo, reatribuir, concluir ou excluir atualiza/cancela a fila. Tarefas
 existentes com vencimento futuro são incluídas pela migração. Para o serviço
@@ -98,8 +128,8 @@ Triggers estão disponíveis no plano gratuito da Neon; cada navegador/aparelho
 também precisa permitir notificações.
 
 Para publicar a função, instale a CLI Neon e rode `npm install` em
-`infra/neon`. Vincule esse diretório ao projeto e à branch de produção Neon com
-`neon link`, exporte `REMINDER_DISPATCH_SECRET` no terminal e rode:
+`infra/neon`. Vincule esse diretório ao projeto do agendador conforme acima,
+exporte `REMINDER_DISPATCH_SECRET` no terminal e rode:
 
 ```bash
 neon functions deploy reminders --src functions/reminders.ts \
@@ -107,10 +137,19 @@ neon functions deploy reminders --src functions/reminders.ts \
   --env REMINDER_DISPATCH_SECRET="$REMINDER_DISPATCH_SECRET"
 ```
 
-Depois crie o trigger na Neon Console → Functions → `reminders` → Manage
-Triggers → Create trigger, selecione Schedule e informe `* * * * *` com o trigger
-ativado. Armazene o mesmo segredo como variável de produção na Vercel. O painel
-Vercel precisa também das chaves VAPID. Configure essas variáveis antes de
+O trigger de produção já está criado. Para uma instalação nova, crie-o
+somente se ele ainda não existir:
+
+```bash
+neon triggers list --output json
+neon triggers create --function-slug reminders --name colabora-task-reminders --cron '* * * * *' --enabled
+```
+
+Verifique os disparos com `neon logs query --source function`. Cada execução
+registra o identificador da invocação, o status HTTP da API e a quantidade de
+lembretes processados, sem registrar o segredo ou dados das tarefas. Armazene o
+mesmo segredo como variável de produção na Vercel. O painel Vercel precisa também
+das chaves VAPID. Configure essas variáveis antes de
 publicar a aplicação.
 
 Deploy da aplicação exige que as chaves VAPID e o segredo do despachador existam
