@@ -20,6 +20,7 @@ const taskId = '7d7f0a4e-6c2b-4f1a-9d3e-1b2c3d4e5f60'
 
 describe('TasksService', () => {
   let service: TasksService
+  let notifications: NotificationsService
   const findOne = jest.fn<Promise<Task | null>, []>()
   const repository = {
     create: jest.fn((data: Partial<Task>) => data),
@@ -70,6 +71,92 @@ describe('TasksService', () => {
     }).compile()
 
     service = moduleRef.get(TasksService)
+    notifications = moduleRef.get(NotificationsService)
+  })
+
+  it.each(['owner', 'assignee'])(
+    'lets the %s reopen a completed task and reset its execution time',
+    async (actor) => {
+      const dueDate = new Date(Date.now() + 3600000)
+      findOne.mockResolvedValue(
+        pendingTask({
+          assignedToId: 'assignee',
+          dueDate,
+          status: TaskStatus.Completed,
+          startedAt: new Date(Date.now() - 30 * 60000),
+          actualTime: 30,
+          actualTimeSource: 'timer',
+        }),
+      )
+
+      const result = await service.setPending(taskId, actor)
+
+      expect(repository.update).toHaveBeenCalledWith(
+        [
+          { id: taskId, createdById: actor },
+          { id: taskId, assignedToId: actor },
+        ],
+        {
+          status: TaskStatus.Pending,
+          startedAt: null,
+          actualTime: null,
+          actualTimeSource: null,
+        },
+      )
+      expect(result.status).toBe(TaskStatus.Pending)
+      expect(result.startedAt).toBeNull()
+      expect(result.actualTime).toBeNull()
+      expect(result.actualTimeSource).toBeNull()
+      expect(result.dueDate).toEqual(dueDate)
+      expect(notifications.scheduleTaskReminders).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: taskId,
+          dueDate,
+          status: TaskStatus.Pending,
+        }),
+      )
+      expect(notifications.notifyUsers).toHaveBeenCalledWith(
+        ['owner', 'assignee'],
+        'Tarefa voltou para pendente',
+        result.title,
+      )
+
+      await service.start(taskId, actor)
+      const completed = await service.complete(taskId, {}, actor)
+      expect(completed.task.status).toBe(TaskStatus.Completed)
+      expect(completed.task.actualTime).toBe(0)
+      expect(completed.task.actualTimeSource).toBe('timer')
+    },
+  )
+
+  it('preserves the timer when returning an unfinished task to pending', async () => {
+    const startedAt = new Date(Date.now() - 30 * 60000)
+    findOne.mockResolvedValue(
+      pendingTask({ status: TaskStatus.InProgress, startedAt }),
+    )
+
+    const result = await service.setPending(taskId, 'owner')
+
+    expect(result.status).toBe(TaskStatus.Pending)
+    expect(result.startedAt).toEqual(startedAt)
+    expect(notifications.scheduleTaskReminders).not.toHaveBeenCalled()
+  })
+
+  it('does not reopen tasks that are not visible to the actor', async () => {
+    findOne.mockResolvedValue(null)
+
+    await expect(service.setPending(taskId, 'other')).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    expect(findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: [
+          { id: taskId, createdById: 'other' },
+          { id: taskId, assignedToId: 'other' },
+        ],
+      }),
+    )
+    expect(repository.update).not.toHaveBeenCalled()
   })
 
   it('returns advice when the informed time exceeds the estimate', async () => {

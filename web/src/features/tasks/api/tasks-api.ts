@@ -22,6 +22,11 @@ export const tasksApi = {
     request<Task>(`/tasks/${id}/start`, {
       method: 'POST',
     }),
+  reopen: (id: string) =>
+    request<Task>(`/tasks/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'pending' }),
+    }),
   complete: (id: string, actualTime?: number) =>
     request<TaskCompletion>(`/tasks/${id}/complete`, {
       method: 'POST',

@@ -197,14 +197,21 @@ export class TasksService {
 
   async setPending(id: string, actor: string): Promise<TaskView> {
     const task = await this.visible(id, actor)
-    if (task.status === TaskStatus.Completed)
-      throw new BadRequestException('Esta tarefa já foi concluída.')
+    const reopening = task.status === TaskStatus.Completed
+    const changes: Partial<Task> = {
+      status: TaskStatus.Pending,
+      ...(reopening
+        ? { startedAt: null, actualTime: null, actualTimeSource: null }
+        : {}),
+    }
     const result = await this.tasksRepository.update(
       this.visibility(actor, id),
-      { status: TaskStatus.Pending },
+      changes,
     )
     if (!result.affected) throw new NotFoundException('Tarefa não encontrada.')
     const updated = await this.findOne(id, actor)
+    if (reopening)
+      await this.notifications.scheduleTaskReminders({ ...task, ...changes })
     await this.notifications.notifyUsers(
       [task.createdById, task.assignedToId],
       'Tarefa voltou para pendente',

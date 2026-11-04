@@ -21,6 +21,7 @@ type TasksContextValue = {
   updateTask: (id: string, input: TaskInput) => Promise<void>
   removeTask: (id: string) => Promise<void>
   startTask: (id: string) => Promise<void>
+  reopenTask: (id: string) => Promise<void>
   completeTask: (id: string, actualTime?: number) => Promise<void>
 }
 
@@ -121,6 +122,19 @@ export function TasksProvider({ children }: TasksProviderProps) {
     [replaceTask],
   )
 
+  const reopenTask = useCallback(
+    async (id: string) => {
+      try {
+        replaceTask(await tasksApi.reopen(id))
+        setError(null)
+      } catch (cause) {
+        setError(errorMessage(cause))
+        throw cause
+      }
+    },
+    [replaceTask],
+  )
+
   const completeTask = useCallback(
     async (id: string, actualTime?: number) => {
       try {
@@ -155,6 +169,7 @@ export function TasksProvider({ children }: TasksProviderProps) {
       updateTask,
       removeTask,
       startTask,
+      reopenTask,
       completeTask,
     }),
     [
@@ -167,6 +182,7 @@ export function TasksProvider({ children }: TasksProviderProps) {
       updateTask,
       removeTask,
       startTask,
+      reopenTask,
       completeTask,
     ],
   )
