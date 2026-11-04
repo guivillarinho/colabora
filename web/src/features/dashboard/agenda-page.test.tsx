@@ -1,5 +1,5 @@
 import { renderAuthenticated as render, taskAccess } from '@/test/auth-fixture'
-import { screen, within } from '@testing-library/react'
+import { screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { AgendaPage } from './agenda-page'
@@ -7,6 +7,8 @@ import { TasksProvider } from '@/features/tasks/tasks-context'
 import { tasksApi } from '@/features/tasks/api/tasks-api'
 import { acceptHttpSession } from '@/lib/http-client'
 import type { Task } from '@/features/tasks/types/task'
+import { DashboardPage } from './dashboard-page'
+import { NavigationProvider } from '@/components/layout/navigation'
 
 jest.mock('@/features/tasks/api/tasks-api', () => ({
   tasksApi: {
@@ -15,6 +17,7 @@ jest.mock('@/features/tasks/api/tasks-api', () => ({
     update: jest.fn(),
     remove: jest.fn(),
     start: jest.fn(),
+    reopen: jest.fn(),
     complete: jest.fn(),
   },
 }))
@@ -69,40 +72,186 @@ describe('AgendaPage', () => {
     ).toBeVisible()
   })
 
+  it.each([dueDate, null])(
+    'reopens in Agenda a task completed in Hoje and returns it to the timeline (dueDate: %s)',
+    async (date) => {
+      const [original] = await api.list()
+      const task = { ...original, dueDate: date }
+      api.list.mockResolvedValue([task])
+      const completed: Task = {
+        ...task,
+        status: 'completed',
+        actualTime: 30,
+        actualTimeSource: 'timer',
+      }
+      api.complete.mockResolvedValue({
+        task: completed,
+        productivityAdvice: null,
+      })
+      api.reopen.mockResolvedValue({
+        ...task,
+        status: 'pending',
+        startedAt: null,
+        actualTime: null,
+        actualTimeSource: null,
+      })
+      const user = userEvent.setup()
+      const view = (agenda: boolean) => (
+        <TasksProvider>
+          <NavigationProvider>
+            {agenda ? <AgendaPage /> : <DashboardPage />}
+          </NavigationProvider>
+        </TasksProvider>
+      )
+      const { rerender } = render(view(false))
+      const card = await screen.findByRole('article', {
+        name: /Enviar proposta/,
+      })
+      card.focus()
+      await user.keyboard('{ArrowRight}')
+      expect(await screen.findByText('Nenhuma tarefa pendente.')).toBeVisible()
+      expect(api.complete).toHaveBeenCalledWith('task-1', undefined)
+
+      rerender(view(true))
+      if (!date) {
+        expect(
+          await screen.findByRole('region', { name: 'Tarefas sem data' }),
+        ).toBeVisible()
+      }
+      await user.click(
+        await screen.findByRole('button', { name: /Enviar proposta/ }),
+      )
+      expect(
+        within(screen.getByRole('dialog')).getByLabelText(
+          'Situação: Concluída',
+        ),
+      ).toBeVisible()
+      await user.click(screen.getByRole('button', { name: 'Reabrir tarefa' }))
+
+      expect(api.reopen).toHaveBeenCalledWith('task-1')
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      )
+      expect(screen.getByLabelText('Situação: Pendente')).toBeVisible()
+      expect(
+        screen.queryByLabelText('Tempo de execução'),
+      ).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /Enviar proposta/ }))
+      expect(
+        screen.getByRole('button', { name: 'Concluir tarefa' }),
+      ).toBeVisible()
+      expect(
+        screen.queryByRole('button', { name: 'Reabrir tarefa' }),
+      ).not.toBeInTheDocument()
+      await user.keyboard('{Escape}')
+
+      rerender(view(false))
+      expect(
+        screen.getByRole('article', { name: /Enviar proposta/ }),
+      ).toBeVisible()
+      expect(
+        screen.queryByText('Nenhuma tarefa pendente.'),
+      ).not.toBeInTheDocument()
+    },
+  )
+
+  it('keeps the completed task and allows retrying when reopening fails', async () => {
+    const [task] = await api.list()
+    api.list.mockResolvedValue([{ ...task, status: 'completed' }])
+    api.reopen.mockRejectedValueOnce(new Error('Não foi possível reabrir.'))
+    api.reopen.mockResolvedValueOnce({ ...task, status: 'pending' })
+    const user = userEvent.setup()
+    render(
+      <TasksProvider>
+        <AgendaPage />
+      </TasksProvider>,
+    )
+    await user.click(
+      await screen.findByRole('button', { name: /Enviar proposta/ }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Reabrir tarefa' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Não foi possível reabrir.',
+    )
+    expect(
+      within(screen.getByRole('dialog')).getByLabelText('Situação: Concluída'),
+    ).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Reabrir tarefa' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    )
+    expect(screen.getByLabelText('Situação: Pendente')).toBeVisible()
+  })
+
+  it('hides reopening when the user cannot change task status', async () => {
+    const [task] = await api.list()
+    api.list.mockResolvedValue([
+      {
+        ...task,
+        status: 'completed',
+        permissions: { ...task.permissions, changeStatus: false },
+      },
+    ])
+    const user = userEvent.setup()
+    render(
+      <TasksProvider>
+        <AgendaPage />
+      </TasksProvider>,
+    )
+    await user.click(
+      await screen.findByRole('button', { name: /Enviar proposta/ }),
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Reabrir tarefa' }),
+    ).not.toBeInTheDocument()
+  })
+
   it.each([
     {
       actualTime: 75,
       actualTimeSource: 'timer',
       label: 'Tempo de execução',
       duration: '1 h 15 min',
+      compactDuration: '1h 15min',
     },
     {
       actualTime: 0,
       actualTimeSource: 'manual',
       label: 'Tempo de execução',
       duration: '0 min',
+      compactDuration: '0min',
     },
     {
       actualTime: 20,
       actualTimeSource: 'schedule',
       label: 'Tempo estimado de execução',
       duration: '20 min',
+      compactDuration: '20min',
     },
     {
       actualTime: 30,
       actualTimeSource: 'estimate',
       label: 'Tempo estimado de execução',
       duration: '30 min',
+      compactDuration: '30min',
     },
     {
       actualTime: null,
       actualTimeSource: null,
       label: 'Tempo de execução',
       duration: 'Não registrado',
+      compactDuration: 'não registrado',
     },
   ] as const)(
-    'shows execution time beside the completed status in details: $actualTimeSource / $actualTime',
-    async ({ actualTime, actualTimeSource, label, duration }) => {
+    'shows compact completion time on the card and its own section in details: $actualTimeSource / $actualTime',
+    async ({
+      actualTime,
+      actualTimeSource,
+      label,
+      duration,
+      compactDuration,
+    }) => {
       const [task] = await api.list()
       api.list.mockResolvedValue([
         { ...task, status: 'completed', actualTime, actualTimeSource },
@@ -113,13 +262,18 @@ describe('AgendaPage', () => {
           <AgendaPage />
         </TasksProvider>,
       )
-      await user.click(
-        await screen.findByRole('button', { name: /Enviar proposta/ }),
-      )
+      const card = await screen.findByRole('button', {
+        name: /Enviar proposta/,
+      })
+      expect(
+        within(card).getByText(`Concluído em: ${compactDuration}`),
+      ).toBeVisible()
+      expect(within(card).queryByText(label)).not.toBeInTheDocument()
+      await user.click(card)
       const dialog = within(screen.getByRole('dialog'))
       expect(dialog.getByLabelText('Situação: Concluída')).toBeVisible()
       expect(
-        within(dialog.getByLabelText(label)).getByText(duration),
+        within(dialog.getByRole('region', { name: label })).getByText(duration),
       ).toBeVisible()
       if (actualTimeSource === 'schedule')
         expect(dialog.getByText('Desde o horário agendado')).toBeVisible()

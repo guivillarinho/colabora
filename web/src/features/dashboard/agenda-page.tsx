@@ -14,6 +14,7 @@ import {
   FolderKanban,
   MapPin,
   Plus,
+  RotateCcw,
   Search,
   SlidersHorizontal,
   Trash2,
@@ -48,8 +49,10 @@ type AgendaItem = {
   attachments: string[]
   icon: string | null
 }
-type NormalAgendaItem = Omit<AgendaItem, 'type'> & {
+type NormalAgendaItem = Omit<AgendaItem, 'type' | 'startDate' | 'endDate'> & {
   type: AgendaKind
+  startDate: string | null
+  endDate: string | null
   category?: string
   status?: Task['status']
   task?: Task
@@ -90,7 +93,7 @@ const icons = [
 ]
 
 export function AgendaPage() {
-  const { tasks, completeTask, removeTask } = useTasks()
+  const { tasks, completeTask, reopenTask, removeTask } = useTasks()
   const [items, setItems] = useState<AgendaItem[]>([])
   const [selectedDay, setSelectedDay] = useState(startOfDay(new Date()))
   const [query, setQuery] = useState('')
@@ -128,16 +131,14 @@ export function AgendaPage() {
   const allItems = useMemo(
     () =>
       [
-        ...tasks
-          .filter((task) => task.dueDate)
-          .map((task) => ({
-            ...task,
-            type: 'task' as const,
-            startDate: task.dueDate as string,
-            endDate: task.dueDate as string,
-            icon: null,
-            task,
-          })),
+        ...tasks.map((task) => ({
+          ...task,
+          type: 'task' as const,
+          startDate: task.dueDate,
+          endDate: task.dueDate,
+          icon: null,
+          task,
+        })),
         ...items,
       ].map(normalizeItem),
     [items, tasks],
@@ -165,12 +166,11 @@ export function AgendaPage() {
         .filter((item) =>
           overlapsDay(item.startDate, item.endDate, selectedDay),
         )
-        .sort(
-          (a, b) =>
-            new Date(a.startDate).getTime() - new Date(b.startDate).getTime(),
-        ),
+        .sort((a, b) => sortItems(a, b, 'date')),
     [allItems, selectedDay],
   )
+
+  const unscheduledItems = allItems.filter((item) => !item.startDate)
 
   async function createItem(
     input: Omit<AgendaItem, 'id' | 'createdAt' | 'updatedAt'>,
@@ -414,6 +414,21 @@ export function AgendaPage() {
         </section>
       )}
 
+      {!searchOpen && unscheduledItems.length ? (
+        <section aria-label="Tarefas sem data" className="grid gap-3">
+          <SectionTitle>Sem data</SectionTitle>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {unscheduledItems.map((item) => (
+              <AgendaCard
+                key={`${item.type}-${item.id}`}
+                item={item}
+                onSelect={() => setDetails(item)}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <AgendaCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
@@ -425,6 +440,10 @@ export function AgendaPage() {
         onClose={() => setDetails(null)}
         onComplete={async (task) => {
           await completeTask(task.id)
+          setDetails(null)
+        }}
+        onReopen={async (task) => {
+          await reopenTask(task.id)
           setDetails(null)
         }}
         onDelete={async (item) => {
@@ -484,14 +503,14 @@ function AgendaCard({
           </div>
         </div>
         <span className="whitespace-nowrap rounded-full bg-accent px-2 py-1 text-xs font-medium text-accent-foreground">
-          {formatTime(item.startDate)}
+          {item.startDate ? formatTime(item.startDate) : 'Sem data'}
         </span>
       </div>
       {task && item.status ? (
-        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <AgendaTaskStatus status={item.status} />
           {item.task?.status === 'completed' ? (
-            <TaskExecutionTime task={item.task} />
+            <TaskExecutionTime task={item.task} compact />
           ) : null}
         </div>
       ) : null}
@@ -501,12 +520,14 @@ function AgendaCard({
         </p>
       ) : null}
       <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">
-        <span>
-          {formatDate(item.startDate)}
-          {!sameCalendarDate(item.startDate, item.endDate)
-            ? ` – ${formatDate(item.endDate)}`
-            : ''}
-        </span>
+        {item.startDate && item.endDate ? (
+          <span>
+            {formatDate(item.startDate)}
+            {!sameCalendarDate(item.startDate, item.endDate)
+              ? ` – ${formatDate(item.endDate)}`
+              : ''}
+          </span>
+        ) : null}
         {item.location ? (
           <span className="inline-flex min-w-0 items-center gap-1">
             <MapPin className="size-3 shrink-0" />
@@ -542,14 +563,18 @@ function AgendaDetails({
   item,
   onClose,
   onComplete,
+  onReopen,
   onDelete,
 }: {
   item: NormalAgendaItem | null
   onClose: () => void
   onComplete: (task: Task) => Promise<void>
+  onReopen: (task: Task) => Promise<void>
   onDelete: (item: NormalAgendaItem) => Promise<void>
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [reopening, setReopening] = useState(false)
+  const [reopenError, setReopenError] = useState<string | null>(null)
   const task = item?.type === 'task' ? (item.task ?? null) : null
   const entity =
     item?.type === 'task'
@@ -575,28 +600,32 @@ function AgendaDetails({
         {item ? (
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 text-sm">
             {task ? (
-              <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+              <>
                 <AgendaTaskStatus status={task.status} />
                 <TaskExecutionTime task={task} />
-              </div>
+              </>
             ) : null}
             <p className="whitespace-pre-wrap text-muted-foreground">
               {item.description || 'Sem descrição.'}
             </p>
-            <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/60 p-3">
-              <div>
-                <p className="text-xs text-muted-foreground">Início</p>
-                <p>
-                  {formatDate(item.startDate)} · {formatTime(item.startDate)}
-                </p>
+            {item.startDate && item.endDate ? (
+              <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/60 p-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Início</p>
+                  <p>
+                    {formatDate(item.startDate)} · {formatTime(item.startDate)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Final</p>
+                  <p>
+                    {formatDate(item.endDate)} · {formatTime(item.endDate)}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Final</p>
-                <p>
-                  {formatDate(item.endDate)} · {formatTime(item.endDate)}
-                </p>
-              </div>
-            </div>
+            ) : (
+              <MutedText>Sem data agendada.</MutedText>
+            )}
             {item.location ? (
               <LocationPreview location={item.location} />
             ) : null}
@@ -622,7 +651,31 @@ function AgendaDetails({
                 </ul>
               </div>
             ) : null}
-            {task && task.status !== 'completed' ? (
+            {task?.permissions.changeStatus && task.status === 'completed' ? (
+              <Button
+                disabled={reopening}
+                onClick={async () => {
+                  setReopening(true)
+                  setReopenError(null)
+                  try {
+                    await onReopen(task)
+                  } catch (cause) {
+                    setReopenError(messageOf(cause))
+                  } finally {
+                    setReopening(false)
+                  }
+                }}
+              >
+                <RotateCcw aria-hidden="true" />
+                {reopening ? 'Reabrindo...' : 'Reabrir tarefa'}
+              </Button>
+            ) : null}
+            {reopenError ? (
+              <p className="text-sm text-destructive" role="alert">
+                {reopenError}
+              </p>
+            ) : null}
+            {task?.permissions.changeStatus && task.status !== 'completed' ? (
               <Button
                 onClick={() => {
                   onComplete(task).catch(() => undefined)
@@ -939,8 +992,8 @@ function normalizeItem(
     | AgendaItem
     | (Task & {
         type: 'task'
-        startDate: string
-        endDate: string
+        startDate: string | null
+        endDate: string | null
         icon: null
         task: Task
       }),
@@ -951,6 +1004,8 @@ function normalizeItem(
 function sortItems(a: NormalAgendaItem, b: NormalAgendaItem, sort: SortMode) {
   if (sort === 'name') return a.title.localeCompare(b.title, 'pt-BR')
   if (sort === 'type') return a.type.localeCompare(b.type)
+  if (!a.startDate) return b.startDate ? 1 : 0
+  if (!b.startDate) return -1
   return new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
 }
 function startOfDay(date: Date) {
@@ -975,7 +1030,8 @@ function sameDay(a: Date, b: Date) {
 function sameCalendarDate(a: string, b: string) {
   return new Date(a).toDateString() === new Date(b).toDateString()
 }
-function overlapsDay(start: string, end: string, day: Date) {
+function overlapsDay(start: string | null, end: string | null, day: Date) {
+  if (!start || !end) return false
   const lower = startOfDay(day).getTime()
   const upper = lower + 86400000 - 1
   return new Date(start).getTime() <= upper && new Date(end).getTime() >= lower
