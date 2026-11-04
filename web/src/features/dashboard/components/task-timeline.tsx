@@ -54,7 +54,7 @@ export function TaskTimeline({
   const remaining = ordered.length - visibleTasks.length
 
   return (
-    <section className="grid gap-4">
+    <section className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
       <div className="flex items-center justify-between gap-3">
         <SectionTitle>Linha do tempo</SectionTitle>
         {remaining > 0 && onViewAll ? (
@@ -112,7 +112,7 @@ export function TaskTimeline({
             : 'Nada agendado. As tarefas com data e hora aparecem aqui.'}
         </MutedText>
       ) : (
-        <ol className="grid gap-3">
+        <ol className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
           {visibleTasks.map((task) => (
             <TimelineTask
               key={task.id}
@@ -220,7 +220,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
     <li
       style={{ backgroundColor: completingSwipe ? '#bbf7d0' : undefined }}
       className={cn(
-        'relative isolate touch-pan-y overflow-hidden rounded-xl',
+        'relative isolate min-w-0 touch-pan-y overflow-hidden rounded-xl',
         completingSwipe ? 'bg-pastel-green' : 'bg-pastel-red',
       )}
       onPointerDown={handlePointerDown}
@@ -281,17 +281,17 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           transition: swipeTransition,
         }}
         className={cn(
-          'relative z-10 grid cursor-grab select-none gap-2 rounded-xl border bg-card p-3 active:cursor-grabbing motion-reduce:!transition-none sm:p-4',
+          'relative z-10 grid min-w-0 grid-cols-[minmax(0,1fr)] cursor-grab select-none gap-2 rounded-xl border bg-card p-3 [overflow-wrap:anywhere] active:cursor-grabbing motion-reduce:!transition-none sm:p-4',
         )}
       >
         <div className="flex items-center justify-between gap-3">
           <MutedText>{dateLabel}</MutedText>
-          <span className="rounded-lg bg-primary px-2.5 py-1.5 text-sm font-semibold tabular-nums text-primary-foreground">
+          <span className="shrink-0 rounded-lg bg-primary px-2.5 py-1.5 text-sm font-semibold tabular-nums text-primary-foreground">
             {timeLabel}
           </span>
         </div>
-        <div className="flex min-w-0 items-center gap-2">
-          <h3 className="font-semibold leading-snug">{task.title}</h3>
+        <div className="flex min-w-0 items-start gap-2">
+          <h3 className="min-w-0 font-semibold leading-snug">{task.title}</h3>
           <TaskAttachmentIndicator count={task.attachments.length} />
         </div>
         <TaskPeople task={task} />
@@ -303,7 +303,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
         <div className="flex flex-wrap items-center gap-2">
           <span
             className={cn(
-              'rounded-full px-2.5 py-1 text-xs font-medium',
+              'min-w-0 max-w-full rounded-full px-2.5 py-1 text-xs font-medium',
               swatch.className,
             )}
           >
@@ -327,7 +327,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
         {task.location?.trim() ? (
           <p className="flex items-start gap-1 text-xs leading-relaxed text-muted-foreground">
             <MapPin aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
-            <span className="min-w-0 break-words">{task.location}</span>
+            <span className="min-w-0">{task.location}</span>
           </p>
         ) : null}
       </article>

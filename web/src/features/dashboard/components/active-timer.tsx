@@ -21,7 +21,10 @@ export function ActiveTimer({ tasks, onComplete }: ActiveTimerProps) {
   }
 
   return (
-    <section aria-labelledby="active-timer-title" className="grid gap-3">
+    <section
+      aria-labelledby="active-timer-title"
+      className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3"
+    >
       <h2
         className="flex items-center gap-2 text-lg font-semibold"
         id="active-timer-title"
@@ -32,7 +35,7 @@ export function ActiveTimer({ tasks, onComplete }: ActiveTimerProps) {
         />
         Timer ativo
       </h2>
-      <div className="grid gap-3">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
         {activeTasks.map((task) => (
           <ActiveTimerCard
             key={task.id}
@@ -77,8 +80,8 @@ function ActiveTimerCard({ task, onComplete }: ActiveTimerCardProps) {
   }
 
   return (
-    <article className="grid gap-3 rounded-xl border border-pastel-green bg-pastel-green/30 p-4 sm:flex sm:items-center sm:justify-between">
-      <div className="grid min-w-0 gap-2">
+    <article className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-xl border border-pastel-green bg-pastel-green/30 p-4 [overflow-wrap:anywhere] sm:flex sm:items-center sm:justify-between">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 sm:flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="relative flex size-2.5">
             <span className="absolute inline-flex size-full animate-ping rounded-full bg-pastel-green-foreground opacity-50" />
@@ -89,7 +92,7 @@ function ActiveTimerCard({ task, onComplete }: ActiveTimerCardProps) {
           </span>
           <span
             className={cn(
-              'rounded-full px-2.5 py-1 text-xs font-medium',
+              'min-w-0 max-w-full rounded-full px-2.5 py-1 text-xs font-medium',
               swatch.className,
             )}
           >
@@ -108,7 +111,7 @@ function ActiveTimerCard({ task, onComplete }: ActiveTimerCardProps) {
         </p>
       </div>
       <Button
-        className="w-full sm:w-auto"
+        className="w-full sm:w-auto sm:shrink-0"
         disabled={completing}
         type="button"
         onClick={handleComplete}

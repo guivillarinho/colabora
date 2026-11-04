@@ -13,7 +13,7 @@ export function DashboardPage() {
   const completed = tasks.filter((task) => task.status === 'completed').length
 
   return (
-    <div className="grid gap-8">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-8">
       <div className="grid gap-1">
         <PageTitle>Hoje</PageTitle>
         <MutedText>Seu progresso e o que vem a seguir.</MutedText>
