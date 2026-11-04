@@ -455,13 +455,13 @@ function AgendaCard({
   return (
     <button
       className={cn(
-        'grid min-w-0 gap-2 rounded-xl border p-4 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 rounded-xl border p-4 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         status?.card ?? 'bg-card hover:border-primary/40',
       )}
       onClick={onSelect}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-secondary text-secondary-foreground">
             {task ? (
               <CalendarDays className="size-4" />
@@ -470,8 +470,10 @@ function AgendaCard({
             )}
           </span>
           <div className="min-w-0">
-            <p className="truncate font-semibold">{item.title}</p>
-            <p className="text-xs capitalize text-muted-foreground">
+            <p className="truncate font-semibold" title={item.title}>
+              {item.title}
+            </p>
+            <p className="text-xs capitalize text-muted-foreground [overflow-wrap:anywhere]">
               {task
                 ? `Tarefa · ${item.category}`
                 : item.type === 'event'
@@ -486,11 +488,11 @@ function AgendaCard({
       </div>
       {task && item.status ? <AgendaTaskStatus status={item.status} /> : null}
       {item.description ? (
-        <p className="line-clamp-2 text-sm text-muted-foreground">
+        <p className="line-clamp-2 text-sm text-muted-foreground [overflow-wrap:anywhere]">
           {item.description}
         </p>
       ) : null}
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">
         <span>
           {formatDate(item.startDate)}
           {!sameCalendarDate(item.startDate, item.endDate)
@@ -498,9 +500,9 @@ function AgendaCard({
             : ''}
         </span>
         {item.location ? (
-          <span className="inline-flex items-center gap-1">
-            <MapPin className="size-3" />
-            {item.location}
+          <span className="inline-flex min-w-0 items-center gap-1">
+            <MapPin className="size-3 shrink-0" />
+            <span className="min-w-0">{item.location}</span>
           </span>
         ) : null}
         {item.attachments.length ? (
@@ -549,9 +551,11 @@ function AgendaDetails({
         : 'projeto'
   return (
     <Dialog open={Boolean(item)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{item?.title ?? 'Detalhes'}</DialogTitle>
+      <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-lg [overflow-wrap:anywhere]">
+        <DialogHeader className="min-w-0 pr-8">
+          <DialogTitle className="leading-snug">
+            {item?.title ?? 'Detalhes'}
+          </DialogTitle>
           <DialogDescription>
             {item?.type === 'task'
               ? `Tarefa · ${item.category}`
@@ -561,7 +565,7 @@ function AgendaDetails({
           </DialogDescription>
         </DialogHeader>
         {item ? (
-          <div className="grid gap-4 text-sm">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 text-sm">
             {task ? <AgendaTaskStatus status={task.status} /> : null}
             <p className="whitespace-pre-wrap text-muted-foreground">
               {item.description || 'Sem descrição.'}
