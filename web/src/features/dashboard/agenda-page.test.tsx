@@ -1,5 +1,5 @@
 import { renderAuthenticated as render, taskAccess } from '@/test/auth-fixture'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { AgendaPage } from './agenda-page'
@@ -68,6 +68,66 @@ describe('AgendaPage', () => {
       screen.getByRole('button', { name: 'Pesquisar na agenda' }),
     ).toBeVisible()
   })
+
+  it.each([
+    {
+      actualTime: 75,
+      actualTimeSource: 'timer',
+      label: 'Tempo de execução',
+      duration: '1 h 15 min',
+    },
+    {
+      actualTime: 0,
+      actualTimeSource: 'manual',
+      label: 'Tempo de execução',
+      duration: '0 min',
+    },
+    {
+      actualTime: 20,
+      actualTimeSource: 'schedule',
+      label: 'Tempo estimado de execução',
+      duration: '20 min',
+    },
+    {
+      actualTime: 30,
+      actualTimeSource: 'estimate',
+      label: 'Tempo estimado de execução',
+      duration: '30 min',
+    },
+    {
+      actualTime: null,
+      actualTimeSource: null,
+      label: 'Tempo de execução',
+      duration: 'Não registrado',
+    },
+  ] as const)(
+    'shows execution time beside the completed status in details: $actualTimeSource / $actualTime',
+    async ({ actualTime, actualTimeSource, label, duration }) => {
+      const [task] = await api.list()
+      api.list.mockResolvedValue([
+        { ...task, status: 'completed', actualTime, actualTimeSource },
+      ])
+      const user = userEvent.setup()
+      render(
+        <TasksProvider>
+          <AgendaPage />
+        </TasksProvider>,
+      )
+      await user.click(
+        await screen.findByRole('button', { name: /Enviar proposta/ }),
+      )
+      const dialog = within(screen.getByRole('dialog'))
+      expect(dialog.getByLabelText('Situação: Concluída')).toBeVisible()
+      expect(
+        within(dialog.getByLabelText(label)).getByText(duration),
+      ).toBeVisible()
+      if (actualTimeSource === 'schedule')
+        expect(dialog.getByText('Desde o horário agendado')).toBeVisible()
+      expect(
+        dialog.queryByRole('button', { name: 'Concluir tarefa' }),
+      ).not.toBeInTheDocument()
+    },
+  )
 
   it.each(['event', 'project'])(
     'deletes a %s only after confirmation',

@@ -4,6 +4,7 @@ import { InitialSchema1793448000000 } from './migrations/1793448000000-initial-s
 import { UserSecurity1793534400000 } from './migrations/1793534400000-user-security'
 import { PushNotifications1793620800000 } from './migrations/1793620800000-push-notifications'
 import { PasswordReset1793707200000 } from './migrations/1793707200000-password-reset'
+import { TaskExecutionTime1793793600000 } from './migrations/1793793600000-task-execution-time'
 import { User } from '../modules/auth/entities/user.entity'
 import { Attachment } from '../modules/agenda/entities/attachment.entity'
 import { Task } from '../modules/tasks/entities/task.entity'
@@ -34,6 +35,7 @@ async function migrate() {
       UserSecurity1793534400000,
       PushNotifications1793620800000,
       PasswordReset1793707200000,
+      TaskExecutionTime1793793600000,
     ],
     synchronize: false,
     extra: { max: 2 },

@@ -34,6 +34,7 @@ import { useTasks } from '@/features/tasks/tasks-context'
 import { LocationField } from '@/features/tasks/components/location-field'
 import { uploadAgendaFiles } from './upload-agenda-files'
 import type { Task } from '@/features/tasks/types/task'
+import { TaskExecutionTime } from '@/features/tasks/components/task-execution-time'
 
 type AgendaKind = 'event' | 'project' | 'task'
 type AgendaItem = {
@@ -486,7 +487,14 @@ function AgendaCard({
           {formatTime(item.startDate)}
         </span>
       </div>
-      {task && item.status ? <AgendaTaskStatus status={item.status} /> : null}
+      {task && item.status ? (
+        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
+          <AgendaTaskStatus status={item.status} />
+          {item.task?.status === 'completed' ? (
+            <TaskExecutionTime task={item.task} />
+          ) : null}
+        </div>
+      ) : null}
       {item.description ? (
         <p className="line-clamp-2 text-sm text-muted-foreground [overflow-wrap:anywhere]">
           {item.description}
@@ -566,7 +574,12 @@ function AgendaDetails({
         </DialogHeader>
         {item ? (
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 text-sm">
-            {task ? <AgendaTaskStatus status={task.status} /> : null}
+            {task ? (
+              <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+                <AgendaTaskStatus status={task.status} />
+                <TaskExecutionTime task={task} />
+              </div>
+            ) : null}
             <p className="whitespace-pre-wrap text-muted-foreground">
               {item.description || 'Sem descrição.'}
             </p>

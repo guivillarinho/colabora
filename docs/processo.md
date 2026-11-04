@@ -16,7 +16,7 @@ A API expõe `POST /tasks`, `GET /tasks`, `GET /tasks/:id`, `PATCH /tasks/:id`, 
 
 Cada tarefa tem título, descrição, categoria, prioridade, cor, data, local, anexos, tempo estimado, tempo real e status (`pending`, `in_progress`, `completed`). A prioridade (`low`, `medium`, `high`) entrou para a ordenação da lista. O padrão é `medium`.
 
-`POST /tasks/:id/start` grava `startedAt` e muda o status para `in_progress`. `POST /tasks/:id/complete` usa o `actualTime` enviado ou os minutos decorridos desde o início. Sem um dos dois, a API responde 400.
+`POST /tasks/:id/start` grava `startedAt` e muda o status para `in_progress`. `POST /tasks/:id/complete` usa o `actualTime` enviado ou os minutos decorridos desde o início. Sem início registrado, calcula desde o horário agendado, se ele já passou; caso contrário, usa a duração prevista. A origem fica em `actualTimeSource` (`manual`, `timer`, `schedule` ou `estimate`). Valores inferidos são identificados como estimados na Agenda e não geram conselho de produtividade.
 
 Se o tempo real passa da margem configurável, a resposta inclui `productivityAdvice`: "Considere dividir esta tarefa em partes menores da próxima vez." A margem vem de `PRODUCTIVITY_MARGIN_PERCENT` e o padrão é 20. A conta é inteira: o conselho só aparece quando `actualTime * 100` é maior que `estimatedTime * (100 + margem)`. Sessenta minutos estimados e 72 reais, com margem 20, não geram conselho. Setenta e três minutos geram.
 
@@ -34,7 +34,7 @@ O cliente fala com a API por `fetch`, em `web/src/features/tasks/api/tasks-api.t
 
 O formulário abre pelo botão Criar tarefa. Título, descrição, categoria, prioridade, cor, data e tempo estimado ficam à vista. Anexos e localização ficam em Opções avançadas. O anexo é simulado: só o nome do arquivo é guardado. A data do campo `datetime-local` vira ISO antes de sair para a API.
 
-A lista ordena por data, prioridade ou categoria e filtra por categoria. O card usa a cor da tarefa, mostra o status e oferece editar, iniciar, concluir e excluir. Ao concluir, se a tarefa não foi iniciada, o tempo real é obrigatório. Se foi iniciada, o campo vazio deixa a API medir o intervalo.
+A lista ordena por data, prioridade ou categoria e filtra por categoria. O card usa a cor da tarefa, mostra o status e oferece editar, iniciar, concluir e excluir. Na página Hoje, arrastar para a direita conclui diretamente, sem abrir o formulário de duração. A API calcula e salva o tempo automaticamente. Os detalhes e cartões da Agenda destacam a duração à direita da situação; tarefas antigas sem duração aparecem como “Não registrado”. O formulário de conclusão manual permanece disponível na lista de tarefas.
 
 Quando a conclusão devolve `productivityAdvice`, um diálogo mostra o conselho. Se a API não responde, a tela avisa "Não foi possível falar com a API." e o formulário permanece aberto.
 
@@ -51,3 +51,7 @@ A interface testa a formatação de duração (`45 min`, `1 h`, `1 h 30 min`), a
 ## O que ficou de fora da verificação ao vivo
 
 Nesta máquina o daemon do Docker não estava acessível, então a API não foi exercitada contra o PostgreSQL. O fluxo de criar, iniciar, concluir e ver o conselho foi coberto pelos testes de unidade e pelo cliente com a API simulada. Com o Docker no ar, `docker compose up -d` seguido de `npm run dev:api` completa esse caminho no navegador.
+
+## Retorno tátil
+
+Cliques em navegação e controles recebem um pulso discreto de 8 ms; concluir por arraste usa 20 ms. Pulsos repetidos em menos de 80 ms são ignorados. A integração usa `navigator.vibrate` quando disponível, sem interromper ações em dispositivos incompatíveis ou quando o navegador bloqueia a vibração.

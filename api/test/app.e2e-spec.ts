@@ -48,6 +48,8 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       throw new Error(
         'E2E somente no PostgreSQL local exclusivo colabora_test:55432.',
       )
+    // Raw SQL migrations and session storage must use the isolated schema too.
+    url.searchParams.set('options', `-c search_path=${schema},public`)
     Object.assign(process.env, {
       DATABASE_URL: url.toString(),
       NODE_ENV: 'test',
@@ -417,6 +419,53 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       .set('Origin', origin)
       .set('X-CSRF-Token', a.csrf)
       .expect(204)
+  })
+
+  it('completes without a manual duration and persists its calculation source', async () => {
+    const owner = await actor()
+    const created = await task(owner, {
+      dueDate: new Date(Date.now() - 25 * 60000).toISOString(),
+    })
+    const complete = () =>
+      owner.agent
+        .post(`/api/tasks/${created.id}/complete`)
+        .set('Origin', origin)
+        .set('X-CSRF-Token', owner.csrf)
+        .send({})
+    const result = await complete().expect(200)
+    expect(result.body.task.actualTime).toBe(25)
+    expect(result.body.task.actualTimeSource).toBe('schedule')
+    expect(result.body.productivityAdvice).toBeNull()
+    const stored = await owner.agent.get(`/api/tasks/${created.id}`).expect(200)
+    expect(stored.body.actualTimeSource).toBe('schedule')
+    expect(stored.body.status).toBe('completed')
+    const retried = await complete().expect(200)
+    expect(retried.body.task.actualTime).toBe(25)
+  })
+
+  it('prioritizes the recorded timer when completing automatically', async () => {
+    const owner = await actor()
+    const created = await task(owner, {
+      dueDate: new Date(Date.now() - 60 * 60000).toISOString(),
+    })
+    await owner.agent
+      .post(`/api/tasks/${created.id}/start`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', owner.csrf)
+      .send({})
+      .expect(200)
+    await source.query(
+      `UPDATE "${schema}".tasks SET "startedAt" = now() - interval '12 minutes' WHERE id = $1`,
+      [created.id],
+    )
+    const result = await owner.agent
+      .post(`/api/tasks/${created.id}/complete`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', owner.csrf)
+      .send({})
+      .expect(200)
+    expect(result.body.task.actualTime).toBe(12)
+    expect(result.body.task.actualTimeSource).toBe('timer')
   })
 
   it('accepts only integer numeric durations and preserves the task on invalid completion', async () => {

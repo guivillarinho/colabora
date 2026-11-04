@@ -16,7 +16,7 @@ import { MutedText, SectionTitle } from '@/components/typography'
 import { sortTasks } from '@/features/tasks/sort-tasks'
 import type { Task } from '@/features/tasks/types/task'
 
-import { CompleteTaskDialog } from '../../tasks/components/complete-task-dialog'
+import { hapticFeedback } from '@/lib/haptics'
 import { TaskAttachmentIndicator } from '../../tasks/components/task-attachment-indicator'
 import { TaskFormDialog } from '../../tasks/components/task-form-dialog'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
@@ -77,14 +77,14 @@ export function TaskTimeline({
           <p className="font-semibold">Arraste o card para agir</p>
           <p className="flex items-center gap-2 text-pastel-green-foreground">
             <ArrowRight aria-hidden="true" className="size-4 shrink-0" />
-            Para a direita: concluir e informar o tempo gasto.
+            Para a direita: concluir com tempo calculado automaticamente.
           </p>
           <p className="flex items-center gap-2 text-pastel-red-foreground">
             <ArrowLeft aria-hidden="true" className="size-4 shrink-0" />
             Para a esquerda: abrir a confirmação de exclusão.
           </p>
           <p className="text-muted-foreground">
-            Solte o card para abrir a ação. No teclado, foque o card e use as
+            Solte o card para realizar a ação. No teclado, foque o card e use as
             setas.
           </p>
           <Button
@@ -135,6 +135,8 @@ type TimelineTaskProps = {
 
 function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
   const [completing, setCompleting] = useState(false)
+  const completionPending = useRef(false)
+  const [completionError, setCompletionError] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [offset, setOffset] = useState(0)
@@ -173,7 +175,29 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
     setOffset(next)
   }
 
+  async function complete() {
+    if (!canComplete || completionPending.current) return
+    completionPending.current = true
+    setCompleting(true)
+    setCompletionError(null)
+    hapticFeedback('success')
+    try {
+      await onComplete(task.id)
+    } catch (error) {
+      setCompletionError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível concluir. Tente novamente.',
+      )
+      updateOffset(0)
+    } finally {
+      completionPending.current = false
+      setCompleting(false)
+    }
+  }
+
   function handlePointerDown(event: PointerEvent<HTMLLIElement>) {
+    if (completionPending.current) return
     const target = event.target
     if (
       target instanceof Element &&
@@ -207,9 +231,10 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
     }
     if (currentOffset.current >= 48 && canComplete) {
       updateOffset(96)
-      setCompleting(true)
+      complete().catch(() => undefined)
     } else if (currentOffset.current <= -48 && canDelete) {
       updateOffset(-96)
+      hapticFeedback()
       setConfirmingDelete(true)
     } else {
       updateOffset(0)
@@ -235,7 +260,8 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           tabIndex={offset > 0 ? 0 : -1}
           className="absolute inset-y-0 left-0 grid w-24 place-items-center text-green-800 transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-green-800 motion-reduce:transition-none"
           type="button"
-          onClick={() => setCompleting(true)}
+          disabled={completing}
+          onClick={() => complete().catch(() => undefined)}
         >
           <CircleCheck aria-hidden="true" className="size-6" />
         </button>
@@ -255,9 +281,11 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
       ) : null}
       <article
         tabIndex={0}
+        aria-busy={completing}
         aria-label={`${task.title}.${canDelete ? ' Arraste para a esquerda para excluir.' : ''}${canComplete ? ' Arraste para a direita para concluir.' : ''}`}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return
+          if (completionPending.current) return
           if (event.key === 'ArrowLeft' && canDelete) {
             event.preventDefault()
             updateOffset(-96)
@@ -265,7 +293,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           } else if (event.key === 'ArrowRight' && canComplete) {
             event.preventDefault()
             updateOffset(96)
-            setCompleting(true)
+            complete().catch(() => undefined)
           } else if (event.key === 'Escape') {
             updateOffset(0)
           }
@@ -294,6 +322,16 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           <h3 className="min-w-0 font-semibold leading-snug">{task.title}</h3>
           <TaskAttachmentIndicator count={task.attachments.length} />
         </div>
+        {completing ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            Concluindo...
+          </p>
+        ) : null}
+        {completionError ? (
+          <p role="alert" className="text-sm text-destructive">
+            {completionError}
+          </p>
+        ) : null}
         <TaskPeople task={task} />
         {task.description ? (
           <p className="line-clamp-2 text-sm text-muted-foreground">
@@ -331,15 +369,6 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           </p>
         ) : null}
       </article>
-      <CompleteTaskDialog
-        open={completing}
-        task={task}
-        onComplete={(actualTime) => onComplete(task.id, actualTime)}
-        onOpenChange={(open) => {
-          setCompleting(open)
-          if (!open) updateOffset(0)
-        }}
-      />
       <TaskFormDialog open={editing} task={task} onOpenChange={setEditing} />
       <DeleteConfirmationDialog
         open={confirmingDelete}

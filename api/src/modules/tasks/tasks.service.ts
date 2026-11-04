@@ -10,7 +10,7 @@ import { FindOptionsWhere, Repository } from 'typeorm'
 import { CompleteTaskDto } from './dto/complete-task.dto'
 import { CreateTaskDto } from './dto/create-task.dto'
 import { UpdateTaskDto } from './dto/update-task.dto'
-import { Task } from './entities/task.entity'
+import { Task, type ActualTimeSource } from './entities/task.entity'
 import { ProductivityAdvisorService } from './productivity-advisor.service'
 import { TaskPriority } from './task-priority.enum'
 import { TaskStatus } from './task-status.enum'
@@ -220,11 +220,14 @@ export class TasksService {
   ): Promise<TaskCompletion> {
     const task = await this.visible(id, actor)
     if (task.status === TaskStatus.Completed)
-      throw new BadRequestException('Esta tarefa já foi concluída.')
-    const actualTime = this.resolveActualTime(task, dto.actualTime)
+      return { task: this.view(task, actor), productivityAdvice: null }
+    const { actualTime, actualTimeSource } = this.resolveActualTime(
+      task,
+      dto.actualTime,
+    )
     const result = await this.tasksRepository.update(
       this.visibility(actor, id),
-      { actualTime, status: TaskStatus.Completed },
+      { actualTime, actualTimeSource, status: TaskStatus.Completed },
     )
     if (!result.affected) throw new NotFoundException('Tarefa não encontrada.')
     await this.notifications.scheduleTaskReminders({
@@ -239,23 +242,40 @@ export class TasksService {
     const saved = await this.findOne(id, actor)
     return {
       task: saved,
-      productivityAdvice: this.productivityAdvisor.advise(
-        saved.estimatedTime,
-        actualTime,
-      ),
+      productivityAdvice:
+        actualTimeSource === 'schedule' || actualTimeSource === 'estimate'
+          ? null
+          : this.productivityAdvisor.advise(saved.estimatedTime, actualTime),
     }
   }
 
-  private resolveActualTime(task: Task, actualTime?: number): number {
-    if (actualTime !== undefined) return actualTime
-    if (!task.startedAt)
-      throw new BadRequestException(
-        'Informe o tempo real em minutos ou inicie a tarefa antes de concluir.',
-      )
-    return Math.max(
-      0,
-      Math.round((Date.now() - task.startedAt.getTime()) / 60000),
-    )
+  private resolveActualTime(
+    task: Task,
+    actualTime?: number,
+  ): {
+    actualTime: number
+    actualTimeSource: ActualTimeSource
+  } {
+    if (actualTime !== undefined)
+      return { actualTime, actualTimeSource: 'manual' }
+    const now = Date.now()
+    if (task.startedAt)
+      return {
+        actualTime: Math.max(
+          0,
+          Math.round((now - task.startedAt.getTime()) / 60000),
+        ),
+        actualTimeSource: 'timer',
+      }
+    if (task.dueDate && task.dueDate.getTime() <= now)
+      return {
+        actualTime: Math.max(
+          0,
+          Math.round((now - task.dueDate.getTime()) / 60000),
+        ),
+        actualTimeSource: 'schedule',
+      }
+    return { actualTime: task.estimatedTime, actualTimeSource: 'estimate' }
   }
 }
 function emptyToNull(value?: string): string | null {

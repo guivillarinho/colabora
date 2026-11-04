@@ -29,6 +29,7 @@ export type Task = {
   attachments: string[]
   estimatedTime: number
   actualTime: number | null
+  actualTimeSource?: 'timer' | 'schedule' | 'estimate' | 'manual' | null
   status: TaskStatus
   startedAt: string | null
   createdAt: string

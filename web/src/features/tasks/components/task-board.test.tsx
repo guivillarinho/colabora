@@ -226,7 +226,7 @@ describe('App shell', () => {
     expect(api.remove).toHaveBeenCalledWith('task-1')
   })
 
-  it('removes a completed card, closes its dialog and keeps progress without deleting the task', async () => {
+  it('completes a swiped task automatically without requesting a duration', async () => {
     const user = userEvent.setup()
     const task = buildTask({
       title: 'Finalizar leitura',
@@ -246,12 +246,8 @@ describe('App shell', () => {
     dispatchPointer(card, 'pointerdown', 120)
     dispatchPointer(card, 'pointermove', 220)
     dispatchPointer(card, 'pointerup', 220)
-    const actual = screen.getByLabelText('Tempo real (min)')
-    await user.type(actual, '1eabc+-.,5')
-    expect(actual).toHaveValue('15')
-    await user.paste('minutos')
-    expect(actual).toHaveValue('15')
-    await user.click(screen.getByRole('button', { name: 'Concluir tarefa' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Tempo real (min)')).not.toBeInTheDocument()
     await waitFor(() =>
       expect(
         screen.queryByRole('heading', { name: task.title }),
@@ -262,14 +258,13 @@ describe('App shell', () => {
     expect(
       screen.getByRole('progressbar', { name: 'Progresso das tarefas' }),
     ).toHaveAttribute('aria-valuenow', '100')
-    expect(api.complete).toHaveBeenCalledWith(task.id, 15)
+    expect(api.complete).toHaveBeenCalledWith(task.id, undefined)
     expect(api.remove).not.toHaveBeenCalled()
     await user.click(screen.getAllByRole('button', { name: 'Criar tarefa' })[0])
     expect(screen.getByLabelText('Título')).toBeVisible()
   })
 
   it('retains a pending card and shows the error when completion fails', async () => {
-    const user = userEvent.setup()
     const task = buildTask({
       title: 'Tentar novamente',
       category: 'Pessoal',
@@ -282,14 +277,12 @@ describe('App shell', () => {
     renderApp('hoje')
     const heading = await screen.findByRole('heading', { name: task.title })
     fireEvent.keyDown(heading.closest('article')!, { key: 'ArrowRight' })
-    await user.type(screen.getByLabelText('Tempo real (min)'), '0')
-    await user.click(screen.getByRole('button', { name: 'Concluir tarefa' }))
     expect(
       await screen.findByText('Serviço indisponível.', {
         selector: '[role="alert"]',
       }),
     ).toBeVisible()
-    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: task.title })).toBeVisible()
     expect(heading.closest('article')).toHaveStyle({
       transform: 'translateX(0px)',

@@ -13,6 +13,8 @@ import { TaskPriority } from '../task-priority.enum'
 import { TaskStatus } from '../task-status.enum'
 import { User } from '../../auth/entities/user.entity'
 
+export type ActualTimeSource = 'timer' | 'schedule' | 'estimate' | 'manual'
+
 @Entity('tasks')
 export class Task {
   @Column({ type: 'uuid', nullable: true })
@@ -61,6 +63,9 @@ export class Task {
 
   @Column({ type: 'int', nullable: true })
   actualTime: number | null
+
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  actualTimeSource: ActualTimeSource | null
 
   @Column({ type: 'varchar', length: 20, default: TaskStatus.Pending })
   status: TaskStatus
