@@ -29,6 +29,7 @@ import { useTasks } from '../tasks-context'
 import type { Task, TaskInput, TaskPriority } from '../types/task'
 import { AttachmentField } from './attachment-field'
 import { LocationField } from './location-field'
+import { suggestTaskDate } from '../suggest-task-date'
 
 type TaskFormDialogProps = {
   task?: Task
@@ -62,7 +63,18 @@ export function CreateTaskDialog({
   return <TaskFormDialog open={open} trigger={trigger} onOpenChange={setOpen} />
 }
 
-export function TaskFormDialog({
+export function TaskFormDialog(
+  props: TaskFormDialogProps & { trigger?: ReactNode },
+) {
+  return (
+    <TaskFormContent
+      key={props.task ? `${props.task.id}-${props.task.updatedAt}` : 'new'}
+      {...props}
+    />
+  )
+}
+
+function TaskFormContent({
   task,
   open,
   onOpenChange,
@@ -87,6 +99,11 @@ export function TaskFormDialog({
     'scheduled',
   )
   const [formKey, setFormKey] = useState(0)
+  const [title, setTitle] = useState(task?.title ?? '')
+  const [dueDate, setDueDate] = useState(toDateTimeLocal(task?.dueDate ?? null))
+  const [scheduleSource, setScheduleSource] = useState<
+    'title' | 'manual' | null
+  >(task?.dueDate ? 'manual' : null)
   const editing = Boolean(task)
   const fieldPrefix = task ? `edit-${task.id}` : 'create'
   const selectedCategory = categoryByName(categoryName)
@@ -100,6 +117,9 @@ export function TaskFormDialog({
     setLocation(task?.location ?? '')
     setAttachmentName(task?.attachments[0] ?? null)
     setCreationMode('scheduled')
+    setTitle(task?.title ?? '')
+    setDueDate(toDateTimeLocal(task?.dueDate ?? null))
+    setScheduleSource(task?.dueDate ? 'manual' : null)
     setFormKey((current) => current + 1)
   }
 
@@ -109,6 +129,13 @@ export function TaskFormDialog({
     }
 
     onOpenChange?.(next)
+  }
+
+  function updateScheduleFromTitle(nextTitle: string) {
+    if (scheduleSource === 'manual') return
+    const suggested = suggestTaskDate(nextTitle)
+    setDueDate(toDateTimeLocal(suggested?.toISOString() ?? null))
+    setScheduleSource(suggested ? 'title' : null)
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -203,7 +230,10 @@ export function TaskFormDialog({
                   : 'border-border bg-card hover:bg-muted',
               )}
               type="button"
-              onClick={() => setCreationMode('scheduled')}
+              onClick={() => {
+                setCreationMode('scheduled')
+                updateScheduleFromTitle(title)
+              }}
             >
               <CalendarDays aria-hidden="true" className="size-5" />
               <span className="grid gap-0.5">
@@ -242,12 +272,37 @@ export function TaskFormDialog({
           <div className="grid shrink-0 gap-2">
             <Label htmlFor={`${fieldPrefix}-title`}>Título</Label>
             <Input
-              defaultValue={task?.title ?? ''}
+              value={title}
               id={`${fieldPrefix}-title`}
               name="title"
-              placeholder="O que precisa ser feito?"
+              placeholder="Ex.: Enviar proposta às 9h"
+              onChange={(event) => {
+                const next = event.target.value
+                setTitle(next)
+                if (creationMode !== 'timer') updateScheduleFromTitle(next)
+              }}
               required
             />
+            {scheduleSource === 'title' &&
+            dueDate &&
+            creationMode !== 'timer' ? (
+              <p
+                role="status"
+                className="flex items-center gap-1.5 text-xs font-medium text-primary"
+              >
+                <CalendarDays
+                  aria-hidden="true"
+                  className="size-3.5 shrink-0"
+                />
+                Horário reconhecido:{' '}
+                {new Intl.DateTimeFormat('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }).format(new Date(dueDate))}
+              </p>
+            ) : null}
           </div>
           <div className="grid min-h-0 min-w-0 flex-1 content-start gap-4 overflow-x-hidden overflow-y-auto">
             {editing || creationMode !== 'timer' ? (
@@ -321,10 +376,14 @@ export function TaskFormDialog({
                 <div className="grid min-w-0 gap-2">
                   <Label htmlFor={`${fieldPrefix}-due`}>Data e hora</Label>
                   <Input
-                    defaultValue={toDateTimeLocal(task?.dueDate ?? null)}
+                    value={dueDate}
                     id={`${fieldPrefix}-due`}
                     name="dueDate"
                     type="datetime-local"
+                    onChange={(event) => {
+                      setDueDate(event.target.value)
+                      setScheduleSource(event.target.value ? 'manual' : null)
+                    }}
                   />
                 </div>
               ) : null}
