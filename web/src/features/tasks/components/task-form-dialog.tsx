@@ -1,7 +1,7 @@
 import { useAuth } from '@/features/auth/auth-context'
 import { AssigneeField } from './assignee-field'
 import { MinutesInput, parseMinutes } from './minutes-input'
-import { CalendarDays, Plus, Timer } from 'lucide-react'
+import { CalendarDays, Plus } from 'lucide-react'
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 
 import { pastelSwatches } from '@/components/pastel'
@@ -206,28 +206,35 @@ function TaskFormContent({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
-      <DialogContent className="flex max-h-[85svh] flex-col overflow-hidden sm:max-w-lg">
+      <DialogContent
+        aria-describedby={
+          editing ? `${fieldPrefix}-dialog-description` : undefined
+        }
+        className="flex max-h-[85svh] flex-col overflow-hidden sm:max-w-lg"
+      >
         <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>{editing ? 'Editar tarefa' : 'Nova tarefa'}</DialogTitle>
-          <DialogDescription>
-            {editing
-              ? `Editando “${task.title}”. As alterações serão salvas somente nesta tarefa.`
-              : 'Comece pelo título. Anexos e localização ficam nas opções avançadas.'}
-          </DialogDescription>
+          {editing ? (
+            <DialogDescription id={`${fieldPrefix}-dialog-description`}>
+              {`Editando “${task.title}”. As alterações serão salvas somente nesta tarefa.`}
+            </DialogDescription>
+          ) : null}
         </DialogHeader>
         {!editing ? (
           <div
             aria-label="Tipo da nova atividade"
-            className="grid shrink-0 grid-cols-2 gap-2"
+            className="grid shrink-0 grid-cols-2 gap-1 rounded-xl bg-muted/50 p-1"
             role="group"
           >
-            <button
+            <Button
               aria-pressed={creationMode === 'scheduled'}
+              size="sm"
+              variant="ghost"
               className={cn(
-                'grid justify-items-start gap-2 rounded-lg border p-3 text-left transition-colors',
+                'h-8 min-w-0 rounded-lg text-xs sm:text-sm',
                 creationMode === 'scheduled'
-                  ? 'border-primary bg-accent'
-                  : 'border-border bg-card hover:bg-muted',
+                  ? 'border-border bg-background/80 text-foreground shadow-xs'
+                  : 'text-muted-foreground',
               )}
               type="button"
               onClick={() => {
@@ -235,33 +242,23 @@ function TaskFormContent({
                 updateScheduleFromTitle(title)
               }}
             >
-              <CalendarDays aria-hidden="true" className="size-5" />
-              <span className="grid gap-0.5">
-                <span className="text-sm font-medium">Tarefa agendada</span>
-                <span className="text-xs text-muted-foreground">
-                  Defina data e horário
-                </span>
-              </span>
-            </button>
-            <button
+              Tarefa agendada
+            </Button>
+            <Button
               aria-pressed={creationMode === 'timer'}
+              size="sm"
+              variant="ghost"
               className={cn(
-                'grid justify-items-start gap-2 rounded-lg border p-3 text-left transition-colors',
+                'h-8 min-w-0 rounded-lg text-xs sm:text-sm',
                 creationMode === 'timer'
-                  ? 'border-primary bg-accent'
-                  : 'border-border bg-card hover:bg-muted',
+                  ? 'border-border bg-background/80 text-foreground shadow-xs'
+                  : 'text-muted-foreground',
               )}
               type="button"
               onClick={() => setCreationMode('timer')}
             >
-              <Timer aria-hidden="true" className="size-5" />
-              <span className="grid gap-0.5">
-                <span className="text-sm font-medium">Atividade rápida</span>
-                <span className="text-xs text-muted-foreground">
-                  Inicie o cronômetro
-                </span>
-              </span>
-            </button>
+              Tarefa cronometrada
+            </Button>
           </div>
         ) : null}
         <form
@@ -304,7 +301,7 @@ function TaskFormContent({
               </p>
             ) : null}
           </div>
-          <div className="grid min-h-0 min-w-0 flex-1 content-start gap-4 overflow-x-hidden overflow-y-auto">
+          <div className="-mx-3 grid min-h-0 min-w-0 flex-1 content-start gap-4 overflow-x-hidden overflow-y-auto px-3 pb-3">
             {editing || creationMode !== 'timer' ? (
               <>
                 <div className="grid gap-2">

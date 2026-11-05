@@ -767,7 +767,7 @@ function AgendaCreateDialog({
           </DialogDescription>
         </DialogHeader>
         <form
-          className="grid min-h-0 gap-4 overflow-y-auto pr-1"
+          className="-mx-3 grid min-h-0 gap-4 overflow-x-hidden overflow-y-auto px-3 pb-3"
           onSubmit={async (event) => {
             event.preventDefault()
             if (!title.trim() || !startDate || !endDate) {

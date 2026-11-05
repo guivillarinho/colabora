@@ -95,7 +95,7 @@ it('keeps an existing task schedule when editing its title', async () => {
 it('starts a quick activity without scheduling it from its title', async () => {
   const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
   await renderForm()
-  await user.click(screen.getByRole('button', { name: /Atividade rápida/ }))
+  await user.click(screen.getByRole('button', { name: /Tarefa cronometrada/ }))
   await user.type(screen.getByLabelText('Título'), 'Revisão 9h')
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Salvar tarefa' }))

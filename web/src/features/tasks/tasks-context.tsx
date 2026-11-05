@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from 'react'
 
+import { hapticFeedback } from '@/lib/haptics'
+
 import { tasksApi } from './api/tasks-api'
 import type { Task, TaskInput } from './types/task'
 
@@ -103,6 +105,7 @@ export function TasksProvider({ children }: TasksProviderProps) {
       await tasksApi.remove(id)
       setTasks((current) => current.filter((task) => task.id !== id))
       setError(null)
+      hapticFeedback('success')
     } catch (cause) {
       setError(errorMessage(cause))
       throw cause
@@ -146,6 +149,7 @@ export function TasksProvider({ children }: TasksProviderProps) {
         }
 
         setError(null)
+        hapticFeedback('success')
       } catch (cause) {
         setError(errorMessage(cause))
         throw cause

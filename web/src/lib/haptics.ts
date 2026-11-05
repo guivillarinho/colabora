@@ -7,7 +7,7 @@ export function hapticFeedback(kind: 'light' | 'success' = 'light'): void {
   )
     return
   const now = Date.now()
-  if (now - lastFeedback < 80) return
+  if (kind === 'light' && now - lastFeedback < 80) return
   try {
     navigator.vibrate(kind === 'success' ? 20 : 12)
     lastFeedback = now

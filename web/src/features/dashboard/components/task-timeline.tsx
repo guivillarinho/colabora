@@ -181,7 +181,6 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
     completionPending.current = true
     setCompleting(true)
     setCompletionError(null)
-    hapticFeedback('success')
     try {
       await onComplete(task.id)
     } catch (error) {

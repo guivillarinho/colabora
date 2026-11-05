@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Check, Circle, Eye, EyeOff } from 'lucide-react'
+import { Check, Circle, Eye, EyeOff, ListTodo } from 'lucide-react'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -7,6 +8,9 @@ import { useAuth } from './auth-context'
 import { authApi } from './auth-api'
 
 type AuthPageMode = 'login' | 'register' | 'request-reset' | 'reset'
+
+const authInputClassName =
+  'h-11 rounded-xl bg-background/50 px-3 shadow-xs dark:bg-background/35'
 
 const passwordRules = [
   {
@@ -81,7 +85,7 @@ function PasswordField({
           disabled={disabled}
           value={value}
           onChange={(event) => onChange(event.currentTarget.value)}
-          className="pr-11"
+          className={`${authInputClassName} pr-12`}
         />
         <Button
           type="button"
@@ -252,148 +256,182 @@ export function AuthPage() {
   const passwordLabel = reset ? 'Nova senha' : 'Senha'
 
   return (
-    <main className="grid min-h-svh place-items-center bg-background p-4">
-      <section className="grid w-full max-w-sm gap-5 rounded-2xl border bg-card p-6 shadow-sm">
-        <div>
-          <p className="mb-2 text-sm font-medium text-primary">Colabora</p>
-          <h1 className="text-2xl font-semibold">
-            {signUp
-              ? 'Criar sua conta'
-              : requestReset
-                ? 'Esqueci minha senha'
-                : reset
-                  ? 'Criar nova senha'
-                  : 'Entre no seu ritmo'}
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {requestReset
-              ? 'Informe o e-mail da sua conta para receber um link de recuperação.'
-              : reset
-                ? 'Escolha uma senha nova para voltar à sua conta.'
-                : 'Suas tarefas, com você em todos os dispositivos.'}
-          </p>
-        </div>
-        {expired && mode === 'login' ? (
-          <p role="status" className="text-sm text-muted-foreground">
-            Sua sessão expirou. Entre novamente para continuar.
-          </p>
-        ) : null}
-        {notice ? (
-          <p
-            role="status"
-            className="text-sm text-green-700 dark:text-green-400"
-          >
-            {notice}
-          </p>
-        ) : null}
-        <form
-          noValidate
-          className="grid gap-4"
-          onSubmit={submit}
-          aria-busy={pending}
+    <main className="colabora-app relative isolate grid min-h-svh place-items-center overflow-hidden px-4 py-8 sm:py-12">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      >
+        <div className="absolute left-[calc(50%-18rem)] top-[calc(50%-18rem)] size-72 rounded-full bg-pastel-purple/70 blur-3xl" />
+        <div className="absolute left-[calc(50%-1rem)] top-[calc(50%+2rem)] size-64 rounded-full bg-pastel-blue/60 blur-3xl" />
+      </div>
+      <div className="colabora-page-enter grid w-full max-w-md gap-6">
+        <header className="flex items-center justify-between gap-4 px-2">
+          <div className="flex items-center gap-3">
+            <div className="glass-card flex size-11 items-center justify-center rounded-2xl border border-primary/15 bg-pastel-purple/60 text-primary">
+              <ListTodo aria-hidden="true" className="size-6" />
+            </div>
+            <div>
+              <p className="text-lg font-semibold tracking-tight">Colabora</p>
+              <p className="text-xs text-muted-foreground">
+                Tarefas no seu ritmo
+              </p>
+            </div>
+          </div>
+          <ThemeToggle />
+        </header>
+        <section
+          aria-labelledby="auth-title"
+          className="glass-panel grid gap-6 rounded-3xl border p-6 sm:p-8"
         >
-          {signUp ? (
-            <div className="grid gap-2">
-              <Label htmlFor="auth-name">Nome</Label>
-              <Input
-                id="auth-name"
-                name="name"
-                autoComplete="name"
-                maxLength={80}
-                required
-                disabled={pending}
-              />
-            </div>
-          ) : null}
-          {!reset ? (
-            <div className="grid gap-2">
-              <Label htmlFor="auth-email">E-mail</Label>
-              <Input
-                id="auth-email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                maxLength={254}
-                required
-                disabled={pending}
-              />
-            </div>
-          ) : null}
-          {!requestReset ? (
-            <>
-              <PasswordField
-                id="auth-password"
-                label={passwordLabel}
-                value={password}
-                onChange={setPassword}
-                autoComplete={
-                  mode === 'login' ? 'current-password' : 'new-password'
-                }
-                disabled={pending}
-              />
-              {signUp || reset ? (
-                <PasswordChecklist password={password} />
-              ) : null}
-              {signUp || reset ? (
-                <PasswordField
-                  id="auth-password-confirmation"
-                  label="Confirmar senha"
-                  value={confirmation}
-                  onChange={setConfirmation}
-                  autoComplete="new-password"
-                  disabled={pending}
-                />
-              ) : null}
-            </>
-          ) : null}
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
+          <div>
+            <h1
+              id="auth-title"
+              className="text-2xl font-semibold tracking-tight"
+            >
+              {signUp
+                ? 'Criar sua conta'
+                : requestReset
+                  ? 'Esqueci minha senha'
+                  : reset
+                    ? 'Criar nova senha'
+                    : 'Entre no seu ritmo'}
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {requestReset
+                ? 'Informe o e-mail da sua conta para receber um link de recuperação.'
+                : reset
+                  ? 'Escolha uma senha nova para voltar à sua conta.'
+                  : 'Suas tarefas, com você em todos os dispositivos.'}
+            </p>
+          </div>
+          {expired && mode === 'login' ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              Sua sessão expirou. Entre novamente para continuar.
             </p>
           ) : null}
-          <Button className="w-full" type="submit" disabled={pending}>
-            {pending
-              ? 'Aguarde...'
-              : requestReset
-                ? 'Enviar link de recuperação'
-                : reset
-                  ? 'Salvar nova senha'
-                  : signUp
-                    ? 'Criar conta'
-                    : 'Entrar'}
-          </Button>
-        </form>
-        <div className="grid gap-1">
-          {mode === 'login' ? (
-            <Button
-              variant="ghost"
-              type="button"
-              disabled={pending}
-              onClick={() => navigate('request-reset')}
+          {notice ? (
+            <p
+              role="status"
+              className="text-sm text-green-700 dark:text-green-400"
             >
-              Esqueci minha senha
-            </Button>
+              {notice}
+            </p>
           ) : null}
-          <Button
-            variant="ghost"
-            type="button"
-            disabled={pending}
-            onClick={() => navigate(signUp ? 'login' : 'register')}
+          <form
+            noValidate
+            className="grid gap-4"
+            onSubmit={submit}
+            aria-busy={pending}
           >
-            {signUp ? 'Já tenho conta' : 'Quero criar uma conta'}
-          </Button>
-          {mode !== 'login' && !signUp ? (
+            {signUp ? (
+              <div className="grid gap-2">
+                <Label htmlFor="auth-name">Nome</Label>
+                <Input
+                  id="auth-name"
+                  className={authInputClassName}
+                  name="name"
+                  autoComplete="name"
+                  maxLength={80}
+                  required
+                  disabled={pending}
+                />
+              </div>
+            ) : null}
+            {!reset ? (
+              <div className="grid gap-2">
+                <Label htmlFor="auth-email">E-mail</Label>
+                <Input
+                  id="auth-email"
+                  className={authInputClassName}
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  maxLength={254}
+                  required
+                  disabled={pending}
+                />
+              </div>
+            ) : null}
+            {!requestReset ? (
+              <>
+                <PasswordField
+                  id="auth-password"
+                  label={passwordLabel}
+                  value={password}
+                  onChange={setPassword}
+                  autoComplete={
+                    mode === 'login' ? 'current-password' : 'new-password'
+                  }
+                  disabled={pending}
+                />
+                {signUp || reset ? (
+                  <PasswordChecklist password={password} />
+                ) : null}
+                {signUp || reset ? (
+                  <PasswordField
+                    id="auth-password-confirmation"
+                    label="Confirmar senha"
+                    value={confirmation}
+                    onChange={setConfirmation}
+                    autoComplete="new-password"
+                    disabled={pending}
+                  />
+                ) : null}
+              </>
+            ) : null}
+            {error ? (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            ) : null}
+            <Button
+              className="h-11 w-full rounded-xl"
+              type="submit"
+              disabled={pending}
+            >
+              {pending
+                ? 'Aguarde...'
+                : requestReset
+                  ? 'Enviar link de recuperação'
+                  : reset
+                    ? 'Salvar nova senha'
+                    : signUp
+                      ? 'Criar conta'
+                      : 'Entrar'}
+            </Button>
+          </form>
+          <div className="grid gap-1 border-t border-border/60 pt-4">
+            {mode === 'login' ? (
+              <Button
+                variant="ghost"
+                type="button"
+                disabled={pending}
+                onClick={() => navigate('request-reset')}
+              >
+                Esqueci minha senha
+              </Button>
+            ) : null}
             <Button
               variant="ghost"
               type="button"
               disabled={pending}
-              onClick={() => navigate('login')}
+              onClick={() => navigate(signUp ? 'login' : 'register')}
             >
-              Voltar para entrar
+              {signUp ? 'Já tenho conta' : 'Quero criar uma conta'}
             </Button>
-          ) : null}
-        </div>
-      </section>
+            {mode !== 'login' && !signUp ? (
+              <Button
+                variant="ghost"
+                type="button"
+                disabled={pending}
+                onClick={() => navigate('login')}
+              >
+                Voltar para entrar
+              </Button>
+            ) : null}
+          </div>
+        </section>
+      </div>
     </main>
   )
 }

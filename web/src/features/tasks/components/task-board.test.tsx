@@ -7,6 +7,9 @@ import { ThemeProvider } from '@/app/theme-provider'
 import { tasksApi } from '@/features/tasks/api/tasks-api'
 import { TasksProvider } from '@/features/tasks/tasks-context'
 import type { Task, TaskInput } from '@/features/tasks/types/task'
+import { hapticFeedback } from '@/lib/haptics'
+
+jest.mock('@/lib/haptics', () => ({ hapticFeedback: jest.fn() }))
 
 jest.mock('@/features/tasks/api/tasks-api', () => ({
   tasksApi: {
@@ -132,7 +135,9 @@ describe('TaskBoard', () => {
     renderApp()
 
     await user.click(screen.getAllByRole('button', { name: 'Criar tarefa' })[0])
-    await user.click(screen.getByRole('button', { name: /Atividade rápida/ }))
+    await user.click(
+      screen.getByRole('button', { name: /Tarefa cronometrada/ }),
+    )
     await user.type(screen.getByLabelText('Título'), 'Ler documentação')
     await user.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
 
@@ -151,7 +156,9 @@ describe('TaskBoard', () => {
     renderApp()
 
     await user.click(screen.getAllByRole('button', { name: 'Criar tarefa' })[0])
-    await user.click(screen.getByRole('button', { name: /Atividade rápida/ }))
+    await user.click(
+      screen.getByRole('button', { name: /Tarefa cronometrada/ }),
+    )
 
     expect(screen.getByLabelText('Título')).toBeVisible()
     expect(screen.getByText('Categoria')).toBeVisible()
@@ -224,6 +231,7 @@ describe('App shell', () => {
 
     await user.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
     expect(api.remove).toHaveBeenCalledWith('task-1')
+    await waitFor(() => expect(hapticFeedback).toHaveBeenCalledWith('success'))
   })
 
   it('completes a swiped task automatically without requesting a duration', async () => {
@@ -259,6 +267,12 @@ describe('App shell', () => {
       screen.getByRole('progressbar', { name: 'Progresso das tarefas' }),
     ).toHaveAttribute('aria-valuenow', '100')
     expect(api.complete).toHaveBeenCalledWith(task.id, undefined)
+    expect(hapticFeedback).toHaveBeenCalledWith('success')
+    expect(
+      jest
+        .mocked(hapticFeedback)
+        .mock.calls.filter(([kind]) => kind === 'success'),
+    ).toHaveLength(1)
     expect(api.remove).not.toHaveBeenCalled()
     await user.click(screen.getAllByRole('button', { name: 'Criar tarefa' })[0])
     expect(screen.getByLabelText('Título')).toBeVisible()
@@ -287,6 +301,7 @@ describe('App shell', () => {
     expect(heading.closest('article')).toHaveStyle({
       transform: 'translateX(0px)',
     })
+    expect(hapticFeedback).not.toHaveBeenCalledWith('success')
   })
 
   it('filters completed tasks before limiting the home preview', async () => {

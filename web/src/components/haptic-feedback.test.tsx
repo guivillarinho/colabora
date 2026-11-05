@@ -34,6 +34,12 @@ test('avoids repeated pulses for rapid interactions', () => {
   hapticFeedback()
   expect(navigator.vibrate).toHaveBeenCalledTimes(1)
 })
+test('plays confirmation feedback even immediately after a click', () => {
+  hapticFeedback()
+  hapticFeedback('success')
+  hapticFeedback()
+  expect(jest.mocked(navigator.vibrate).mock.calls).toEqual([[12], [20]])
+})
 test('does not vibrate disabled controls or page content', () => {
   render(
     <>

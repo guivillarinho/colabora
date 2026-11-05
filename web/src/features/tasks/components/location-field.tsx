@@ -114,6 +114,7 @@ export function LocationField({ id, value, onChange }: LocationFieldProps) {
         aria-expanded={results.length > 0}
         aria-haspopup="listbox"
         autoComplete="off"
+        className="focus-visible:border-muted-foreground/60 focus-visible:ring-0"
         id={id}
         placeholder="Busque um endereço"
         role="combobox"

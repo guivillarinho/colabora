@@ -121,15 +121,21 @@ it('validates registration and creates the account', async () => {
   await user.type(screen.getByLabelText('E-mail'), 'alice@example.test')
   await user.type(screen.getByLabelText('Senha'), 'short')
   await user.click(screen.getByRole('button', { name: 'Criar conta' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('12 a 128')
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'A senha ainda não atende a todos os requisitos.',
+  )
   await user.clear(screen.getByLabelText('Senha'))
-  await user.type(screen.getByLabelText('Senha'), 'safe-test-password')
+  await user.type(screen.getByLabelText('Senha'), 'Safe-test-password1!')
+  await user.type(
+    screen.getByLabelText('Confirmar senha'),
+    'Safe-test-password1!',
+  )
   await user.click(screen.getByRole('button', { name: 'Criar conta' }))
   expect(await screen.findByRole('heading', { name: 'Alice' })).toBeVisible()
   expect(api.register).toHaveBeenCalledWith(
     'Alice',
     'alice@example.test',
-    'safe-test-password',
+    'Safe-test-password1!',
   )
 })
 it('loads the current user and redirects away from login', async () => {
