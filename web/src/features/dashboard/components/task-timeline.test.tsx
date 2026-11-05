@@ -168,10 +168,18 @@ it('swipes reliably from the mobile handle after initial diagonal finger jitter'
   pointer(handle, 'pointermove', 130, 112)
   expect(card).toHaveStyle({ transform: 'translateX(30px)' })
   pointer(handle, 'pointerup', 130, 112)
-  fireEvent.click(card)
+  fireEvent.click(handle)
   expect(card).toHaveStyle({ transform: 'translateX(0px)' })
   expect(onComplete).not.toHaveBeenCalled()
   expect(onDelete).not.toHaveBeenCalled()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+it('does not open task details when the swipe handle itself is tapped', () => {
+  const { card } = setup()
+  const handle = card.querySelector('.colabora-swipe-handle')!
+  fireEvent.click(handle)
+  expect(card).toHaveStyle({ transform: 'translateX(0px)' })
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 

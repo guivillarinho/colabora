@@ -398,7 +398,11 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           <div className="flex shrink-0 items-center gap-1">
             <span
               aria-hidden="true"
-              className="colabora-swipe-handle grid size-7 touch-none place-items-center rounded-full text-muted-foreground/70 md:hidden"
+              className="colabora-swipe-handle grid size-11 touch-none place-items-center rounded-full border border-border/60 bg-muted/50 text-muted-foreground md:hidden"
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+              }}
             >
               <GripVertical className="size-4" />
             </span>
