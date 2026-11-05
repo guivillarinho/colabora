@@ -58,8 +58,8 @@
 
 ## 2026-11-05 — Preparação Free para Preview (em andamento)
 
-- **Etapa concluída:** branch `feat/colabora-evolucao` criada no remoto; recurso Neon Free vazio `colabora-homologacao` (0,25 CU) criado e conectado somente ao ambiente Preview com prefixo próprio; `SESSION_SECRET` aleatório configurado como segredo exclusivo da branch. Sem dados copiados, migração, deployment ou mudança em Production.
-- **Arquivos alterados:** política Preview e teste; relatório de deploy, plano e progresso. Todas as 56 alterações do projeto estão staged localmente, incluindo o trabalho funcional acumulado, para commit explícito conforme autorização; ainda não enviado.
-- **Testes executados:** seleção de credenciais Preview, syntax/diff check; a validação anterior de 232 testes, builds e lint permanece registrada. `git diff --cached --check` passou.
-- **Problemas pendentes:** variáveis de integração do Neon aparecem como recurso Preview prefixado, mas `vercel env run` não permitiu validar secrets localmente; verificar host/DB vazio sem exibir credenciais. Confirmar migrations pendentes, commit/push, build/deploy CLI somente Preview, endpoint de health e auth/CSRF. Git deployment automático está desabilitado no projeto.
-- **Próxima ação:** validar policy com as variáveis do recurso e o runtime isolado, concluir commit/push da feature, executar migrations explicitamente apenas após confirmar banco vazio e publicar o Preview via Vercel CLI.
+- **Etapa concluída:** alterações acumuladas commitadas e enviadas em `3fb00e1` à branch de feature. Neon Free `colabora-homologacao` (0,25 CU) vinculado somente a Preview com prefixo; sessão e hostname configurados branch-specific. Auditoria SQL encontrou zero tabelas/ledger antes da migração; migrations executadas uma vez, consulta posterior confirmou 15 tabelas e 8 migrations. Sem dados copiados ou mudança em Production.
+- **Arquivos alterados:** 56 arquivos do projeto no commit `3fb00e1`, incluindo funcionalidades locais, testes, scripts seguros e documentação.
+- **Testes executados:** auditoria prévia/posterior de DB via conexão Neon sem imprimir credenciais; testes da política Preview e `git diff --cached --check`; a validação local anterior de 232 testes, builds e lint permanece registrada.
+- **Problemas pendentes:** `vercel env run` não permite extrair o secret Preview no ambiente local; verificar runtime pelo deployment. Build remoto/preview, URL real, health, CORS/CSRF/cookies e acesso sem autenticação ainda pendentes. Deployments automáticos Git permanecem desabilitados (configuração não alterada).
+- **Próxima ação:** executar build/deploy exclusivamente com Vercel CLI em `preview`, sem produção, depois validar URL e endpoints não destrutivos.

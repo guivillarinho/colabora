@@ -1,10 +1,10 @@
 # Preview Vercel — auditoria e preparação
 
-2026-11-05 — Preparação de Preview em andamento. Nenhuma URL/deployment foi criada e nenhuma migração remota foi executada.
+2026-11-05 — Preparação de Preview em andamento. Nenhuma URL/deployment foi criada. Migrações foram aplicadas somente ao banco Neon Free isolado, após consulta prévia sem tabelas/ledger.
 
 ## Destino e Git
 
-- Branch local/remota: `feat/colabora-evolucao`, base `0937ab578e269340c0b9b946ac9a8784021aa649` (igual à main remota na consulta). Branch criada no GitHub. O commit-base foi enviado; alterações da aplicação permanecem staged localmente para commit explícito antes do deployment. `main` não foi alterada.
+- Branch local/remota: `feat/colabora-evolucao`, commit `3fb00e1` enviado ao GitHub; `main` não foi alterada. Working tree deve ser verificado antes do deploy.
 - Projeto vinculado: `villarinhoguis-projects/colabora`, integração GitHub `guivillarinho/colabora`, branch de produção `main`. Vercel autenticada como `villarinho-gui`; Node 24.x, preset Other, raiz do repositório e build `npm run build:vercel` confirmados por consultas remotas.
 - `gh` não tem sessão válida (`GITHUB_TOKEN` inválido), mas `git push` autenticado criou a branch remota. A conexão de Git da Vercel reporta `createDeployments=disabled`; para manter essa configuração (e não alterar o comportamento de produção), deployment será via CLI Vercel em ambiente Preview após publicar o commit da feature.
 - Metadados gitProviderOptions retornaram createDeployments=disabled e disableRepositoryDispatchEvents=true; não foram interpretados como prova de que todos os deploys Git estejam desabilitados. Fluxo automático Preview ainda precisa ser confirmado. Nenhuma configuração remota foi alterada.
@@ -12,10 +12,10 @@
 ## Banco — condição impeditiva
 
 - Neon acessível na organização `org-late-grass-91070595`, plano indicado como **free**, administrado via Vercel. Projeto de banco `colabora-db` (`polished-rice-52637077`) tem somente branch `main` (`br-cool-cell-b6ej8era`), marcada como produção pela integração. Outro projeto existente, `colabora-reminders`, serve ao agendador; não foi reutilizado nem alterado.
-- Recurso Neon `colabora-homologacao` criado pelo Marketplace Vercel no plano **Free**, projeto `solitary-night-09470558`, região `aws-sa-east-1`, PostgreSQL 18, compute fixo 0,25 CU. Branch `main` (`br-restless-cloud-b6yxbt3l`) recém-criada, 0 bytes de escrita/transferência/compute na verificação, sem dados pessoais copiados. A org é `free_v3`; criação direta por CLI foi recusada porque é gerenciada pela Vercel. Nenhuma consulta SQL foi feita.
-- Recurso conectado ao projeto Vercel apenas no ambiente Preview com prefixo `COLABORA_PREVIEW`; os envs Production permanecem conectados exclusivamente ao recurso anterior. `storage status` confirma escopo `preview` para o recurso novo e `production, preview` para o existente. As conexões ainda devem ser conferidas pelo host efetivamente injetado na função antes de migração. A variável `SESSION_SECRET` foi criada como secret somente para Preview da branch `feat/colabora-evolucao`, aleatória, sem valor exibido.
+- Recurso Neon `colabora-homologacao` criado pelo Marketplace Vercel no plano **Free**, projeto `solitary-night-09470558`, região `aws-sa-east-1`, PostgreSQL 18, compute fixo 0,25 CU. Branch `main` (`br-restless-cloud-b6yxbt3l`), role `neondb_owner`, database `neondb`. Antes de migrar, conexão foi validada contra host `ep-frosty-queen-b6cbgymv.c-2.sa-east-1.aws.neon.tech`: nenhuma tabela pública e nenhum ledger. Sem dados pessoais copiados.
+- Migração explícita executada uma vez no alvo validado; consulta posterior mostra 15 tabelas públicas e 8 registros no ledger. Recurso conectado ao projeto Vercel apenas em Preview com prefixo `COLABORA_PREVIEW`; `storage status` preserva escopos do recurso anterior. `SESSION_SECRET` criado como secret exclusivo para Preview da branch `feat/colabora-evolucao`, valor não exibido.
 - O plano Free permite compute/storage limitados, mas quotas de conta ainda podem mudar; recurso mantém 0,25 CU e suspend timeout global (configuração 0 = default). Sem habilitação de plano pago, billing ou APIs externas. O build/deployment deverá parar se política não validar o host.
-- Antes de migrar: confirmar projeto/branch/endpoint/role dedicados e que essas credenciais não autorizam escrita em produção; comparar endpoint público (sem senha) com o inventário de produção, conferir existência de dados, ledger de migrations e plano pendente. Não usar main como homologação. Somente então executar migração explícita uma vez no destino confirmado. Não executar down/revert/schema:sync.
+- A primeira execução foi feita somente após conferir host, role, database, ausência de tabelas/ledger e isolamento do projeto. As 8 migrations registradas incluem 15 tabelas. Não executar down/revert/schema:sync.
 
 ## Alterações locais necessárias
 
@@ -28,7 +28,7 @@
 ## Migrações e configuração pendentes
 
 - Migrações novas do assistente (`1793923200000`) e Calendar (`1794009600000`) apenas criam tabelas/índices/vínculos. Migrações up anteriores criam tabelas/adicionam colunas; push também popula fila de lembretes de tarefas existentes. Nenhuma up destrutiva foi identificada; existem downs antigos com DROP COLUMN, que não serão executados.
-- O conjunto realmente pendente depende do banco isolado escolhido: conferir ledger após provisionamento. Não copiar schema sem ledger de forma a reaplicar migrations em tabelas já existentes. Banco vazio com execução inicial integral é uma alternativa, sujeita à aprovação do recurso/cota.
+- Ledger do banco isolado contém 8 migrations após bootstrap inicial; não copiar schema sem ledger nem reaplicar migrations manualmente.
 - Variáveis no Preview: recurso Neon prefixado em escopo Preview (`COLABORA_PREVIEW_DATABASE_URL`, `_UNPOOLED`, host e aliases); `SESSION_SECRET` secret branch-specific. Política valida as conexões, converte a URL isolada para `DATABASE_URL` e apaga aliases/segredos prefixed herdados antes de carregar a API. DB_SSL/schema e WEB_ORIGIN/PUBLIC_APP_URL são definidos pela política. VITE_API_URL é fixado vazio no build para `/api`; sem secrets VITE_*.
 - GEMINI_ENABLED=false e GOOGLE_ENABLED=false. Não cadastrar OAuth redirect URI, credenciais ou chave de cifra nesta execução. E-mail, push, dispatch e Blob desabilitados. Overrides branch-specific vazios devem substituir aliases/credenciais compartilhadas de produção no Preview, sem editar/remover valores Production. Nunca puxar todos os segredos de Production.
 - URL Preview, HTTPS, permissões/proteção de acesso do deployment e fluxo Git precisam ser confirmados após o provisionamento. Código gera SPA fallback, `/api` e `/health`, função Node 24/gru1/60 s; artifact/deployment remoto não foi criado para confirmar esses parâmetros em execução.
