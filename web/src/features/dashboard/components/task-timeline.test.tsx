@@ -156,6 +156,25 @@ it('does not open details after a short drag that never reaches the action thres
   expect(screen.getByRole('dialog', { name: task.title })).toBeVisible()
 })
 
+it('swipes reliably from the mobile handle after initial diagonal finger jitter', () => {
+  const { card, onComplete, onDelete } = setup()
+  const handle = card.querySelector('.colabora-swipe-handle')!
+  expect(handle).toHaveClass('touch-none', 'md:hidden')
+  pointer(handle, 'pointerdown', 100, 100)
+  pointer(handle, 'pointermove', 107, 108)
+  expect(card).toHaveStyle({ transform: 'translateX(0px)' })
+  pointer(handle, 'pointermove', 115, 110)
+  expect(card).toHaveStyle({ transform: 'translateX(15px)' })
+  pointer(handle, 'pointermove', 130, 112)
+  expect(card).toHaveStyle({ transform: 'translateX(30px)' })
+  pointer(handle, 'pointerup', 130, 112)
+  fireEvent.click(card)
+  expect(card).toHaveStyle({ transform: 'translateX(0px)' })
+  expect(onComplete).not.toHaveBeenCalled()
+  expect(onDelete).not.toHaveBeenCalled()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
 it.each(['pointerup', 'pointercancel'])(
   'preserves vertical scrolling and ignores a trailing click after %s',
   (end) => {

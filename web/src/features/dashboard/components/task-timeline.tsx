@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   ArrowRight,
   CircleCheck,
+  GripVertical,
   MapPin,
   Trash2,
 } from 'lucide-react'
@@ -79,7 +80,7 @@ export function TaskTimeline({
           aria-label="Como arrastar as tarefas"
           className="grid gap-3 rounded-xl border bg-card p-4 text-sm"
         >
-          <p className="font-semibold">Arraste o card para agir</p>
+          <p className="font-semibold">Arraste pelo puxador para agir</p>
           <p className="flex items-center gap-2 text-pastel-green-foreground">
             <ArrowRight aria-hidden="true" className="size-4 shrink-0" />
             Para a direita: concluir com tempo calculado automaticamente.
@@ -89,8 +90,8 @@ export function TaskTimeline({
             Para a esquerda: abrir a confirmação de exclusão.
           </p>
           <p className="text-muted-foreground">
-            Solte o card para realizar a ação. No teclado, foque o card e use as
-            setas.
+            No celular, use o puxador para evitar que o navegador role a página.
+            Solte para realizar a ação; no teclado, foque o card e use as setas.
           </p>
           <Button
             className="justify-self-start"
@@ -151,7 +152,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
   const dragStartX = useRef<number | null>(null)
   const dragStartY = useRef(0)
   const activePointer = useRef<number | null>(null)
-  const dragDirection = useRef<'horizontal' | 'vertical' | null>(null)
+  const dragDirection = useRef<'horizontal' | null>(null)
   const suppressClick = useRef(false)
   const thresholdAction = useRef(0)
   const dragStartOffset = useRef(0)
@@ -239,8 +240,11 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
     if (!dragDirection.current) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) < dragThreshold) return
       suppressClick.current = true
-      dragDirection.current =
-        Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical'
+      // Leave vertical gestures to the browser (touch-action: pan-y). If the
+      // first touch samples contain vertical jitter, keep listening until the
+      // horizontal intent becomes clear instead of locking the gesture early.
+      if (Math.abs(dx) <= Math.abs(dy)) return
+      dragDirection.current = 'horizontal'
       if (dragDirection.current === 'horizontal') {
         setDragging(true)
         event.currentTarget.setPointerCapture?.(event.pointerId)
@@ -272,10 +276,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
-    if (
-      event.type === 'pointercancel' ||
-      dragDirection.current === 'vertical'
-    ) {
+    if (event.type === 'pointercancel') {
       suppressClick.current = true
       updateOffset(0)
       return
@@ -394,9 +395,17 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
       >
         <div className="flex items-center justify-between gap-3">
           <MutedText>{dateLabel}</MutedText>
-          <span className="shrink-0 rounded-lg bg-primary px-2.5 py-1.5 text-sm font-semibold tabular-nums text-primary-foreground">
-            {timeLabel}
-          </span>
+          <div className="flex shrink-0 items-center gap-1">
+            <span
+              aria-hidden="true"
+              className="colabora-swipe-handle grid size-7 touch-none place-items-center rounded-full text-muted-foreground/70 md:hidden"
+            >
+              <GripVertical className="size-4" />
+            </span>
+            <span className="rounded-lg bg-primary px-2.5 py-1.5 text-sm font-semibold tabular-nums text-primary-foreground">
+              {timeLabel}
+            </span>
+          </div>
         </div>
         <div className="flex min-w-0 items-start gap-2">
           <h3 className="min-w-0 font-semibold leading-snug">{task.title}</h3>
