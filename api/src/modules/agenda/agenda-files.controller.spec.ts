@@ -65,6 +65,9 @@ describe('AgendaFilesController', () => {
       { id: 'owner', name: 'Owner', email: 'owner@example.test' },
     )
     expect(response).toBeInstanceOf(StreamableFile)
+    expect(response.getHeaders().disposition).toBe(
+      'attachment; filename="12345678-1234-1234-1234-123456789abc.pdf"',
+    )
     const chunks: Buffer[] = []
     for await (const chunk of response.getStream())
       chunks.push(Buffer.from(chunk))

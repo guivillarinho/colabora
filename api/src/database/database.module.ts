@@ -1,3 +1,5 @@
+import { GoogleCalendar1794009600000 } from './migrations/1794009600000-google-calendar'
+import { Assistant1793923200000 } from './migrations/1793923200000-assistant'
 import { Pomodoro1793880000000 } from './migrations/1793880000000-pomodoro'
 import { Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
@@ -39,6 +41,8 @@ import { databaseSchema } from './schema'
           PasswordReset1793707200000,
           TaskExecutionTime1793793600000,
           Pomodoro1793880000000,
+          Assistant1793923200000,
+          GoogleCalendar1794009600000,
         ],
         migrationsRun: !process.env.VERCEL,
       }),

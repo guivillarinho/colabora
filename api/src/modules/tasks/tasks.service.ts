@@ -75,29 +75,33 @@ export class TasksService {
     return task
   }
 
-  async create(dto: CreateTaskDto, actor: string): Promise<TaskView> {
+  async create(
+    dto: CreateTaskDto,
+    actor: string,
+    id?: string,
+  ): Promise<TaskView> {
     await this.users.validateAssignee(dto.assignedToId)
     await this.attachments.assertOwnReferences(dto.attachments ?? [], actor)
-    const task = await this.tasksRepository.save(
-      this.tasksRepository.create({
-        title: dto.title.trim(),
-        description: emptyToNull(dto.description),
-        category: dto.category.trim(),
-        priority: dto.priority ?? TaskPriority.Medium,
-        color: dto.color,
-        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
-        location: emptyToNull(dto.location),
-        attachments: dto.attachments ?? [],
-        estimatedTime: dto.estimatedTime,
-        actualTime: null,
-        status: dto.startImmediately
-          ? TaskStatus.InProgress
-          : TaskStatus.Pending,
-        startedAt: dto.startImmediately ? new Date() : null,
-        createdById: actor,
-        assignedToId: dto.assignedToId === undefined ? actor : dto.assignedToId,
-      }),
-    )
+    const entity = this.tasksRepository.create({
+      ...(id ? { id } : {}),
+      title: dto.title.trim(),
+      description: emptyToNull(dto.description),
+      category: dto.category.trim(),
+      priority: dto.priority ?? TaskPriority.Medium,
+      color: dto.color,
+      dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+      location: emptyToNull(dto.location),
+      attachments: dto.attachments ?? [],
+      estimatedTime: dto.estimatedTime,
+      actualTime: null,
+      status: dto.startImmediately ? TaskStatus.InProgress : TaskStatus.Pending,
+      startedAt: dto.startImmediately ? new Date() : null,
+      createdById: actor,
+      assignedToId: dto.assignedToId === undefined ? actor : dto.assignedToId,
+    })
+    const task = id
+      ? (await this.tasksRepository.insert(entity), entity)
+      : await this.tasksRepository.save(entity)
     await this.notifications.scheduleTaskReminders(task)
     await this.notifications.notifyUsers(
       [task.createdById, task.assignedToId],

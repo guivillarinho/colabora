@@ -83,3 +83,9 @@ test('keeps actions usable when vibration is unsupported or blocked', () => {
   })
   expect(() => hapticFeedback('success')).not.toThrow()
 })
+
+test('allows a pulse for every threshold entry even during rapid reentry', () => {
+  hapticFeedback('threshold')
+  hapticFeedback('threshold')
+  expect(jest.mocked(navigator.vibrate).mock.calls).toEqual([[12], [12]])
+})

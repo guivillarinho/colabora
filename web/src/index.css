@@ -38,6 +38,51 @@
   backdrop-filter: blur(22px) saturate(145%);
 }
 
+.colabora-header {
+  background-color: transparent;
+  border-color: transparent;
+  -webkit-backdrop-filter: blur(0) saturate(100%);
+  backdrop-filter: blur(0) saturate(100%);
+  transition: background-color var(--motion-fast) var(--motion-ease-out), border-color var(--motion-fast) var(--motion-ease-out), backdrop-filter var(--motion-fast) var(--motion-ease-out);
+}
+
+.colabora-header[data-scrolled='true'] {
+  background-color: var(--glass-surface);
+  border-color: var(--glass-edge);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  backdrop-filter: blur(22px) saturate(145%);
+}
+
+/* Layout centers the eye independently of button press/reduced-motion transforms. */
+[data-slot='button'].colabora-password-toggle,
+[data-slot='button'].colabora-password-toggle:enabled:active {
+  translate: none;
+  scale: 1;
+}
+
+/* The action backdrop must not show through a translucent card at rest. */
+.colabora-timeline-task {
+  --timeline-action: var(--pastel-red);
+  background-color: var(--background);
+}
+
+.colabora-timeline-task[data-action='complete'] {
+  --timeline-action: var(--pastel-green);
+}
+
+.colabora-timeline-task::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: var(--timeline-action);
+  opacity: var(--swipe-progress, 0);
+}
+
+.colabora-timeline-card {
+  background-color: color-mix(in srgb, var(--glass-surface), var(--timeline-action) var(--swipe-tint, 0%));
+  border-color: var(--glass-edge);
+}
+
 .glass-card {
   background-image: linear-gradient(135deg, var(--glass-highlight), transparent 65%);
   box-shadow: 0 4px 18px var(--glass-shadow), inset 0 1px 0 var(--glass-edge);
@@ -47,7 +92,9 @@
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass-panel,
-  .glass-chrome {
+  .glass-chrome,
+  .colabora-header[data-scrolled='true'],
+  .colabora-timeline-card {
     background-color: var(--card);
   }
 }
@@ -149,6 +196,7 @@ button.glass-card:focus-visible {
     animation: none;
   }
 
+  .colabora-header,
   [data-slot='button'],
   .colabora-nav-item,
   .colabora-nav-item svg,
@@ -357,4 +405,20 @@ button.glass-card:focus-visible {
     @apply font-sans;
     color-scheme: light;
     }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button:enabled:not([aria-disabled='true']),
+  a[href],
+  [role='button']:not([aria-disabled='true']),
+  [role='tab']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+}
+
+button:enabled:focus-visible,
+a[href]:focus-visible,
+[tabindex='0']:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
 }

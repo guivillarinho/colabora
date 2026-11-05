@@ -16,6 +16,7 @@ import { AuthService } from './auth.service'
 import { machineRoute, publicRoute } from './auth.decorators'
 import { sessionSettings } from './session-settings'
 import './auth.types'
+import { webOrigins } from './web-origins'
 
 @Injectable()
 export class SessionGuard implements CanActivate {
@@ -87,10 +88,7 @@ export class SessionGuard implements CanActivate {
       const expected = request.session?.csrfToken
       const received = request.get('x-csrf-token')
       const origin = request.get('origin')
-      const allowed = (this.config.get<string>('WEB_ORIGIN') ?? '')
-        .split(',')
-        .map((value) => value.trim().replace(/\/$/, ''))
-        .filter(Boolean)
+      const allowed = webOrigins(this.config.get<string>('WEB_ORIGIN'))
       allowed.push(`${request.protocol}://${request.get('host')}`)
       if (
         request.get('sec-fetch-site') === 'cross-site' ||

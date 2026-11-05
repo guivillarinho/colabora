@@ -11,7 +11,10 @@ import { UploadQuotaGuard } from './upload-quota.guard'
 import { NotificationsModule } from '../notifications/notifications.module'
 
 @Module({
-  imports: [TypeOrmModule.forFeature([AgendaItem, Attachment]), NotificationsModule],
+  imports: [
+    TypeOrmModule.forFeature([AgendaItem, Attachment]),
+    NotificationsModule,
+  ],
   controllers: [AgendaController, AgendaFilesController],
   providers: [AgendaService, AttachmentsService, UploadQuotaGuard],
   exports: [AttachmentsService],

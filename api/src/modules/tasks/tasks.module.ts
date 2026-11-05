@@ -9,7 +9,12 @@ import { AgendaModule } from '../agenda/agenda.module'
 import { NotificationsModule } from '../notifications/notifications.module'
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Task]), AgendaModule, NotificationsModule],
+  imports: [
+    TypeOrmModule.forFeature([Task]),
+    AgendaModule,
+    NotificationsModule,
+  ],
+  exports: [TasksService],
   controllers: [TasksController],
   providers: [TasksService, ProductivityAdvisorService],
 })

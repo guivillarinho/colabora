@@ -1,3 +1,5 @@
+import { GoogleModule } from './modules/google/google.module'
+import { AssistantModule } from './modules/assistant/assistant.module'
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 
@@ -15,6 +17,8 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
     AuthModule,
+    AssistantModule,
+    GoogleModule,
     NotificationsModule,
     FocusSessionsModule,
     AgendaModule,

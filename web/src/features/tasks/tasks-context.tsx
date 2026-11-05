@@ -15,6 +15,7 @@ import type { Task, TaskInput } from './types/task'
 
 type TasksContextValue = {
   tasks: Task[]
+  acceptTask: (task: Task) => void
   loading: boolean
   error: string | null
   advice: string | null
@@ -38,6 +39,14 @@ export function TasksProvider({ children }: TasksProviderProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [advice, setAdvice] = useState<string | null>(null)
+
+  const acceptTask = useCallback((task: Task) => {
+    setTasks((current) =>
+      current.some((item) => item.id === task.id)
+        ? current.map((item) => (item.id === task.id ? task : item))
+        : [...current, task],
+    )
+  }, [])
 
   const replaceTask = useCallback((task: Task) => {
     setTasks((current) =>
@@ -169,6 +178,7 @@ export function TasksProvider({ children }: TasksProviderProps) {
       error,
       advice,
       clearAdvice,
+      acceptTask,
       createTask,
       updateTask,
       removeTask,
@@ -182,6 +192,7 @@ export function TasksProvider({ children }: TasksProviderProps) {
       error,
       advice,
       clearAdvice,
+      acceptTask,
       createTask,
       updateTask,
       removeTask,

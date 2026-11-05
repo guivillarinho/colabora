@@ -8,7 +8,7 @@ import {
 } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
-export type AppSection = 'hoje' | 'timer' | 'agenda' | 'perfil'
+export type AppSection = 'hoje' | 'timer' | 'agenda' | 'perfil' | 'chat'
 
 export type NavItem = {
   id: AppSection
@@ -42,6 +42,7 @@ export function NavigationProvider({
   const [section, setSection] = useState<AppSection>(
     () =>
       initialSection ??
+      (window.location.pathname === '/chat' ? 'chat' : undefined) ??
       navItems.find((item) => `/${item.id}` === window.location.pathname)?.id ??
       'hoje',
   )

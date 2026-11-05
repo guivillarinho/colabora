@@ -1,8 +1,11 @@
+import { GoogleSettings } from '@/features/google/google-settings'
 import { useEffect, useState } from 'react'
 import { Bell, BellOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { apiRequest } from '@/lib/http-client'
 import { useAuth } from './auth-context'
+import { useTasks } from '@/features/tasks/tasks-context'
+import { TaskExecutionChart } from '@/features/dashboard/components/task-execution-chart'
 
 type PushKey = { publicKey: string }
 type SubscriptionKeys = { p256dh?: string; auth?: string }
@@ -13,6 +16,7 @@ type SubscriptionJSON = {
 
 export function AccountPage() {
   const { user, logout } = useAuth()
+  const { tasks } = useTasks()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pushEnabled, setPushEnabled] = useState(false)
@@ -187,6 +191,8 @@ export function AccountPage() {
           </p>
         ) : null}
       </section>
+      <GoogleSettings />
+      <TaskExecutionChart tasks={tasks} />
       {error ? <p role="alert">{error}</p> : null}
       <Button
         className="justify-self-start"

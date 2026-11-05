@@ -1,6 +1,7 @@
 import { TaskPeople } from '@/features/tasks/components/task-people'
 import { LinkedText } from '@/components/linked-text'
-import { useRef, useState, type PointerEvent } from 'react'
+import { useRef, useState, type CSSProperties, type PointerEvent } from 'react'
+import { AgendaDetails } from '../agenda-page'
 import {
   ArrowLeft,
   ArrowRight,
@@ -30,6 +31,9 @@ type TaskTimelineProps = {
   onViewAll?: () => void
 }
 
+const interactiveTarget = 'button, input, textarea, select, a, [role="dialog"]'
+const dragThreshold = 8
+const actionThreshold = 48
 const previewLimit = 3
 const swipeTutorialKey = 'colabora:swipe-tutorial'
 
@@ -139,10 +143,17 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
   const completionPending = useRef(false)
   const [completionError, setCompletionError] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const cardRef = useRef<HTMLElement>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [offset, setOffset] = useState(0)
   const [dragging, setDragging] = useState(false)
   const dragStartX = useRef<number | null>(null)
+  const dragStartY = useRef(0)
+  const activePointer = useRef<number | null>(null)
+  const dragDirection = useRef<'horizontal' | 'vertical' | null>(null)
+  const suppressClick = useRef(false)
+  const thresholdAction = useRef(0)
   const dragStartOffset = useRef(0)
   const currentOffset = useRef(0)
   const swatch =
@@ -162,7 +173,6 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
   const canDelete = task.permissions.delete
   const canComplete = task.permissions.changeStatus && !isCompleted
   const completingSwipe = offset > 0
-  const swipeColor = completingSwipe ? '#bbf7d0' : 'var(--pastel-red)'
   const swipeTransition = dragging
     ? 'none'
     : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1), background-color 320ms ease, border-color 320ms ease, border-radius 320ms cubic-bezier(0.22, 1, 0.36, 1)'
@@ -197,61 +207,117 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
   }
 
   function handlePointerDown(event: PointerEvent<HTMLLIElement>) {
-    if (completionPending.current) return
-    const target = event.target
+    if (completionPending.current || activePointer.current !== null) return
     if (
-      target instanceof Element &&
-      target.closest(
-        '[data-delete-action], button, input, textarea, select, a, [role="dialog"]',
-      )
-    ) {
+      event.target instanceof Element &&
+      event.target.closest(interactiveTarget)
+    )
       return
-    }
-    if (event.pointerType === 'mouse' && event.button !== 0) return
+    if (
+      event.isPrimary === false ||
+      (event.pointerType === 'mouse' && event.button !== 0)
+    )
+      return
 
+    suppressClick.current = false
+    activePointer.current = event.pointerId
     dragStartX.current = event.clientX
+    dragStartY.current = event.clientY
     dragStartOffset.current = currentOffset.current
-    setDragging(true)
-    event.currentTarget.setPointerCapture?.(event.pointerId)
+    dragDirection.current = null
+    thresholdAction.current = 0
   }
 
   function handlePointerMove(event: PointerEvent<HTMLLIElement>) {
-    if (dragStartX.current === null) return
-    updateOffset(dragStartOffset.current + event.clientX - dragStartX.current)
+    if (
+      dragStartX.current === null ||
+      activePointer.current !== event.pointerId
+    )
+      return
+    const dx = event.clientX - dragStartX.current
+    const dy = event.clientY - dragStartY.current
+    if (!dragDirection.current) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < dragThreshold) return
+      suppressClick.current = true
+      dragDirection.current =
+        Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical'
+      if (dragDirection.current === 'horizontal') {
+        setDragging(true)
+        event.currentTarget.setPointerCapture?.(event.pointerId)
+      }
+    }
+    if (dragDirection.current !== 'horizontal') return
+    updateOffset(dragStartOffset.current + dx)
+    const action =
+      Math.abs(currentOffset.current) >= actionThreshold
+        ? Math.sign(currentOffset.current)
+        : 0
+    if (action && action !== thresholdAction.current)
+      hapticFeedback('threshold')
+    thresholdAction.current = action
   }
 
   function finishPointerDrag(event: PointerEvent<HTMLLIElement>) {
-    if (dragStartX.current === null) return
+    if (
+      dragStartX.current === null ||
+      activePointer.current !== event.pointerId
+    )
+      return
+    // Include final coordinates when the browser coalesces pointermove events.
+    if (event.type !== 'pointercancel') handlePointerMove(event)
     dragStartX.current = null
+    activePointer.current = null
+    thresholdAction.current = 0
     setDragging(false)
-    event.currentTarget.releasePointerCapture?.(event.pointerId)
-    if (event.type === 'pointercancel') {
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    if (
+      event.type === 'pointercancel' ||
+      dragDirection.current === 'vertical'
+    ) {
+      suppressClick.current = true
       updateOffset(0)
       return
     }
-    if (currentOffset.current >= 48 && canComplete) {
+    if (currentOffset.current >= actionThreshold && canComplete) {
       updateOffset(96)
       complete().catch(() => undefined)
-    } else if (currentOffset.current <= -48 && canDelete) {
+    } else if (currentOffset.current <= -actionThreshold && canDelete) {
       updateOffset(-96)
-      hapticFeedback()
       setConfirmingDelete(true)
     } else {
       updateOffset(0)
     }
   }
 
+  function closeDetails() {
+    setDetailsOpen(false)
+  }
+
   return (
     <li
-      style={{ backgroundColor: completingSwipe ? '#bbf7d0' : undefined }}
-      className={cn(
-        'relative isolate min-w-0 touch-pan-y overflow-hidden rounded-xl',
-        completingSwipe ? 'bg-pastel-green' : 'bg-pastel-red',
-      )}
+      data-action={completingSwipe ? 'complete' : 'delete'}
+      style={
+        {
+          '--swipe-progress': revealProgress,
+          '--swipe-tint': `${revealProgress * 20}%`,
+        } as CSSProperties
+      }
+      className="colabora-timeline-task relative isolate min-w-0 touch-pan-y overflow-hidden rounded-xl"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishPointerDrag}
       onPointerCancel={finishPointerDrag}
+      onLostPointerCapture={(event) => {
+        if (activePointer.current !== event.pointerId) return
+        activePointer.current = null
+        dragStartX.current = null
+        thresholdAction.current = 0
+        suppressClick.current = true
+        setDragging(false)
+        updateOffset(0)
+      }}
     >
       {canComplete ? (
         <button
@@ -280,13 +346,29 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
         </button>
       ) : null}
       <article
+        ref={cardRef}
         tabIndex={0}
+        onClick={(event) => {
+          if (
+            event.target instanceof Element &&
+            event.target.closest(interactiveTarget)
+          )
+            return
+          if (suppressClick.current) {
+            event.preventDefault()
+            return
+          }
+          if (!completionPending.current) setDetailsOpen(true)
+        }}
         aria-busy={completing}
-        aria-label={`${task.title}.${canDelete ? ' Arraste para a esquerda para excluir.' : ''}${canComplete ? ' Arraste para a direita para concluir.' : ''}`}
+        aria-label={`${task.title}. Enter ou espaço para abrir detalhes.${canDelete ? ' Arraste para a esquerda para excluir.' : ''}${canComplete ? ' Arraste para a direita para concluir.' : ''}`}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return
           if (completionPending.current) return
-          if (event.key === 'ArrowLeft' && canDelete) {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            setDetailsOpen(true)
+          } else if (event.key === 'ArrowLeft' && canDelete) {
             event.preventDefault()
             updateOffset(-96)
             setConfirmingDelete(true)
@@ -300,8 +382,6 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
         }}
         style={{
           transform: `translateX(${offset}px)`,
-          backgroundColor: `color-mix(in srgb, var(--card), ${swipeColor} ${revealProgress * 100}%)`,
-          borderColor: `color-mix(in srgb, var(--border), ${swipeColor} ${revealProgress * 100}%)`,
           borderTopRightRadius: `calc(var(--radius-xl) * ${completingSwipe ? 1 : 1 - revealProgress})`,
           borderBottomRightRadius: `calc(var(--radius-xl) * ${completingSwipe ? 1 : 1 - revealProgress})`,
           borderTopLeftRadius: `calc(var(--radius-xl) * ${completingSwipe ? 1 - revealProgress : 1})`,
@@ -309,7 +389,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           transition: swipeTransition,
         }}
         className={cn(
-          'glass-card relative z-10 grid min-w-0 grid-cols-[minmax(0,1fr)] cursor-grab select-none gap-2 rounded-xl border p-3 [overflow-wrap:anywhere] active:cursor-grabbing motion-reduce:!transition-none sm:p-4',
+          'glass-card colabora-timeline-card relative z-10 grid min-w-0 grid-cols-[minmax(0,1fr)] cursor-pointer select-none gap-2 rounded-xl border p-3 [overflow-wrap:anywhere] active:cursor-grabbing motion-reduce:!transition-none sm:p-4',
         )}
       >
         <div className="flex items-center justify-between gap-3">
@@ -369,6 +449,28 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           </p>
         ) : null}
       </article>
+      {detailsOpen ? (
+        <AgendaDetails
+          item={{
+            ...task,
+            type: 'task',
+            startDate: task.dueDate,
+            endDate: task.dueDate,
+            icon: null,
+            task,
+          }}
+          onClose={closeDetails}
+          returnFocus={() => cardRef.current?.focus()}
+          onComplete={async () => {
+            await onComplete(task.id)
+            closeDetails()
+          }}
+          onDelete={async () => {
+            await onDelete(task.id)
+            closeDetails()
+          }}
+        />
+      ) : null}
       <TaskFormDialog open={editing} task={task} onOpenChange={setEditing} />
       <DeleteConfirmationDialog
         open={confirmingDelete}

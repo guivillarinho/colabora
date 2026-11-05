@@ -10,6 +10,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { rm } from 'node:fs/promises'
 import { createApplication } from '../src/bootstrap'
 import { InitialSchema1793448000000 } from '../src/database/migrations/1793448000000-initial-schema'
+jest.mock('@google/genai', () => ({ GoogleGenAI: jest.fn() }))
 
 const origin = 'http://localhost:5173'
 const password = 'A-test-password-123!'
@@ -146,10 +147,198 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       .send(body)
   }
 
+  it('protects Google OAuth state, encrypts credentials and scopes explicit sync by user', async () => {
+    const original = { ...process.env }
+    const googleFetch = jest.spyOn(global, 'fetch')
+    Object.assign(process.env, {
+      GOOGLE_ENABLED: 'true',
+      GOOGLE_CLIENT_ID: 'test-client',
+      GOOGLE_CLIENT_SECRET: 'test-secret',
+      GOOGLE_REDIRECT_URI: 'http://localhost:3000/api/google/callback',
+      PUBLIC_APP_URL: origin,
+      GOOGLE_TOKEN_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
+    })
+    const scope = 'https://www.googleapis.com/auth/calendar.events.owned'
+    const reply = (body: unknown, status = 200) =>
+      ({ ok: status === 200, status, json: async () => body }) as Response
+    try {
+      const a = await actor()
+      const b = await actor()
+      await request(app.getHttpServer()).get('/api/google/status').expect(401)
+      await a.agent
+        .post('/api/google/connect')
+        .set('Origin', origin)
+        .expect(403)
+      const connect = () =>
+        a.agent
+          .post('/api/google/connect')
+          .set('Origin', origin)
+          .set('X-CSRF-Token', a.csrf)
+      const first = await connect().expect(201)
+      const state = new URL(first.body.url).searchParams.get('state')!
+      await b.agent
+        .get('/api/google/callback')
+        .query({ state, code: 'code' })
+        .expect(400)
+      expect(googleFetch).not.toHaveBeenCalled()
+      googleFetch.mockResolvedValueOnce(
+        reply({ refresh_token: 'private-refresh', scope }),
+      )
+      await a.agent
+        .get('/api/google/callback')
+        .query({ state, code: 'code' })
+        .expect(302)
+        .expect('Location', `${origin}/perfil`)
+        .expect('Referrer-Policy', 'no-referrer')
+      await a.agent
+        .get('/api/google/callback')
+        .query({ state, code: 'code' })
+        .expect(400)
+      expect(googleFetch).toHaveBeenCalledTimes(1)
+      const [stored] = await source.query(
+        'SELECT token FROM google_connections WHERE "ownerId"=$1',
+        [a.user.id],
+      )
+      expect(stored.token).not.toContain('private-refresh')
+      const publicStatus = await a.agent.get('/api/google/status').expect(200)
+      expect(publicStatus.body.status).toBe('connected')
+      expect(publicStatus.body).not.toHaveProperty('token')
+      expect(
+        (await b.agent.get('/api/google/status').expect(200)).body.status,
+      ).toBe('disconnected')
+      const scheduled = await task(a, { dueDate: '2026-11-06T12:00:00Z' })
+      const sync = (owner: Actor, confirmed = true) =>
+        owner.agent
+          .post('/api/google/sync')
+          .set('Origin', origin)
+          .set('X-CSRF-Token', owner.csrf)
+          .send({ taskId: scheduled.id, confirmed })
+      await sync(a, false).expect(400)
+      await sync(b).expect(404)
+      googleFetch
+        .mockResolvedValueOnce(reply({ access_token: 'access' }))
+        .mockResolvedValueOnce(reply({}, 404))
+        .mockResolvedValueOnce(reply({}))
+      await sync(a).expect(201)
+      googleFetch
+        .mockResolvedValueOnce(reply({ access_token: 'access' }))
+        .mockResolvedValueOnce(reply({}))
+      await sync(a).expect(201)
+      const rows = await source.query(
+        'SELECT * FROM google_calendar_sync WHERE "ownerId"=$1',
+        [a.user.id],
+      )
+      expect(rows).toHaveLength(1)
+      expect(rows[0].taskId).toBe(scheduled.id)
+      googleFetch.mockResolvedValueOnce(reply({}))
+      await a.agent
+        .post('/api/google/disconnect')
+        .set('Origin', origin)
+        .set('X-CSRF-Token', a.csrf)
+        .expect(201)
+      expect(
+        (await a.agent.get('/api/google/status').expect(200)).body.status,
+      ).toBe('disconnected')
+      expect(
+        await source.query(
+          'SELECT token FROM google_connections WHERE "ownerId"=$1',
+          [a.user.id],
+        ),
+      ).toEqual([])
+    } finally {
+      googleFetch.mockRestore()
+      for (const key of Object.keys(process.env))
+        if (!(key in original)) delete process.env[key]
+      Object.assign(process.env, original)
+    }
+  })
+
+  it('confirms assistant proposals idempotently and isolates users', async () => {
+    const a = await actor()
+    const b = await actor()
+    const input = {
+      requestId: randomUUID(),
+      confirmed: true,
+      title: 'Assistant task',
+      dueDate: '2026-11-06T12:00:00Z',
+      category: 'Pessoal',
+      color: 'purple',
+      estimatedTime: 30,
+    }
+    const confirm = (owner: Actor) =>
+      owner.agent
+        .post('/api/assistant/confirm')
+        .set('Origin', origin)
+        .set('X-CSRF-Token', owner.csrf)
+        .send(input)
+    const results = await Promise.all([confirm(a), confirm(a)])
+    expect(results.map((r) => r.status)).toEqual([201, 201])
+    expect(results[0].body.id).toBe(results[1].body.id)
+    const other = await confirm(b)
+    expect(other.status).toBe(201)
+    expect(other.body.id).not.toBe(results[0].body.id)
+    await a.agent
+      .delete(`/api/tasks/${results[0].body.id}`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', a.csrf)
+      .expect(204)
+    await confirm(a).expect(409)
+  })
+
   it('keeps the existing health check public', async () => {
     await request(app.getHttpServer())
       .get('/health')
       .expect(200, { status: 'ok' })
+  })
+
+  it('uses exact credentialed CORS, bounded preflight and private cache even for errors', async () => {
+    const allowed = await request(app.getHttpServer())
+      .get('/api/tasks')
+      .set('Origin', origin)
+      .expect(401)
+    expect(allowed.headers['access-control-allow-origin']).toBe(origin)
+    expect(allowed.headers['access-control-allow-credentials']).toBe('true')
+    expect(allowed.headers.vary).toContain('Origin')
+    expect(allowed.headers['cache-control']).toBe('private, no-store')
+    expect(allowed.headers['x-content-type-options']).toBe('nosniff')
+    for (const foreign of [
+      'https://evil.example',
+      `${origin}.evil.example`,
+      'null',
+    ]) {
+      const denied = await request(app.getHttpServer())
+        .get('/api/tasks')
+        .set('Origin', foreign)
+        .expect(401)
+      expect(denied.headers['access-control-allow-origin']).toBeUndefined()
+      expect(denied.headers['cache-control']).toBe('private, no-store')
+    }
+    const preflight = await request(app.getHttpServer())
+      .options('/api/tasks')
+      .set('Origin', origin)
+      .set('Access-Control-Request-Method', 'PATCH')
+      .set(
+        'Access-Control-Request-Headers',
+        'X-CSRF-Token,X-Session-User,Content-Type',
+      )
+      .expect(204)
+    expect(
+      preflight.headers['access-control-allow-methods'].split(','),
+    ).toEqual(['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'])
+    expect(
+      preflight.headers['access-control-allow-headers']
+        .toLowerCase()
+        .split(','),
+    ).toEqual(['content-type', 'x-csrf-token', 'x-session-user'])
+    const denied = await request(app.getHttpServer())
+      .options('/api/tasks')
+      .set('Origin', 'https://evil.example')
+      .set('Access-Control-Request-Method', 'TRACE')
+      .expect(204)
+    expect(denied.headers['access-control-allow-origin']).toBeUndefined()
+    expect(denied.headers['access-control-allow-methods']).not.toContain(
+      'TRACE',
+    )
   })
 
   it('preserves legacy data but never hands it to the first signup', async () => {
@@ -538,46 +727,49 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
     expect(result.body.length).toBeLessThanOrEqual(10)
   })
 
-  it('isolates agenda and focus sessions by owner', async () => {
-    const a = await actor()
-    const b = await actor()
-    const item = await a.agent
-      .post('/api/agenda-items')
-      .set('Origin', origin)
-      .set('X-CSRF-Token', a.csrf)
-      .send({
-        title: 'Privado',
-        type: 'event',
-        startDate: new Date().toISOString(),
-        endDate: new Date().toISOString(),
-      })
-      .expect(201)
-    expect((await b.agent.get('/api/agenda-items').expect(200)).body).toEqual(
-      [],
-    )
-    await b.agent
-      .delete(`/api/agenda-items/${item.body.id}`)
-      .set('Origin', origin)
-      .set('X-CSRF-Token', b.csrf)
-      .expect(404)
-    const focus = await a.agent
-      .post('/api/focus-sessions')
-      .set('Origin', origin)
-      .set('X-CSRF-Token', a.csrf)
-      .send({ title: 'Foco A' })
-      .expect(201)
-    await b.agent
-      .post('/api/focus-sessions')
-      .set('Origin', origin)
-      .set('X-CSRF-Token', b.csrf)
-      .send({ title: 'Foco B' })
-      .expect(201)
-    await b.agent
-      .post(`/api/focus-sessions/${focus.body.id}/finish`)
-      .set('Origin', origin)
-      .set('X-CSRF-Token', b.csrf)
-      .expect(404)
-  })
+  it.each(['event', 'project'])(
+    'isolates %s agenda items and focus sessions by owner',
+    async (kind) => {
+      const a = await actor()
+      const b = await actor()
+      const item = await a.agent
+        .post('/api/agenda-items')
+        .set('Origin', origin)
+        .set('X-CSRF-Token', a.csrf)
+        .send({
+          title: 'Privado',
+          type: kind,
+          startDate: new Date().toISOString(),
+          endDate: new Date().toISOString(),
+        })
+        .expect(201)
+      expect((await b.agent.get('/api/agenda-items').expect(200)).body).toEqual(
+        [],
+      )
+      await b.agent
+        .delete(`/api/agenda-items/${item.body.id}`)
+        .set('Origin', origin)
+        .set('X-CSRF-Token', b.csrf)
+        .expect(404)
+      const focus = await a.agent
+        .post('/api/focus-sessions')
+        .set('Origin', origin)
+        .set('X-CSRF-Token', a.csrf)
+        .send({ title: 'Foco A' })
+        .expect(201)
+      await b.agent
+        .post('/api/focus-sessions')
+        .set('Origin', origin)
+        .set('X-CSRF-Token', b.csrf)
+        .send({ title: 'Foco B' })
+        .expect(201)
+      await b.agent
+        .post(`/api/focus-sessions/${focus.body.id}/finish`)
+        .set('Origin', origin)
+        .set('X-CSRF-Token', b.csrf)
+        .expect(404)
+    },
+  )
 
   it('allows only one active focus session per user under concurrent requests', async () => {
     const owner = await actor()
@@ -608,6 +800,10 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       .get(`/api${file.url}`)
       .expect(200)
       .expect('X-Content-Type-Options', 'nosniff')
+      .expect('Cache-Control', 'private, no-store')
+      .expect('Content-Security-Policy', "default-src 'none'; sandbox")
+      .expect('Content-Disposition', /^attachment; filename="[a-f0-9-]+\.txt"$/)
+    await request(app.getHttpServer()).get(`/api${file.url}`).expect(401)
     await c.agent.get(`/api${file.url}`).expect(404)
     const ref = `${file.name}||${file.url}`
     await c.agent

@@ -560,22 +560,26 @@ function AgendaTaskStatus({ status }: { status: Task['status'] }) {
   )
 }
 
-function AgendaDetails({
+export function AgendaDetails({
   item,
   onClose,
   onComplete,
   onReopen,
   onDelete,
+  returnFocus,
 }: {
   item: NormalAgendaItem | null
   onClose: () => void
   onComplete: (task: Task) => Promise<void>
-  onReopen: (task: Task) => Promise<void>
+  onReopen?: (task: Task) => Promise<void>
   onDelete: (item: NormalAgendaItem) => Promise<void>
+  returnFocus?: () => void
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [reopening, setReopening] = useState(false)
   const [reopenError, setReopenError] = useState<string | null>(null)
+  const [completing, setCompleting] = useState(false)
+  const [completeError, setCompleteError] = useState<string | null>(null)
   const task = item?.type === 'task' ? (item.task ?? null) : null
   const entity =
     item?.type === 'task'
@@ -585,7 +589,17 @@ function AgendaDetails({
         : 'projeto'
   return (
     <Dialog open={Boolean(item)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-lg [overflow-wrap:anywhere]">
+      <DialogContent
+        onCloseAutoFocus={
+          returnFocus
+            ? (event) => {
+                event.preventDefault()
+                returnFocus()
+              }
+            : undefined
+        }
+        className="max-h-[85svh] overflow-y-auto sm:max-w-lg [overflow-wrap:anywhere]"
+      >
         <DialogHeader className="min-w-0 pr-8">
           <DialogTitle className="leading-snug">
             {item?.title ?? 'Detalhes'}
@@ -660,7 +674,9 @@ function AgendaDetails({
                 </ul>
               </div>
             ) : null}
-            {task?.permissions.changeStatus && task.status === 'completed' ? (
+            {task?.permissions.changeStatus &&
+            task.status === 'completed' &&
+            onReopen ? (
               <Button
                 disabled={reopening}
                 onClick={async () => {
@@ -686,12 +702,27 @@ function AgendaDetails({
             ) : null}
             {task?.permissions.changeStatus && task.status !== 'completed' ? (
               <Button
-                onClick={() => {
-                  onComplete(task).catch(() => undefined)
+                disabled={completing}
+                aria-busy={completing}
+                onClick={async () => {
+                  setCompleting(true)
+                  setCompleteError(null)
+                  try {
+                    await onComplete(task)
+                  } catch (cause) {
+                    setCompleteError(messageOf(cause))
+                  } finally {
+                    setCompleting(false)
+                  }
                 }}
               >
-                Concluir tarefa
+                {completing ? 'Concluindo...' : 'Concluir tarefa'}
               </Button>
+            ) : null}
+            {completeError ? (
+              <p className="text-sm text-destructive" role="alert">
+                {completeError}
+              </p>
             ) : null}
             {!task || task.permissions.delete ? (
               <Button

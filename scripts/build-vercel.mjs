@@ -2,6 +2,11 @@ import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { applyPreviewEnvironment } from "./preview-policy.mjs";
+import { securityHeaders } from "./security-headers.mjs";
+
+applyPreviewEnvironment(process.env);
+const headers = securityHeaders(process.env.VITE_USER_AVATAR_URL);
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const output = path.join(root, ".vercel/output");
@@ -19,9 +24,14 @@ run("npm", ["run", "build"], path.join(root, "web"), {
   VITE_CLOUD_UPLOADS: "true",
 });
 run("npm", ["run", "build"], path.join(root, "api"));
-if (process.env.VERCEL) {
-  if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32)
-    throw new Error("Configure SESSION_SECRET aleatório antes de publicar autenticação.");
+if (
+  process.env.VERCEL &&
+  (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32)
+)
+  throw new Error(
+    "Configure SESSION_SECRET aleatório antes de publicar autenticação.",
+  );
+if (process.env.VERCEL && process.env.VERCEL_ENV !== "preview") {
   if (!process.env.BLOB_READ_WRITE_TOKEN)
     throw new Error("Conecte um armazenamento Blob privado antes de publicar.");
   if (
@@ -29,14 +39,20 @@ if (process.env.VERCEL) {
     !process.env.VAPID_PRIVATE_KEY ||
     !process.env.REMINDER_DISPATCH_SECRET
   )
-    throw new Error("Configure chaves VAPID e REMINDER_DISPATCH_SECRET para notificações push.");
-  run("node", ["dist/database/migrate.js"], path.join(root, "api"));
+    throw new Error(
+      "Configure chaves VAPID e REMINDER_DISPATCH_SECRET para notificações push.",
+    );
 }
+// Database migration is an explicit, separately authorized operation, never a build step.
 await rm(output, { recursive: true, force: true });
 await mkdir(fn, { recursive: true });
 await cp(path.join(root, "web/dist"), path.join(output, "static"), {
   recursive: true,
 });
+await cp(
+  path.join(root, "scripts/preview-policy.mjs"),
+  path.join(fn, "preview-policy.mjs"),
+);
 await cp(path.join(root, "api/dist"), path.join(fn, "dist"), {
   recursive: true,
 });
@@ -59,11 +75,16 @@ await writeFile(
   path.join(fn, "index.js"),
   `
 require('reflect-metadata');
-const { createApplication } = require('./dist/bootstrap');
 let initialization;
 module.exports = async function handler(req, res) {
   try {
-    initialization ||= createApplication().then(async app => { await app.init(); return app.getHttpAdapter().getInstance(); }).catch(error => { initialization = undefined; throw error; });
+    initialization ||= import('./preview-policy.mjs').then(async ({applyPreviewEnvironment}) => {
+      applyPreviewEnvironment(process.env);
+      const {createApplication} = require('./dist/bootstrap');
+      const app = await createApplication();
+      await app.init();
+      return app.getHttpAdapter().getInstance();
+    }).catch(error => { initialization = undefined; throw error; });
     const server = await initialization;
     server(req, res);
     // Keep the Vercel invocation alive until Express has finished streaming the response.
@@ -74,6 +95,7 @@ module.exports = async function handler(req, res) {
     });
   } catch {
     res.statusCode = 503;
+    res.setHeader('Cache-Control', 'private, no-store');
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({message:'Serviço temporariamente indisponível.'}));
   }
@@ -98,12 +120,7 @@ await writeFile(
     routes: [
       {
         src: "/.*",
-        headers: {
-          "X-Content-Type-Options": "nosniff",
-          "Referrer-Policy": "strict-origin-when-cross-origin",
-          "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
-          "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://photon.komoot.io https://blob.vercel-storage.com https://*.blob.vercel-storage.com; frame-src https://www.openstreetmap.org; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
-        },
+        headers,
         continue: true,
       },
       {

@@ -32,6 +32,7 @@ export class AgendaFilesController {
   @Get(':filename')
   @Header('Cache-Control', 'private, no-store')
   @Header('X-Content-Type-Options', 'nosniff')
+  @Header('Content-Security-Policy', "default-src 'none'; sandbox")
   async download(
     @Param('filename') filename: string,
     @CurrentUser() user: Identity,
@@ -46,6 +47,7 @@ export class AgendaFilesController {
         throw new NotFoundException('Arquivo não encontrado.')
       return new StreamableFile(createReadStream(path), {
         type: contentType,
+        disposition: `attachment; filename="${file.filename}"`,
       })
     }
     const result = await get(file.storagePath, { access: 'private' })
@@ -68,6 +70,7 @@ export class AgendaFilesController {
     )
     return new StreamableFile(stream, {
       type: contentType,
+      disposition: `attachment; filename="${file.filename}"`,
     })
   }
 }

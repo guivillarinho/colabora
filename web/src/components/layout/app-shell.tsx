@@ -1,7 +1,8 @@
+import { ChatPage } from '@/features/assistant/chat-page'
 import { useAuth } from '@/features/auth/auth-context'
 import { AccountPage } from '@/features/auth/account-page'
-import { useState } from 'react'
-import { LogOut, UserRound } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { LogOut, UserRound, MessageCircle } from 'lucide-react'
 
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
@@ -22,9 +23,18 @@ declare const process: {
 }
 
 export function AppShell() {
-  const { section } = useNavigation()
+  const { section, goTo } = useNavigation()
   const { user, logout } = useAuth()
   const { advice, clearAdvice, error } = useTasks()
+  const [scrolled, setScrolled] = useState(() => window.scrollY > 0)
+
+  useEffect(() => {
+    const updateScroll = () => setScrolled(window.scrollY > 0)
+    updateScroll()
+    window.addEventListener('scroll', updateScroll, { passive: true })
+    return () => window.removeEventListener('scroll', updateScroll)
+  }, [])
+
   const [loggingOut, setLoggingOut] = useState(false)
   const [logoutError, setLogoutError] = useState<string | null>(null)
 
@@ -53,7 +63,10 @@ export function AppShell() {
       </aside>
 
       <div className="flex min-h-svh min-w-0 flex-col">
-        <header className="glass-chrome sticky top-0 z-20 border-b px-4 py-4 md:px-8">
+        <header
+          data-scrolled={scrolled}
+          className="colabora-header sticky top-0 z-20 border-b px-4 py-4 md:px-8"
+        >
           <div className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
               <UserAvatar />
@@ -65,6 +78,14 @@ export function AppShell() {
               <div className="hidden md:block">
                 <CreateTaskDialog />
               </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label="Abrir assistente"
+                onClick={() => goTo('chat')}
+              >
+                <MessageCircle aria-hidden="true" />
+              </Button>
               <ThemeToggle />
               <Button
                 aria-label={loggingOut ? 'Saindo...' : 'Sair da conta'}
@@ -92,6 +113,7 @@ export function AppShell() {
             <p className="mb-4 text-sm text-destructive">{error}</p>
           ) : null}
           <div key={section} className="colabora-page-enter">
+            {section === 'chat' ? <ChatPage /> : null}
             {section === 'hoje' ? <DashboardPage /> : null}
             {section === 'timer' ? <TimerPage /> : null}
             {section === 'agenda' ? <AgendaPage /> : null}

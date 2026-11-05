@@ -25,11 +25,7 @@ it('keeps focus sessions and achievements out of Hoje', () => {
   expect(screen.queryByText('Dashboard de foco')).not.toBeInTheDocument()
   expect(screen.queryByLabelText('Conquistas de foco')).not.toBeInTheDocument()
   expect(screen.queryByText('Sessões recentes')).not.toBeInTheDocument()
-  expect(
-    screen.getByText(
-      'Conclua tarefas com tempo registrado para visualizar o gráfico.',
-    ),
-  ).toBeVisible()
+  expect(screen.queryByText('Tempo por categoria')).not.toBeInTheDocument()
 })
 
 it('aggregates completed task durations by category without counting unfinished tasks', () => {

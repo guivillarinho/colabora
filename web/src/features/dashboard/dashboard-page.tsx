@@ -1,4 +1,3 @@
-import { TaskExecutionChart } from './components/task-execution-chart'
 import { MutedText, PageTitle } from '@/components/typography'
 import { useNavigation } from '@/components/layout/navigation'
 import { useTasks } from '@/features/tasks/tasks-context'
@@ -24,7 +23,6 @@ export function DashboardPage() {
         onComplete={(taskId) => completeTask(taskId)}
       />
       <ProgressSummary completed={completed} total={tasks.length} />
-      <TaskExecutionChart tasks={tasks} />
       <TaskTimeline
         tasks={tasks}
         preview

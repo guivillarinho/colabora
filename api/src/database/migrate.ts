@@ -1,3 +1,5 @@
+import { GoogleCalendar1794009600000 } from './migrations/1794009600000-google-calendar'
+import { Assistant1793923200000 } from './migrations/1793923200000-assistant'
 import { Pomodoro1793880000000 } from './migrations/1793880000000-pomodoro'
 import 'reflect-metadata'
 import { DataSource, MigrationExecutor } from 'typeorm'
@@ -38,6 +40,8 @@ async function migrate() {
       PasswordReset1793707200000,
       TaskExecutionTime1793793600000,
       Pomodoro1793880000000,
+      Assistant1793923200000,
+      GoogleCalendar1794009600000,
     ],
     synchronize: false,
     extra: { max: 2 },
@@ -51,7 +55,7 @@ async function migrate() {
     const executor = new MigrationExecutor(source, lock)
     await executor.executePendingMigrations()
     await lock.commitTransaction()
-    console.log('Migrações de produção concluídas.')
+    console.log('Migrações concluídas no banco selecionado.')
   } finally {
     if (lock.isTransactionActive) await lock.rollbackTransaction()
     await lock.release()

@@ -1,6 +1,8 @@
 let lastFeedback = -Infinity
 
-export function hapticFeedback(kind: 'light' | 'success' = 'light'): void {
+export function hapticFeedback(
+  kind: 'light' | 'success' | 'threshold' = 'light',
+): void {
   if (
     typeof navigator === 'undefined' ||
     typeof navigator.vibrate !== 'function'

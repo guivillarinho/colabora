@@ -91,9 +91,10 @@ function PasswordField({
           type="button"
           variant="ghost"
           size="icon"
-          className="absolute right-1 top-1/2 -translate-y-1/2"
+          className="colabora-password-toggle absolute inset-y-0 right-1 my-auto"
           aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
           aria-pressed={visible}
+          aria-controls={id}
           disabled={disabled}
           onClick={() => setVisible((current) => !current)}
         >

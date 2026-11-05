@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core'
 import { mkdirSync } from 'node:fs'
 import helmet from 'helmet'
 import passport from 'passport'
+import { webOrigins } from './modules/auth/web-origins'
 
 import { AppModule } from './app.module'
 import { uploadsDirectory } from './uploads-directory'
@@ -40,25 +41,11 @@ export async function createApplication() {
       transform: true,
     }),
   )
-  const origins = (
-    process.env.WEB_ORIGIN ??
-    (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5173')
-  )
-    .split(',')
-    .map((origin) => origin.trim().replace(/\/$/, ''))
-    .filter(Boolean)
   app.enableCors({
     credentials: true,
-    origin: [
-      ...new Set(
-        origins.flatMap((origin) => [
-          origin,
-          origin.includes('127.0.0.1')
-            ? origin.replace('127.0.0.1', 'localhost')
-            : origin.replace('localhost', '127.0.0.1'),
-        ]),
-      ),
-    ],
+    origin: webOrigins(process.env.WEB_ORIGIN),
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'X-Session-User'],
   })
   if (!process.env.VERCEL) {
     mkdirSync(uploadsDirectory(), { recursive: true })
