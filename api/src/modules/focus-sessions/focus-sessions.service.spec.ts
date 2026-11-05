@@ -89,6 +89,38 @@ describe('FocusSessionsService', () => {
     expect(repository.save).not.toHaveBeenCalled()
   })
 
+  it('caps an overdue cycle at its planned deadline', async () => {
+    const startedAt = new Date(Date.now() - 90_000)
+    repository.findOneBy.mockResolvedValue({
+      id: sessionId,
+      startedAt,
+      endedAt: null,
+      focusMinutes: 1,
+      breakMinutes: 5,
+    })
+    const result = await service.finish(sessionId, 'owner')
+    expect(result.endedAt?.getTime()).toBe(startedAt.getTime() + 60_000)
+    expect(repository.findOneBy).toHaveBeenCalledWith({
+      id: sessionId,
+      ownerId: 'owner',
+    })
+  })
+
+  it('settles expired sessions when loading the dashboard', async () => {
+    const session = {
+      id: sessionId,
+      startedAt: new Date(Date.now() - 90_000),
+      endedAt: null,
+      focusMinutes: 1,
+    }
+    repository.find.mockResolvedValue([session])
+    repository.findOneBy.mockResolvedValue(session)
+    const result = await service.findAll('owner')
+    expect(result[0].endedAt?.getTime()).toBe(
+      session.startedAt.getTime() + 60_000,
+    )
+  })
+
   it('returns not found when finishing an unknown session', async () => {
     repository.findOneBy.mockResolvedValue(null)
 

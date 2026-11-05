@@ -22,6 +22,12 @@ export class FocusSession {
   @Column({ type: 'timestamptz', nullable: true })
   endedAt: Date | null
 
+  @Column({ type: 'integer', nullable: true })
+  focusMinutes: number | null
+
+  @Column({ type: 'integer', nullable: true })
+  breakMinutes: number | null
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
 }

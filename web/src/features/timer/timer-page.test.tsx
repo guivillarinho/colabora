@@ -51,7 +51,7 @@ describe('TimerPage', () => {
       screen.getByRole('heading', { name: 'Escrever proposta' }),
     ).toBeVisible()
     expect(screen.getByRole('timer')).toBeVisible()
-    expect(api.start).toHaveBeenCalledWith('Escrever proposta')
+    expect(api.start).toHaveBeenCalledWith('Escrever proposta', 25, 5)
     expect(
       screen.getByRole('button', { name: 'Encerrar sessão' }),
     ).toBeVisible()
@@ -78,6 +78,39 @@ describe('TimerPage', () => {
     expect(
       screen.getByRole('heading', { name: 'Leitura focada' }),
     ).toBeVisible()
+  })
+
+  it('restores an expired cycle, celebrates once and starts the rest countdown', async () => {
+    const active = {
+      ...buildSession('Estudo'),
+      focusMinutes: 1,
+      breakMinutes: 5,
+      startedAt: new Date(Date.now() - 61_000).toISOString(),
+    }
+    api.list.mockResolvedValue([active])
+    api.finish.mockResolvedValue({
+      ...active,
+      endedAt: new Date(Date.parse(active.startedAt) + 60_000).toISOString(),
+    })
+    render(<TimerPage />)
+    expect(await screen.findByText('Foco concluído! +100 pontos')).toBeVisible()
+    expect(screen.getByText('Hora de descansar')).toBeVisible()
+    expect(screen.getByText('100 pontos · 1 ciclos completos')).toBeVisible()
+    expect(api.finish).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends customized focus and rest durations', async () => {
+    const user = userEvent.setup()
+    api.start.mockImplementation(async (title) => buildSession(title))
+    render(<TimerPage />)
+    const focus = await screen.findByLabelText('Foco (minutos)')
+    await user.clear(focus)
+    await user.type(focus, '40')
+    const rest = screen.getByLabelText('Descanso (minutos)')
+    await user.clear(rest)
+    await user.type(rest, '10')
+    await user.click(screen.getByRole('button', { name: 'Iniciar sessão' }))
+    expect(api.start).toHaveBeenCalledWith('', 40, 10)
   })
 
   it('shows an error when the session cannot be started', async () => {

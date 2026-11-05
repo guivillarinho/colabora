@@ -1,3 +1,4 @@
+import { Pomodoro1793880000000 } from './migrations/1793880000000-pomodoro'
 import { Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { TypeOrmModule } from '@nestjs/typeorm'
@@ -37,6 +38,7 @@ import { databaseSchema } from './schema'
           PushNotifications1793620800000,
           PasswordReset1793707200000,
           TaskExecutionTime1793793600000,
+          Pomodoro1793880000000,
         ],
         migrationsRun: !process.env.VERCEL,
       }),

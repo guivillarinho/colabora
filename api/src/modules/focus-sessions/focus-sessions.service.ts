@@ -16,11 +16,24 @@ export class FocusSessionsService {
     private readonly sessionsRepository: Repository<FocusSession>,
   ) {}
 
-  findAll(actor: string): Promise<FocusSession[]> {
-    return this.sessionsRepository.find({
+  async findAll(actor: string): Promise<FocusSession[]> {
+    const sessions = await this.sessionsRepository.find({
       where: { ownerId: actor },
       order: { startedAt: 'DESC' },
     })
+    return Promise.all(
+      sessions.map(async (session) => {
+        if (
+          !session.endedAt &&
+          session.focusMinutes &&
+          Date.now() >=
+            session.startedAt.getTime() + session.focusMinutes * 60_000
+        ) {
+          return this.finish(session.id, actor)
+        }
+        return session
+      }),
+    )
   }
 
   async start(dto: StartFocusSessionDto, actor: string): Promise<FocusSession> {
@@ -28,7 +41,13 @@ export class FocusSessionsService {
       where: { endedAt: IsNull(), ownerId: actor },
     })
 
-    if (activeSession) {
+    if (
+      activeSession?.focusMinutes &&
+      Date.now() >=
+        activeSession.startedAt.getTime() + activeSession.focusMinutes * 60_000
+    ) {
+      await this.finish(activeSession.id, actor)
+    } else if (activeSession) {
       throw new ConflictException(
         'Encerre a sessão ativa antes de iniciar outra.',
       )
@@ -39,6 +58,8 @@ export class FocusSessionsService {
       title: dto.title?.trim() || 'Foco livre',
       startedAt: new Date(),
       endedAt: null,
+      focusMinutes: dto.focusMinutes ?? null,
+      breakMinutes: dto.focusMinutes ? (dto.breakMinutes ?? 5) : null,
     })
 
     try {
@@ -69,7 +90,14 @@ export class FocusSessionsService {
       return session
     }
 
-    session.endedAt = new Date()
+    session.endedAt = new Date(
+      Math.min(
+        Date.now(),
+        session.focusMinutes
+          ? session.startedAt.getTime() + session.focusMinutes * 60_000
+          : Date.now(),
+      ),
+    )
     return this.sessionsRepository.save(session)
   }
 }

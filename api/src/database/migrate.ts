@@ -1,3 +1,4 @@
+import { Pomodoro1793880000000 } from './migrations/1793880000000-pomodoro'
 import 'reflect-metadata'
 import { DataSource, MigrationExecutor } from 'typeorm'
 import { InitialSchema1793448000000 } from './migrations/1793448000000-initial-schema'
@@ -36,6 +37,7 @@ async function migrate() {
       PushNotifications1793620800000,
       PasswordReset1793707200000,
       TaskExecutionTime1793793600000,
+      Pomodoro1793880000000,
     ],
     synchronize: false,
     extra: { max: 2 },
