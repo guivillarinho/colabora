@@ -1,6 +1,6 @@
 # Preview Vercel — auditoria e preparação
 
-2026-11-05 — Preparação de Preview em andamento. Nenhuma URL/deployment foi criada. Migrações foram aplicadas somente ao banco Neon Free isolado, após consulta prévia sem tabelas/ledger.
+2026-11-05 — Preview criado, porém ainda **QUEUED** na Vercel (sem build concluído). URL retornada: `https://colabora-ei9x5q2g6-villarinhoguis-projects.vercel.app`; deployment `dpl_EjnkMR9stWrbSfMxC1vtmaCYjJ1E`. Migrações aplicadas somente ao Neon Free isolado, após consulta prévia sem tabelas/ledger.
 
 ## Destino e Git
 
@@ -31,20 +31,19 @@
 - Ledger do banco isolado contém 8 migrations após bootstrap inicial; não copiar schema sem ledger nem reaplicar migrations manualmente.
 - Variáveis no Preview: recurso Neon prefixado em escopo Preview (`COLABORA_PREVIEW_DATABASE_URL`, `_UNPOOLED`, host e aliases); `SESSION_SECRET` secret branch-specific. Política valida as conexões, converte a URL isolada para `DATABASE_URL` e apaga aliases/segredos prefixed herdados antes de carregar a API. DB_SSL/schema e WEB_ORIGIN/PUBLIC_APP_URL são definidos pela política. VITE_API_URL é fixado vazio no build para `/api`; sem secrets VITE_*.
 - GEMINI_ENABLED=false e GOOGLE_ENABLED=false. Não cadastrar OAuth redirect URI, credenciais ou chave de cifra nesta execução. E-mail, push, dispatch e Blob desabilitados. Overrides branch-specific vazios devem substituir aliases/credenciais compartilhadas de produção no Preview, sem editar/remover valores Production. Nunca puxar todos os segredos de Production.
-- URL Preview, HTTPS, permissões/proteção de acesso do deployment e fluxo Git precisam ser confirmados após o provisionamento. Código gera SPA fallback, `/api` e `/health`, função Node 24/gru1/60 s; artifact/deployment remoto não foi criado para confirmar esses parâmetros em execução.
+- Projeto Vercel reporta target `preview`; URL HTTPS responde atualmente à página de espera “Deployment is building”, não à aplicação. `/health` e `/api/health` também retornam essa página HTML enquanto estiver queued. Runtime, cookies, API, proteção de acesso e rotas ainda não foram validados. Build concluído permanece pendente.
 
 ## Validação executada agora
 
 - Web: 116 testes / 20 suítes; API: 70 / 11 suítes; HTTP: 31 no PostgreSQL local descartável; cabeçalhos: 8; política Preview: 7. **232 testes passaram** (não reutiliza a contagem histórica como evidência atual).
 - `npm run build` (web + API), lint web e API sem --fix, sintaxe dos scripts e diff check passaram. PostgreSQL de teste parado ao final. Nenhuma chave real nos testes.
 - Testes Preview incluem rejeição de host divergente/UNPOOLED incorreta, segredo fraco, origem wildcard, limpeza de serviços e execução negativa do script de build: recusa antes de compilar, empacotar ou migrar, sem expor conexão sintética.
-- Não foi executado build:vercel completo, instalação de dependências, deploy, migração Neon ou teste pós-deploy. O empacotamento completo e a inicialização remota permanecem pendentes; a sintaxe do wrapper foi revisada e os builds da aplicação passaram.
+- Deploy Preview foi submetido via Vercel CLI, sem `--prod`, promoção ou domínio principal; status permanece Queued. Status da Vercel mostrou incidente de atraso de Builds/Deploys, depois resolvido, porém deployment continuou em fila. Não foi executado build:vercel local; build remoto não iniciou/concluiu e não há teste pós-deploy. Não criar outro deploy enquanto este estiver queued.
 
 ## Próxima decisão e recuperação
 
-1. Conferir envs do novo resource no deployment; política deve aceitar apenas o endpoint `solitary-night` e credenciais dedicadas.
-2. Commitar e enviar somente a branch `feat/colabora-evolucao`. Deploy via Vercel CLI em `preview`, sem `--prod`, promoção ou domínio principal. Revisar falhas e variáveis antes de executar migration.
-3. Confirmar por consulta read-only que o banco é vazio e sem ledger. Aplicar migrations explícitas somente no banco isolado; depois publicar Preview e verificar health, auth/CSRF/cookies com conta descartável, SPA e serviços externos desabilitados.
+1. Acompanhar deployment existente até READY/ERROR e inspecionar logs sanitizados.
+2. Se READY, validar API/health, SPA, auth/CSRF, cookies e acessos não autenticados. Se falhar, corrigir somente causa raiz e não alterar Production.
 4. Rollback: como não há deployment, não há publicação a reverter. Futuro rollback deve retirar apenas o Preview criado ou reutilizar um Preview conhecido do mesmo banco de teste; não promover para produção, reverter migrations ou apagar bancos. Mudanças aditivas podem permanecer até revisão. Encerrar recurso de teste/custo somente após identificar o recurso e obter autorização apropriada.
 
 Riscos residuais: funcionalidades pendentes do roadmap, integrações reais não homologadas, CSP unsafe-inline, PDF ZAP ausente, empacotamento/runtime remoto ainda não validado. Não há aprovação de release nem teste pós-publicação.

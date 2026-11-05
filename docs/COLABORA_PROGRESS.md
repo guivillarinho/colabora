@@ -58,8 +58,8 @@
 
 ## 2026-11-05 — Preparação Free para Preview (em andamento)
 
-- **Etapa concluída:** alterações acumuladas commitadas e enviadas em `3fb00e1` à branch de feature. Neon Free `colabora-homologacao` (0,25 CU) vinculado somente a Preview com prefixo; sessão e hostname configurados branch-specific. Auditoria SQL encontrou zero tabelas/ledger antes da migração; migrations executadas uma vez, consulta posterior confirmou 15 tabelas e 8 migrations. Sem dados copiados ou mudança em Production.
-- **Arquivos alterados:** 56 arquivos do projeto no commit `3fb00e1`, incluindo funcionalidades locais, testes, scripts seguros e documentação.
-- **Testes executados:** auditoria prévia/posterior de DB via conexão Neon sem imprimir credenciais; testes da política Preview e `git diff --cached --check`; a validação local anterior de 232 testes, builds e lint permanece registrada.
-- **Problemas pendentes:** `vercel env run` não permite extrair o secret Preview no ambiente local; verificar runtime pelo deployment. Build remoto/preview, URL real, health, CORS/CSRF/cookies e acesso sem autenticação ainda pendentes. Deployments automáticos Git permanecem desabilitados (configuração não alterada).
-- **Próxima ação:** executar build/deploy exclusivamente com Vercel CLI em `preview`, sem produção, depois validar URL e endpoints não destrutivos.
+- **Etapa concluída:** alterações commitadas/enviadas à branch de feature (`3fb00e1` + documentação `675efc0`). Neon Free `colabora-homologacao` (0,25 CU) vinculado somente a Preview; banco vazio validado, migrations executadas uma vez, ledger confirmou 8 migrations/15 tabelas. Deployment Preview submetido por CLI: ID `dpl_EjnkMR9stWrbSfMxC1vtmaCYjJ1E`, URL `https://colabora-ei9x5q2g6-villarinhoguis-projects.vercel.app`.
+- **Arquivos alterados:** 56 arquivos da aplicação/documentação em `3fb00e1`; atualizações dos 3 documentos de deploy em `675efc0`.
+- **Testes executados:** auditoria read-only do DB antes/depois da migration; teste da política Preview, diff check. Testes/build/lint local (232 casos) permanecem conforme registro anterior. Uma requisição GET à URL e `/health`/`/api/health` recebeu página Vercel “Deployment is building”, HTTP 200, portanto não é health da aplicação.
+- **Problemas pendentes:** deployment continua `QUEUED` depois do incidente de atraso Vercel ter sido marcado resolvido; sem build ou runtime confirmado. `vercel env run` não permite trazer segredo Preview para execução local. Nenhuma alteração Production. Deployments automáticos Git desabilitados no projeto.
+- **Próxima ação:** acompanhar o deployment existente; quando READY, validar health, SPA, CORS/CSRF/cookies e acesso privado. Não criar outro deployment enquanto o atual estiver em fila.
