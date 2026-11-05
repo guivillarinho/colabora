@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
-import { Check, Clock3, History, Play, Timer, TimerReset } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react'
+import { History, Play, Timer, TimerReset } from 'lucide-react'
 
 import { MutedText, PageTitle, SectionTitle } from '@/components/typography'
 import { Button } from '@/components/ui/button'
@@ -11,11 +11,7 @@ import type { FocusSession } from './types'
 
 const recentSessionLimit = 5
 
-export function TimerPage({
-  dashboardOnly = false,
-}: {
-  dashboardOnly?: boolean
-}) {
+export function TimerPage() {
   const [focusMinutes, setFocusMinutes] = useState(25)
   const [breakMinutes, setBreakMinutes] = useState(5)
   const [celebration, setCelebration] = useState(false)
@@ -73,7 +69,6 @@ export function TimerPage({
 
   const activeSession = sessions.find((session) => session.endedAt === null)
   const completedSessions = sessions.filter((session) => session.endedAt)
-  const stats = useMemo(() => calculateStats(sessions, now), [sessions, now])
 
   const latest = completedSessions[0]
   const breakEnd =
@@ -160,11 +155,7 @@ export function TimerPage({
   return (
     <div className="grid gap-6 sm:gap-8">
       <div className="grid gap-1">
-        {dashboardOnly ? (
-          <SectionTitle>Dashboard de foco</SectionTitle>
-        ) : (
-          <PageTitle>Timer</PageTitle>
-        )}
+        <PageTitle>Timer</PageTitle>
         <MutedText>
           Alterne foco e descanso. Cada ciclo completo vale 100 pontos.
         </MutedText>
@@ -179,189 +170,157 @@ export function TimerPage({
         </p>
       ) : null}
 
-      <div className="grid gap-6 sm:gap-8 sm:contents">
-        {!dashboardOnly ? (
-          <section aria-label="Sessão de foco" className="order-1 grid gap-3">
-            <SectionTitle>Seu foco agora</SectionTitle>
-            <article className="glass-panel grid justify-items-center gap-5 rounded-2xl border p-5 text-center sm:p-8">
-              {celebration ? (
-                <div
-                  role="status"
-                  className="relative w-full overflow-hidden rounded-2xl bg-pastel-purple/60 p-5 motion-safe:animate-in motion-safe:zoom-in"
-                >
-                  <div
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-0"
-                  >
-                    {Array.from({ length: 20 }, (_, index) => (
-                      <span
-                        key={index}
-                        className="absolute top-0 h-3 w-2 rounded-sm bg-primary/50 motion-safe:animate-colabora-confetti"
-                        style={{
-                          left: `${index * 5}%`,
-                          animationDelay: `${(index % 5) * 80}ms`,
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <span aria-hidden="true" className="text-4xl">
-                    🏆 ✨
+      <section aria-label="Sessão de foco" className="grid gap-3">
+        <SectionTitle>Seu foco agora</SectionTitle>
+        <article className="glass-panel grid justify-items-center gap-5 rounded-2xl border p-5 text-center sm:p-8">
+          {celebration ? (
+            <div
+              role="status"
+              className="relative w-full overflow-hidden rounded-2xl bg-pastel-purple/60 p-5 motion-safe:animate-in motion-safe:zoom-in"
+            >
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0"
+              >
+                {Array.from({ length: 20 }, (_, index) => (
+                  <span
+                    key={index}
+                    className="absolute top-0 h-3 w-2 rounded-sm bg-primary/50 motion-safe:animate-colabora-confetti"
+                    style={{
+                      left: `${index * 5}%`,
+                      animationDelay: `${(index % 5) * 80}ms`,
+                    }}
+                  />
+                ))}
+              </div>
+              <span aria-hidden="true" className="text-4xl">
+                🏆 ✨
+              </span>
+              <h2 className="mt-2 text-xl font-semibold">
+                Foco concluído! +100 pontos
+              </h2>
+              <p>Você conquistou mais um ciclo. Aproveite seu descanso!</p>
+              <Button variant="ghost" onClick={() => setCelebration(false)}>
+                Continuar
+              </Button>
+            </div>
+          ) : null}
+          {resting ? (
+            <div className="grid justify-items-center gap-4">
+              <h2 className="text-xl font-semibold">Hora de descansar</h2>
+              <MutedText>
+                Respire, alongue e recarregue. O próximo foco começa quando você
+                quiser.
+              </MutedText>
+              <TimerFace
+                seconds={Math.max(0, Math.ceil((breakEnd - now) / 1000))}
+              />
+            </div>
+          ) : activeSession ? (
+            <>
+              <div className="grid gap-1">
+                <p className="inline-flex items-center justify-center gap-2 text-sm font-medium text-primary">
+                  <span className="relative flex size-2.5">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-40" />
+                    <span className="relative inline-flex size-2.5 rounded-full bg-primary" />
                   </span>
-                  <h2 className="mt-2 text-xl font-semibold">
-                    Foco concluído! +100 pontos
-                  </h2>
-                  <p>Você conquistou mais um ciclo. Aproveite seu descanso!</p>
-                  <Button variant="ghost" onClick={() => setCelebration(false)}>
-                    Continuar
-                  </Button>
-                </div>
-              ) : null}
-              {resting ? (
-                <div className="grid justify-items-center gap-4">
-                  <h2 className="text-xl font-semibold">Hora de descansar</h2>
-                  <MutedText>
-                    Respire, alongue e recarregue. O próximo foco começa quando
-                    você quiser.
-                  </MutedText>
-                  <TimerFace
-                    seconds={Math.max(0, Math.ceil((breakEnd - now) / 1000))}
+                  Sessão em andamento
+                </p>
+                <h2 className="max-w-full break-words text-lg font-semibold sm:text-xl">
+                  {activeSession.title}
+                </h2>
+              </div>
+              <TimerFace
+                seconds={
+                  activeSession.focusMinutes
+                    ? Math.max(
+                        0,
+                        activeSession.focusMinutes * 60 -
+                          elapsedSeconds(activeSession.startedAt, now),
+                      )
+                    : elapsedSeconds(activeSession.startedAt, now)
+                }
+              />
+              <Button
+                className="w-full sm:w-auto"
+                disabled={saving}
+                type="button"
+                variant="destructive"
+                onClick={handleFinish}
+              >
+                <TimerReset aria-hidden="true" />
+                {saving ? 'Encerrando...' : 'Encerrar sessão'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <div className="grid justify-items-center gap-2">
+                <span className="grid size-12 place-items-center rounded-full bg-secondary text-primary">
+                  <Timer aria-hidden="true" className="size-6" />
+                </span>
+                <h2 className="text-lg font-semibold sm:text-xl">
+                  Pronto para focar?
+                </h2>
+                <MutedText>Escolha um nome e comece quando quiser.</MutedText>
+              </div>
+              <form
+                className="grid w-full max-w-md gap-3 sm:items-end"
+                onSubmit={handleStart}
+              >
+                <div className="grid gap-2 text-left">
+                  <Label htmlFor="focus-session-title">No que vai focar?</Label>
+                  <Input
+                    autoComplete="off"
+                    id="focus-session-title"
+                    maxLength={120}
+                    placeholder="Ex.: estudar, escrever, planejar"
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
                   />
                 </div>
-              ) : activeSession ? (
-                <>
-                  <div className="grid gap-1">
-                    <p className="inline-flex items-center justify-center gap-2 text-sm font-medium text-primary">
-                      <span className="relative flex size-2.5">
-                        <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-40" />
-                        <span className="relative inline-flex size-2.5 rounded-full bg-primary" />
-                      </span>
-                      Sessão em andamento
-                    </p>
-                    <h2 className="max-w-full break-words text-lg font-semibold sm:text-xl">
-                      {activeSession.title}
-                    </h2>
+                <div className="grid grid-cols-2 gap-3 text-left">
+                  <div className="grid gap-2">
+                    <Label htmlFor="focus-minutes">Foco (minutos)</Label>
+                    <Input
+                      id="focus-minutes"
+                      type="number"
+                      min={1}
+                      max={180}
+                      required
+                      value={focusMinutes || ''}
+                      onChange={(event) =>
+                        setFocusMinutes(Number(event.target.value))
+                      }
+                    />
                   </div>
-                  <TimerFace
-                    seconds={
-                      activeSession.focusMinutes
-                        ? Math.max(
-                            0,
-                            activeSession.focusMinutes * 60 -
-                              elapsedSeconds(activeSession.startedAt, now),
-                          )
-                        : elapsedSeconds(activeSession.startedAt, now)
-                    }
-                  />
-                  <Button
-                    className="w-full sm:w-auto"
-                    disabled={saving}
-                    type="button"
-                    variant="destructive"
-                    onClick={handleFinish}
-                  >
-                    <TimerReset aria-hidden="true" />
-                    {saving ? 'Encerrando...' : 'Encerrar sessão'}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <div className="grid justify-items-center gap-2">
-                    <span className="grid size-12 place-items-center rounded-full bg-secondary text-primary">
-                      <Timer aria-hidden="true" className="size-6" />
-                    </span>
-                    <h2 className="text-lg font-semibold sm:text-xl">
-                      Pronto para focar?
-                    </h2>
-                    <MutedText>
-                      Escolha um nome e comece quando quiser.
-                    </MutedText>
+                  <div className="grid gap-2">
+                    <Label htmlFor="break-minutes">Descanso (minutos)</Label>
+                    <Input
+                      id="break-minutes"
+                      type="number"
+                      min={1}
+                      max={60}
+                      required
+                      value={breakMinutes || ''}
+                      onChange={(event) =>
+                        setBreakMinutes(Number(event.target.value))
+                      }
+                    />
                   </div>
-                  <form
-                    className="grid w-full max-w-md gap-3 sm:items-end"
-                    onSubmit={handleStart}
-                  >
-                    <div className="grid gap-2 text-left">
-                      <Label htmlFor="focus-session-title">
-                        No que vai focar?
-                      </Label>
-                      <Input
-                        autoComplete="off"
-                        id="focus-session-title"
-                        maxLength={120}
-                        placeholder="Ex.: estudar, escrever, planejar"
-                        value={title}
-                        onChange={(event) => setTitle(event.target.value)}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 text-left">
-                      <div className="grid gap-2">
-                        <Label htmlFor="focus-minutes">Foco (minutos)</Label>
-                        <Input
-                          id="focus-minutes"
-                          type="number"
-                          min={1}
-                          max={180}
-                          required
-                          value={focusMinutes || ''}
-                          onChange={(event) =>
-                            setFocusMinutes(Number(event.target.value))
-                          }
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="break-minutes">
-                          Descanso (minutos)
-                        </Label>
-                        <Input
-                          id="break-minutes"
-                          type="number"
-                          min={1}
-                          max={60}
-                          required
-                          value={breakMinutes || ''}
-                          onChange={(event) =>
-                            setBreakMinutes(Number(event.target.value))
-                          }
-                        />
-                      </div>
-                    </div>
-                    <Button
-                      className="w-full sm:w-auto"
-                      disabled={saving || loading}
-                      type="submit"
-                    >
-                      <Play aria-hidden="true" />
-                      {saving ? 'Iniciando...' : 'Iniciar sessão'}
-                    </Button>
-                  </form>
-                </>
-              )}
-            </article>
-          </section>
-        ) : null}
-
-        <section
-          aria-label="Resumo do foco"
-          className="order-2 grid gap-3 sm:grid-cols-3"
-        >
-          <StatCard
-            icon={<Check aria-hidden="true" className="size-4" />}
-            label="Sessões de hoje"
-            value={String(stats.sessionsToday)}
-          />
-          <StatCard
-            icon={<Clock3 aria-hidden="true" className="size-4" />}
-            label="Foco hoje"
-            value={formatMinutes(stats.todayMinutes)}
-          />
-          <StatCard
-            icon={<Timer aria-hidden="true" className="size-4" />}
-            label="Tempo total"
-            value={formatMinutes(stats.totalMinutes)}
-          />
-        </section>
-      </div>
-
+                </div>
+                <Button
+                  className="w-full sm:w-auto"
+                  disabled={saving || loading}
+                  type="submit"
+                >
+                  <Play aria-hidden="true" />
+                  {saving ? 'Iniciando...' : 'Iniciar sessão'}
+                </Button>
+              </form>
+            </>
+          )}
+        </article>
+      </section>
       <article
         className="glass-panel grid gap-3 rounded-2xl border p-5"
         aria-label="Conquistas de foco"
@@ -428,26 +387,6 @@ export function TimerPage({
   )
 }
 
-type StatCardProps = {
-  icon: React.ReactNode
-  label: string
-  value: string
-}
-
-function StatCard({ icon, label, value }: StatCardProps) {
-  return (
-    <article className="glass-panel grid gap-3 rounded-2xl border p-4">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="text-primary">{icon}</span>
-        {label}
-      </div>
-      <p className="text-2xl font-semibold tabular-nums text-foreground">
-        {value}
-      </p>
-    </article>
-  )
-}
-
 function TimerFace({ seconds }: { seconds: number }) {
   return (
     <div className="grid size-52 place-items-center rounded-full border-[10px] border-primary/15 bg-secondary/50 sm:size-60">
@@ -496,39 +435,6 @@ function SessionCard({ session }: { session: FocusSession }) {
   )
 }
 
-function calculateStats(sessions: FocusSession[], now: number) {
-  const today = new Date(now)
-  today.setHours(0, 0, 0, 0)
-  const todayStart = today.getTime()
-  const todayEnd = now
-  let todaySeconds = 0
-  let sessionsToday = 0
-  let totalSeconds = 0
-
-  for (const session of sessions) {
-    const started = Date.parse(session.startedAt)
-    const ended = session.endedAt ? Date.parse(session.endedAt) : now
-    const duration = elapsedSeconds(session.startedAt, ended)
-    totalSeconds += duration
-
-    if (started >= todayStart || (!session.endedAt && started < todayStart)) {
-      sessionsToday += 1
-    }
-
-    const todayDuration = Math.max(
-      0,
-      Math.min(ended, todayEnd) - Math.max(started, todayStart),
-    )
-    todaySeconds += Math.floor(todayDuration / 1000)
-  }
-
-  return {
-    sessionsToday,
-    todayMinutes: Math.floor(todaySeconds / 60),
-    totalMinutes: Math.floor(totalSeconds / 60),
-  }
-}
-
 function elapsedSeconds(startedAt: string, endedAt: number): number {
   const start = Date.parse(startedAt)
   if (!Number.isFinite(start) || !Number.isFinite(endedAt)) {
@@ -545,18 +451,6 @@ function formatElapsed(totalSeconds: number): string {
   return [hours, minutes, seconds]
     .map((value) => String(value).padStart(2, '0'))
     .join(':')
-}
-
-function formatMinutes(minutes: number): string {
-  const hours = Math.floor(minutes / 60)
-  const remainingMinutes = minutes % 60
-  if (hours === 0) {
-    return `${remainingMinutes} min`
-  }
-  if (remainingMinutes === 0) {
-    return `${hours} h`
-  }
-  return `${hours} h ${remainingMinutes} min`
 }
 
 function errorMessage(cause: unknown): string {

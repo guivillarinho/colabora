@@ -1,4 +1,4 @@
-import { TimerPage } from '@/features/timer/timer-page'
+import { TaskExecutionChart } from './components/task-execution-chart'
 import { MutedText, PageTitle } from '@/components/typography'
 import { useNavigation } from '@/components/layout/navigation'
 import { useTasks } from '@/features/tasks/tasks-context'
@@ -23,24 +23,8 @@ export function DashboardPage() {
         tasks={tasks}
         onComplete={(taskId) => completeTask(taskId)}
       />
-      <TimerPage dashboardOnly />
       <ProgressSummary completed={completed} total={tasks.length} />
-      <section
-        className="glass-panel grid gap-2 rounded-2xl border p-5"
-        aria-label="Tempo de execução das tarefas"
-      >
-        <h2 className="font-semibold">Tempo de execução das tarefas</h2>
-        <p className="text-2xl font-semibold tabular-nums">
-          {tasks
-            .filter((task) => task.status === 'completed')
-            .reduce((total, task) => total + (task.actualTime ?? 0), 0)}{' '}
-          min
-        </p>
-        <MutedText>
-          Tempo registrado nas tarefas concluídas, incluindo durações informadas
-          ou estimadas. As sessões de Pomodoro aparecem no dashboard de foco.
-        </MutedText>
-      </section>
+      <TaskExecutionChart tasks={tasks} />
       <TaskTimeline
         tasks={tasks}
         preview

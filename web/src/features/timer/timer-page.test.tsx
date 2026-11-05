@@ -25,9 +25,10 @@ describe('TimerPage', () => {
     render(<TimerPage />)
 
     expect(await screen.findByRole('heading', { name: 'Timer' })).toBeVisible()
-    expect(screen.getByLabelText('Resumo do foco')).toHaveClass(
-      'sm:grid-cols-3',
-    )
+    expect(screen.getByLabelText('Conquistas de foco')).toBeVisible()
+    expect(screen.queryByText('Sessões de hoje')).not.toBeInTheDocument()
+    expect(screen.queryByText('Foco hoje')).not.toBeInTheDocument()
+    expect(screen.queryByText('Tempo total')).not.toBeInTheDocument()
     expect(
       await screen.findByText('Suas sessões concluídas aparecerão aqui.'),
     ).toBeVisible()
