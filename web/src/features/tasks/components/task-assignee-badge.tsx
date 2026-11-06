@@ -10,9 +10,30 @@ import {
 
 import type { Task } from '../types/task'
 
+const assignmentBadges = {
+  pending: {
+    label: 'Aguardando aceite',
+    className:
+      'bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200',
+  },
+  accepted: {
+    label: 'Aceita',
+    className:
+      'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200',
+  },
+  declined: {
+    label: 'Recusada',
+    className: 'bg-red-100 text-red-900 dark:bg-red-900/50 dark:text-red-200',
+  },
+} as const
+
 export function TaskAssigneeBadge({ task }: { task: Task }) {
   const { user } = useAuth()
   const assignee = task.assignedTo
+  const assignment =
+    assignee && assignee.id !== task.createdById && task.assignmentStatus
+      ? assignmentBadges[task.assignmentStatus]
+      : null
   const name = assignee?.name?.trim() || 'Sem responsável'
   const avatar = assignee?.id === user?.id ? user?.avatar : assignee?.avatar
   const preset = avatar?.kind === 'preset' ? presetById(avatar.id) : null
@@ -27,7 +48,7 @@ export function TaskAssigneeBadge({ task }: { task: Task }) {
     : '—'
 
   return (
-    <p className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+    <p className="flex w-full min-w-0 items-center gap-2 text-xs text-muted-foreground">
       <span
         aria-label={`Responsável: ${name}`}
         className="grid size-6 shrink-0 place-items-center overflow-hidden rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground"
@@ -51,6 +72,14 @@ export function TaskAssigneeBadge({ task }: { task: Task }) {
         )}
       </span>
       <span className="min-w-0 truncate">{name}</span>
+      {assignment ? (
+        <span
+          aria-label={`Aceite do responsável: ${assignment.label}`}
+          className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${assignment.className}`}
+        >
+          {assignment.label}
+        </span>
+      ) : null}
     </p>
   )
 }

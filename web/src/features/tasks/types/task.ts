@@ -12,6 +12,7 @@ export type TaskPriority = 'low' | 'medium' | 'high'
 export type Task = {
   createdById: string | null
   assignedToId: string | null
+  assignmentStatus?: 'pending' | 'accepted' | 'declined'
   createdBy: Person | null
   assignedTo: Person | null
   permissions: {

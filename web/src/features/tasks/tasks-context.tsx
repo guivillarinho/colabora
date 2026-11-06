@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -35,12 +36,14 @@ type TasksProviderProps = {
 }
 
 export function TasksProvider({ children }: TasksProviderProps) {
+  const revision = useRef(0)
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [advice, setAdvice] = useState<string | null>(null)
 
   const acceptTask = useCallback((task: Task) => {
+    revision.current += 1
     setTasks((current) =>
       current.some((item) => item.id === task.id)
         ? current.map((item) => (item.id === task.id ? task : item))
@@ -49,6 +52,7 @@ export function TasksProvider({ children }: TasksProviderProps) {
   }, [])
 
   const replaceTask = useCallback((task: Task) => {
+    revision.current += 1
     setTasks((current) =>
       current.map((item) => (item.id === task.id ? task : item)),
     )
@@ -83,9 +87,38 @@ export function TasksProvider({ children }: TasksProviderProps) {
     }
   }, [])
 
+  useEffect(() => {
+    let controller: AbortController | undefined
+    const refresh = () => {
+      if (document.visibilityState === 'hidden') return
+      controller?.abort()
+      controller = new AbortController()
+      const currentController = controller
+      const currentRevision = revision.current
+      tasksApi
+        .list(currentController.signal)
+        .then((data) => {
+          if (
+            !currentController.signal.aborted &&
+            currentRevision === revision.current
+          )
+            setTasks(data)
+        })
+        .catch(() => undefined)
+    }
+    window.addEventListener('focus', refresh)
+    const interval = window.setInterval(refresh, 30_000)
+    return () => {
+      controller?.abort()
+      window.removeEventListener('focus', refresh)
+      window.clearInterval(interval)
+    }
+  }, [])
+
   const createTask = useCallback(async (input: TaskInput) => {
     try {
       const task = await tasksApi.create(input)
+      revision.current += 1
       setTasks((current) => [task, ...current])
       setError(null)
     } catch (cause) {
@@ -112,6 +145,7 @@ export function TasksProvider({ children }: TasksProviderProps) {
   const removeTask = useCallback(async (id: string) => {
     try {
       await tasksApi.remove(id)
+      revision.current += 1
       setTasks((current) => current.filter((task) => task.id !== id))
       setError(null)
       hapticFeedback('success')

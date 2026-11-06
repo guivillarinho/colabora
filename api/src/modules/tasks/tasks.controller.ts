@@ -23,6 +23,11 @@ import { AvatarService } from '../auth/avatar.service'
 
 import { TaskCompletion, TasksService } from './tasks.service'
 
+class AssignmentResponseDto {
+  @IsIn(['accepted', 'declined'])
+  response: 'accepted' | 'declined'
+}
+
 class StatusDto {
   @IsIn(['pending', 'in_progress'])
   status: 'pending' | 'in_progress'
@@ -86,6 +91,15 @@ export class TasksController {
     @CurrentUser() user: Identity,
   ) {
     return this.tasksService.remove(id, user.id)
+  }
+
+  @Patch(':id/assignment')
+  respondAssignment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AssignmentResponseDto,
+    @CurrentUser() user: Identity,
+  ) {
+    return this.tasksService.respondAssignment(id, user.id, dto.response)
   }
 
   @Patch(':id/status')

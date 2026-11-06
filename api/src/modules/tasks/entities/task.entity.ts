@@ -20,6 +20,9 @@ export class Task {
   @Column({ type: 'uuid', nullable: true })
   createdById: string | null
 
+  @Column({ type: 'varchar', length: 16, default: 'accepted' })
+  assignmentStatus: 'pending' | 'accepted' | 'declined'
+
   @Column({ type: 'uuid', nullable: true })
   assignedToId: string | null
 

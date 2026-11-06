@@ -1,3 +1,4 @@
+import { TaskAssignment } from '@/features/tasks/components/task-assignment'
 import { apiBase } from '@/lib/http-client'
 import { LinkedText } from '@/components/linked-text'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
@@ -65,6 +66,7 @@ export function TaskCard({
       </div>
       <TaskAssigneeBadge task={task} />
       <TaskPeople task={task} />
+      <TaskAssignment task={task} />
       {task.description ? (
         <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
           <LinkedText>{task.description}</LinkedText>
@@ -114,12 +116,12 @@ export function TaskCard({
             Editar
           </Button>
         ) : null}
-        {task.status === 'pending' ? (
+        {task.permissions.changeStatus && task.status === 'pending' ? (
           <Button size="sm" type="button" onClick={onStart}>
             Iniciar
           </Button>
         ) : null}
-        {task.status !== 'completed' ? (
+        {task.permissions.changeStatus && task.status !== 'completed' ? (
           <Button
             size="sm"
             type="button"

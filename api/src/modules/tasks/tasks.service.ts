@@ -70,7 +70,9 @@ export class TasksService {
         edit: owner,
         assign: owner,
         delete: owner,
-        changeStatus: true,
+        changeStatus:
+          task.assignmentStatus !== 'pending' &&
+          (owner || task.assignmentStatus !== 'declined'),
       },
     }
   }
@@ -91,6 +93,13 @@ export class TasksService {
   ): Promise<TaskView> {
     await this.users.validateAssignee(dto.assignedToId)
     await this.attachments.assertOwnReferences(dto.attachments ?? [], actor)
+    const assignedToId =
+      dto.assignedToId === undefined ? actor : dto.assignedToId
+    const pending = !!assignedToId && assignedToId !== actor
+    if (pending && dto.startImmediately)
+      throw new BadRequestException(
+        'O responsável precisa aceitar antes de iniciar.',
+      )
     const entity = this.tasksRepository.create({
       ...(id ? { id } : {}),
       title: dto.title.trim(),
@@ -108,7 +117,8 @@ export class TasksService {
       completedAt: null,
       timed: dto.startImmediately === true,
       createdById: actor,
-      assignedToId: dto.assignedToId === undefined ? actor : dto.assignedToId,
+      assignedToId,
+      assignmentStatus: pending ? 'pending' : 'accepted',
     })
     const task = id
       ? (await this.tasksRepository.insert(entity), entity)
@@ -161,7 +171,18 @@ export class TasksService {
     if (dto.attachments !== undefined) changes.attachments = dto.attachments
     if (dto.estimatedTime !== undefined)
       changes.estimatedTime = dto.estimatedTime
-    if (dto.assignedToId !== undefined) changes.assignedToId = dto.assignedToId
+    if (
+      dto.assignedToId !== undefined &&
+      dto.assignedToId !== task.assignedToId
+    ) {
+      if (task.status !== TaskStatus.Pending)
+        throw new BadRequestException(
+          'Reabra a tarefa antes de mudar o responsável.',
+        )
+      changes.assignedToId = dto.assignedToId
+      changes.assignmentStatus =
+        dto.assignedToId && dto.assignedToId !== actor ? 'pending' : 'accepted'
+    }
     if (Object.keys(changes).length) {
       await this.tasksRepository.update({ id, createdById: actor }, changes)
       const updated = await this.visible(id, actor)
@@ -188,8 +209,46 @@ export class TasksService {
     )
   }
 
+  private assertCanAct(task: Task, actor: string) {
+    if (!this.view(task, actor).permissions.changeStatus)
+      throw new ForbiddenException(
+        'O responsável precisa aceitar a tarefa antes de executá-la.',
+      )
+  }
+
+  async respondAssignment(
+    id: string,
+    actor: string,
+    response: 'accepted' | 'declined',
+  ): Promise<TaskView> {
+    const task = await this.visible(id, actor)
+    if (task.assignedToId !== actor || task.createdById === actor)
+      throw new ForbiddenException(
+        'Somente o responsável convidado pode responder.',
+      )
+    const result = await this.tasksRepository.update(
+      { id, assignedToId: actor, assignmentStatus: 'pending' },
+      { assignmentStatus: response },
+    )
+    if (!result.affected)
+      throw new BadRequestException(
+        'Esta solicitação já foi respondida ou alterada.',
+      )
+    await this.notifications.scheduleTaskReminders({
+      ...task,
+      assignmentStatus: response,
+    })
+    await this.notifications.notifyUsers(
+      [task.createdById],
+      response === 'accepted' ? 'Tarefa aceita' : 'Tarefa recusada',
+      task.title,
+    )
+    return this.findOne(id, actor)
+  }
+
   async start(id: string, actor: string): Promise<TaskView> {
     const task = await this.visible(id, actor)
+    this.assertCanAct(task, actor)
     if (task.status === TaskStatus.Completed)
       throw new BadRequestException(
         'Não é possível iniciar uma tarefa concluída.',
@@ -213,6 +272,7 @@ export class TasksService {
 
   async setPending(id: string, actor: string): Promise<TaskView> {
     const task = await this.visible(id, actor)
+    this.assertCanAct(task, actor)
     const reopening = task.status === TaskStatus.Completed
     const changes: Partial<Task> = {
       status: TaskStatus.Pending,
@@ -247,6 +307,7 @@ export class TasksService {
     actor: string,
   ): Promise<TaskCompletion> {
     const task = await this.visible(id, actor)
+    this.assertCanAct(task, actor)
     if (task.status === TaskStatus.Completed)
       return { task: this.view(task, actor), productivityAdvice: null }
     const completedAt = new Date()

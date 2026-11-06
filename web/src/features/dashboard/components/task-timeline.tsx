@@ -1,3 +1,4 @@
+import { TaskAssignment } from '@/features/tasks/components/task-assignment'
 import { TaskAssigneeBadge } from '@/features/tasks/components/task-assignee-badge'
 import { taskWindow } from '@/features/tasks/task-kind'
 import { LinkedText } from '@/components/linked-text'
@@ -473,6 +474,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           transition: swipeTransition,
         }}
         className={cn(
+          task.assignmentStatus === 'pending' && '!h-auto min-h-52',
           'glass-card colabora-timeline-card relative z-10 grid h-52 min-w-0 cursor-pointer select-none grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] gap-2 overflow-hidden rounded-xl border p-3 [overflow-wrap:anywhere] active:cursor-grabbing motion-reduce:!transition-none sm:p-4',
         )}
       >
@@ -484,13 +486,14 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
             </span>
           </div>
         </div>
-        <div className="flex min-w-0 items-start gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <h3 className="line-clamp-1 min-w-0 font-semibold leading-snug">
             {task.title}
           </h3>
           <TaskAttachmentIndicator count={task.attachments.length} />
         </div>
         <TaskAssigneeBadge task={task} />
+        <TaskAssignment task={task} />
         <div className="min-h-0 overflow-hidden">
           {completing ? (
             <p role="status" className="text-sm text-muted-foreground">

@@ -1,3 +1,4 @@
+import { TaskAssignment } from '@/features/tasks/components/task-assignment'
 import { apiBase, apiRequest } from '@/lib/http-client'
 import { useAuth } from '@/features/auth/auth-context'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
@@ -21,6 +22,7 @@ import {
   FolderKanban,
   MapPin,
   NotebookPen,
+  Paperclip,
   Pencil,
   Plus,
   RotateCcw,
@@ -680,6 +682,7 @@ export function AgendaDetails({
                 </div>
                 <TaskAssigneeBadge task={task} />
                 <TaskPeople task={task} />
+                <TaskAssignment task={task} />
                 <TaskExecutionTime task={task} />
               </>
             ) : null}
@@ -852,6 +855,7 @@ function AgendaCreateDialog({
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] =
     useState<AgendaUploadProgress | null>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
   const uploadController = useRef<AbortController | null>(null)
   const uploadRequest = useRef(0)
   const stopUpload = useCallback(() => {
@@ -1010,7 +1014,9 @@ function AgendaCreateDialog({
           />
           <div className="grid gap-2">
             <Label htmlFor="agenda-files">Enviar documentos</Label>
-            <Input
+            <input
+              ref={fileInput}
+              className="sr-only"
               id="agenda-files"
               multiple
               type="file"
@@ -1067,6 +1073,16 @@ function AgendaCreateDialog({
                   })
               }}
             />
+            <Button
+              className="h-11 w-full bg-muted text-black hover:bg-muted/80 dark:text-foreground"
+              disabled={uploading || files.length >= 10}
+              type="button"
+              variant="outline"
+              onClick={() => fileInput.current?.click()}
+            >
+              <Paperclip aria-hidden="true" />
+              Escolher arquivo
+            </Button>
             <MutedText>
               {files.length
                 ? files.map((file) => file.split('||')[0]).join(', ')

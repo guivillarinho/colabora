@@ -101,7 +101,13 @@ export class NotificationsService {
 
   async scheduleTaskReminders(task: Task): Promise<void> {
     await this.reminders.delete({ taskId: task.id })
-    if (!task.dueDate || task.status === TaskStatus.Completed) return
+    if (
+      !task.dueDate ||
+      task.status === TaskStatus.Completed ||
+      task.assignmentStatus === 'pending' ||
+      task.assignmentStatus === 'declined'
+    )
+      return
     const userId = task.assignedToId ?? task.createdById
     if (!userId) return
 
@@ -182,6 +188,8 @@ export class NotificationsService {
       !task ||
       !task.dueDate ||
       task.status === TaskStatus.Completed ||
+      task.assignmentStatus === 'pending' ||
+      task.assignmentStatus === 'declined' ||
       (task.assignedToId ?? task.createdById) !== reminder.userId
     )
       return false

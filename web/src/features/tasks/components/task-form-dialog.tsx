@@ -410,27 +410,31 @@ function TaskFormContent({
               </p>
             ) : null}
             {editing || creationMode !== 'timer' ? (
-              <Collapsible>
+              <div className="grid gap-6 border-t pt-6">
                 <AssigneeField value={assignee} onChange={setAssignee} />
-                <CollapsibleTrigger asChild>
-                  <Button className="w-full" type="button" variant="outline">
-                    Opções avançadas
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="grid min-w-0 gap-4 pt-4">
-                  <AttachmentField
-                    id={`${fieldPrefix}-attachment`}
-                    initialReference={persistedAttachment(task?.attachments[0])}
-                    onChange={setAttachmentReference}
-                    onPendingChange={setAttachmentPending}
-                  />
-                  <LocationField
-                    id={`${fieldPrefix}-location`}
-                    value={location}
-                    onChange={setLocation}
-                  />
-                </CollapsibleContent>
-              </Collapsible>
+                <Collapsible>
+                  <CollapsibleTrigger asChild>
+                    <Button className="w-full" type="button" variant="outline">
+                      Opções avançadas
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="grid min-w-0 gap-4 pt-4">
+                    <AttachmentField
+                      id={`${fieldPrefix}-attachment`}
+                      initialReference={persistedAttachment(
+                        task?.attachments[0],
+                      )}
+                      onChange={setAttachmentReference}
+                      onPendingChange={setAttachmentPending}
+                    />
+                    <LocationField
+                      id={`${fieldPrefix}-location`}
+                      value={location}
+                      onChange={setLocation}
+                    />
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
             ) : null}
             {formError ? (
               <p className="text-sm text-destructive" role="alert">

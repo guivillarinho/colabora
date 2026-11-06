@@ -14,6 +14,11 @@ export const tasksApi = {
       method: 'PATCH',
       body: JSON.stringify(input),
     }),
+  respondAssignment: (id: string, response: 'accepted' | 'declined') =>
+    request<Task>(`/tasks/${id}/assignment`, {
+      method: 'PATCH',
+      body: JSON.stringify({ response }),
+    }),
   remove: (id: string) =>
     request<void>(`/tasks/${id}`, {
       method: 'DELETE',

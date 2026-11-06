@@ -19,10 +19,7 @@ export class UsersService {
     return this.users
       .createQueryBuilder('user')
       .select(['user.id', 'user.name'])
-      .where('user.name ILIKE :prefix OR user.email = :email', {
-        prefix: term.replace(/[\\%_]/g, '\\$&') + '%',
-        email: term,
-      })
+      .where('user.email = :email', { email: term })
       .orderBy('user.name', 'ASC')
       .take(10)
       .getMany()

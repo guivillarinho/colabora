@@ -560,10 +560,38 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       edit: false,
       assign: false,
       delete: false,
-      changeStatus: true,
+      changeStatus: false,
     })
     expect(visible.body.createdBy).toEqual({ id: a.user.id, name: a.user.name })
     expect(visible.body.createdBy).not.toHaveProperty('email')
+    expect(visible.body.assignmentStatus).toBe('pending')
+    for (const participant of [a, b]) {
+      await participant.agent
+        .post(`/api/tasks/${created.id}/complete`)
+        .set('Origin', origin)
+        .set('X-CSRF-Token', participant.csrf)
+        .send({})
+        .expect(403)
+    }
+    await a.agent
+      .patch(`/api/tasks/${created.id}/assignment`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', a.csrf)
+      .send({ response: 'accepted' })
+      .expect(403)
+    await b.agent
+      .patch(`/api/tasks/${created.id}/assignment`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', b.csrf)
+      .send({ response: 'accepted' })
+      .expect(200)
+    await b.agent
+      .patch(`/api/tasks/${created.id}/assignment`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', b.csrf)
+      .send({ response: 'declined' })
+      .expect(400)
+
     await b.agent
       .patch(`/api/tasks/${created.id}/status`)
       .set('Origin', origin)
@@ -589,7 +617,35 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       (await c.agent.get(`/api/tasks?createdById=${a.user.id}`).expect(200))
         .body,
     ).toEqual([])
+    await a.agent
+      .patch(`/api/tasks/${created.id}/status`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', a.csrf)
+      .send({ status: 'pending' })
+      .expect(200)
     await patch(a, created.id, { assignedToId: c.user.id }).expect(200)
+    await c.agent
+      .patch(`/api/tasks/${created.id}/assignment`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', c.csrf)
+      .send({ response: 'declined' })
+      .expect(200)
+    await c.agent
+      .post(`/api/tasks/${created.id}/start`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', c.csrf)
+      .expect(403)
+    const declined = await a.agent.get(`/api/tasks/${created.id}`).expect(200)
+    expect(declined.body.assignmentStatus).toBe('declined')
+    await patch(a, created.id, { assignedToId: null }).expect(200)
+    await patch(a, created.id, { assignedToId: c.user.id }).expect(200)
+    await c.agent
+      .patch(`/api/tasks/${created.id}/assignment`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', c.csrf)
+      .send({ response: 'accepted' })
+      .expect(200)
+
     await b.agent.get(`/api/tasks/${created.id}`).expect(404)
     await b.agent
       .post(`/api/tasks/${created.id}/complete`)
@@ -720,8 +776,18 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
   it('limits the user directory to public fields and bounded searches', async () => {
     const user = await actor('Directory')
     await user.agent.get('/api/users?query=a').expect(400)
+    const nameSearch = await user.agent
+      .get('/api/users?query=Directory')
+      .expect(200)
+    expect(nameSearch.body).toEqual([])
+    const missing = await user.agent
+      .get('/api/users?query=nobody%40example.test')
+      .expect(200)
+    expect(missing.body).toEqual([])
     const result = await user.agent
-      .get(`/api/users?query=${encodeURIComponent(user.user.email)}`)
+      .get(
+        `/api/users?query=${encodeURIComponent(user.user.email.toUpperCase())}`,
+      )
       .expect(200)
     expect(result.body).toEqual([{ id: user.user.id, name: user.user.name }])
     expect(result.body.length).toBeLessThanOrEqual(10)

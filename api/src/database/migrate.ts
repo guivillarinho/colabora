@@ -1,3 +1,4 @@
+import { TaskAssignment1794268800000 } from './migrations/1794268800000-task-assignment'
 import { TaskCompletion1794182400000 } from './migrations/1794182400000-task-completion'
 import { GoogleCalendar1794009600000 } from './migrations/1794009600000-google-calendar'
 import { UserAvatar1794096000000 } from './migrations/1794096000000-user-avatar'
@@ -46,6 +47,7 @@ async function migrate() {
       GoogleCalendar1794009600000,
       UserAvatar1794096000000,
       TaskCompletion1794182400000,
+      TaskAssignment1794268800000,
     ],
     synchronize: false,
     extra: { max: 2 },

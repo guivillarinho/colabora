@@ -17,11 +17,13 @@ export function AssigneeField({ value, onChange }: AssigneeFieldProps) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   useEffect(() => {
-    if (query.trim().length < 3) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(query.trim())) {
       setResults([])
+      setError(null)
       setLoading(false)
       return
     }
+    setResults([])
     const controller = new AbortController()
     const timeout = setTimeout(() => {
       setLoading(true)
@@ -30,7 +32,11 @@ export function AssigneeField({ value, onChange }: AssigneeFieldProps) {
         signal: controller.signal,
       })
         .then((users) => {
-          if (!controller.signal.aborted) setResults(users)
+          if (!controller.signal.aborted) {
+            setResults(users)
+            if (!users.length)
+              setError('Nenhum usuário cadastrado com este e-mail.')
+          }
         })
         .catch(() => {
           if (!controller.signal.aborted)
@@ -46,7 +52,10 @@ export function AssigneeField({ value, onChange }: AssigneeFieldProps) {
     }
   }, [query])
   return (
-    <div className="grid gap-2">
+    <section
+      className="grid gap-4 rounded-xl border bg-muted/30 p-4"
+      aria-label="Atribuição da tarefa"
+    >
       <Label htmlFor="assignee-search">Responsável</Label>
       <p className="text-sm">{value?.name ?? 'Sem responsável'}</p>
       <div className="flex gap-2">
@@ -71,14 +80,16 @@ export function AssigneeField({ value, onChange }: AssigneeFieldProps) {
       </div>
       <Input
         id="assignee-search"
-        placeholder="Buscar por nome ou e-mail exato"
+        placeholder="Buscar pelo e-mail completo"
+        type="search"
         maxLength={254}
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         autoComplete="off"
       />
       <p className="text-xs text-muted-foreground">
-        Digite pelo menos 3 caracteres. Só o nome dos resultados é exibido.
+        Informe o e-mail completo de uma conta cadastrada. A pessoa receberá a
+        tarefa e poderá aceitar ou recusar.
       </p>
       {loading ? (
         <p role="status" className="text-sm">
@@ -113,6 +124,6 @@ export function AssigneeField({ value, onChange }: AssigneeFieldProps) {
           ))}
         </ul>
       ) : null}
-    </div>
+    </section>
   )
 }
