@@ -29,6 +29,16 @@ O relato de como o projeto foi construído está em [docs/processo.md](docs/proc
 
 As configurações e os requisitos de produção estão em [docs/hospedagem.md](docs/hospedagem.md).
 
+## Perfil, temas e tarefas
+
+O perfil reúne foto/avatar, aparência, notificações, Google Agenda e produtividade. A foto pode ser enviada, substituída ou removida com confirmação; as fotos dos responsáveis aparecem nos cards conforme as permissões das tarefas. O botão rápido alterna entre claro e escuro; o modo do sistema e as paletas ficam em **Perfil → Aparência**.
+
+Os cards abrem os detalhes por clique, toque ou teclado. A edição fica no lápis dos detalhes; o gesto horizontal permite concluir ou confirmar a exclusão, preservando a rolagem vertical. A criação oferece tarefas agendadas e cronometradas, com anexos enviados antes de salvar sua referência.
+
+## Homologação na Vercel
+
+A branch de homologação é `feat/colabora-evolucao`. O Preview tem banco e Blob privados separados da produção e exige acesso autorizado na Vercel. Endereço validado, commits, configuração, resultados e limites estão em [docs/COLABORA_PREVIEW_DEPLOYMENT.md](docs/COLABORA_PREVIEW_DEPLOYMENT.md). O histórico de implementação fica em [docs/COLABORA_PROGRESS.md](docs/COLABORA_PROGRESS.md).
+
 ## Autenticação e testes
 
 Cadastro, login e logout usam cookie HttpOnly e sessões persistentes. As tarefas são visíveis ao criador e ao responsável; somente o criador pode editar, reatribuir ou excluir. Eventos e sessões de foco são privados por usuário. Registros antigos são preservados e ficam isolados até uma vinculação administrativa explícita.

@@ -1,11 +1,12 @@
 # Colabora — progresso
 
-## 2026-11-06 — Commits e preparação da publicação em Preview
+## 2026-11-06 — Commits, GitHub e Preview publicados
 
-- **Commits de aplicação:** `dc3329f` (API: avatars privados, anexos válidos, conclusão/tipo das tarefas) e `fcce428` (web: perfil, editor de foto, tema/paleta, detalhes, gestos e uploads). Publicação solicitada pelo usuário para a branch atual; `main` e produção preservadas.
-- **Validação consolidada:** **321 testes passaram**: 175 web, 89 API, 34 HTTP no banco descartável, 15 de política e 8 de cabeçalhos. Lint completo e builds web/API passaram. Resolvidas as falhas preexistentes do mock de `del()` e lint; registros anteriores dessas pendências são históricos.
-- **Preparação remota:** migration de avatar aplicada somente ao Neon de homologação validado; tipo/conclusão já estavam no ledger. Blob privado separado conectado exclusivamente a Preview, com prefixo e opt-in que não reutilizam o token herdado. Gemini/Google/e-mail/push permanecem sem ativação. Relatório detalhado em `COLABORA_PREVIEW_DEPLOYMENT.md`.
-- **Próximo passo autorizado:** enviar os commits ao GitHub, publicar Preview, validar acesso e rotas e registrar URL/ID/estado final. Nenhuma promoção de produção ou remoção da proteção de Preview.
+- **Commits enviados:** `dc3329f` (API), `fcce428` (perfil/tarefas/interface), `f933263` (configuração isolada de Preview) e `9a7131f` (CSP compatível com o endpoint de upload do SDK). Branch `origin/feat/colabora-evolucao`; `main` e produção preservadas. Este registro e o README são documentados em commit posterior, sem alteração de código do aplicativo.
+- **Preview validado:** https://colabora-ezi6vkrto-villarinhoguis-projects.vercel.app — Ready, `dpl_8HqEhfgowqK1PxBdvdg8wRnDiFSg`, código `9a7131f`. Autenticação Vercel preservada; acesso anônimo 302. A integração Git automática foi observada ativa. Relatório completo e deployment CLI adicional no mesmo código em `COLABORA_PREVIEW_DEPLOYMENT.md`.
+- **Validação:** **322 testes automáticos passaram** (175 web, 89 API, 34 HTTP local, 15 de política e 9 de cabeçalhos), lint completo e builds. No deployment real: cadastro/sessão/login/logout, upload/leitura/exclusão de foto, upload/download de anexo privado, foto do responsável, criação/conclusão de tarefa e cronômetro, sem exceções JS. Conta, tarefas e arquivos de teste removidos ao concluir. Corrigida a CSP que bloqueava `https://vercel.com/api/blob/`; os registros anteriores de teste de avatar/lint pendentes são históricos e foram resolvidos antes da publicação.
+- **Infraestrutura:** migration de avatar aplicada somente ao Neon de homologação validado; ledger final com 11 migrations. Blob privado separado conectado apenas a Preview, com prefixo e opt-in que descartam o token herdado. Gemini/Google/e-mail/push sem ativação; nenhuma configuração de produção ou proteção de acesso foi modificada.
+- **Estado final:** mudanças implementadas, documentadas, enviadas ao GitHub e disponíveis em Preview protegido. Nenhuma promoção para Production solicitada ou executada.
 
 ## 2026-11-06 — Ajustes no editor de foto de perfil
 
