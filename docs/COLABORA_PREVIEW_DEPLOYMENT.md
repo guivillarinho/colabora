@@ -1,5 +1,15 @@
 # Preview Vercel — auditoria e preparação
 
+## 2026-11-06 — Publicação da atualização (em andamento)
+
+- **Destino:** Preview de `feat/colabora-evolucao`, projeto `colabora` / `villarinhoguis-projects`. A produção continua em `main`; `ssoProtection.deploymentType=preview` foi conferido e preservado. URL e deployment definitivos serão registrados após Ready.
+- **Código:** API em `dc3329f` e frontend em `fcce428`. Inclui perfil e editor de foto reorganizados, tema rápido claro/escuro com sistema no perfil, paletas, tarefas/detalhes/gestos/avatares de responsáveis e uploads com progresso/cancelamento.
+- **Validação atual:** web 175 testes, API 89, HTTP isolado 34, política Preview 15 e cabeçalhos 8: **321 testes passaram**. Lint completo web/API e builds passaram. Corrigidos o retorno Promise do mock de exclusão Blob, um teste com variável sem uso e a formatação pendente. Isso substitui, para este snapshot, as pendências anteriores de teste de avatar e lint.
+- **Banco:** confirmado por conexão direta ao endpoint isolado `ep-frosty-queen-b6cbgymv.c-2.sa-east-1.aws.neon.tech`, database `neondb`. O ledger já continha `AttachmentContent1794096000000` e `TaskCompletion1794182400000` da outra branch. Aplicada somente a migration pendente `UserAvatar1794096000000`; sem rollback, sem alteração de banco de produção ou remoção de dados.
+- **Arquivos privados:** criado Blob `colabora-homologacao`, `store_bgt5sVs7oJQSLhu7`, privado em `gru1`, conectado apenas a Preview com prefixo `COLABORA_PREVIEW_BLOB`. O Blob anterior `store_YdwjyiYM9HOXM15Q` mantém sua conexão anterior em Production/Preview, sem mudança. A tentativa inicial de conexão automática recusou a variável já existente; a conexão final usa o prefixo separado.
+- **Opt-in de uploads:** `COLABORA_PREVIEW_BLOB=true`, `COLABORA_PREVIEW_BLOB_STORE_ID` e `COLABORA_PREVIEW_BLOB_READ_WRITE_TOKEN` exclusivo. Build/runtime descartam o token Blob herdado e só selecionam o prefixado se o ID no token corresponder ao store aprovado. Flag/ID específicos da branch; token fornecido pela conexão do store em Preview. Tokens nunca foram exibidos, versionados ou enviados em argumentos de shell.
+- **Limites:** plano da conta conferido como Hobby, sem upgrade. Uso de Blob permanece sujeito às cotas incluídas descritas em [Vercel Blob Pricing](https://vercel.com/docs/vercel-blob/usage-and-pricing). Gemini/Google continuam desativados; e-mail, push e dispatch continuam sem credenciais no wrapper Preview. Não foram enviadas mensagens reais.
+
 2026-11-05 — **DEPLOY PREVIEW READY**. URL: `https://colabora-ei9x5q2g6-villarinhoguis-projects.vercel.app`; deployment `dpl_EjnkMR9stWrbSfMxC1vtmaCYjJ1E`, target `preview`, função Node 24 em `gru1`. Migrações aplicadas somente ao Neon Free isolado, após consulta prévia sem tabelas/ledger.
 
 ## Destino e Git
@@ -21,7 +31,7 @@
 - `scripts/build-vercel.mjs`: removida execução de `dist/database/migrate.js`. O build compila/empacota, sem abrir banco. Migração explícita separada foi executada somente após verificar o DB de Preview vazio. Validações prévias de Blob/VAPID para builds não Preview foram preservadas. Um futuro rollout de produção precisa incluir migration explícita autorizada.
 - `scripts/preview-policy.mjs`: build e função gerada usam a mesma política. Preview consome os URLs Neon com prefixo do Marketplace, falha sem host, URL de banco, SESSION_SECRET próprio de pelo menos 32 caracteres e VERCEL_URL exata. Pooler e endpoint direto devem pertencer ao mesmo host canônico. Host vem do recurso segregado; não aceita URLs de banco compartilhadas.
 - A política remove aliases de banco herdados, usa schema public/TLS e define origem/URL pública exclusivamente como `https://VERCEL_URL`, sem wildcard. O frontend continua com API na mesma origem. Cookies Secure/HttpOnly/SameSite e guard/CSRF existentes são preservados; runtime serverless não aplica migrations no startup. Fora do wrapper Vercel, a API ainda migra automaticamente ao iniciar; não iniciá-la com banco real sem revisão.
-- No Preview, Gemini/Google ficam false e credenciais Gemini/Google, e-mail Brevo, push VAPID, dispatch e Blob são esvaziadas antes de carregar o backend. Avatar externo também é desabilitado. Não há scheduler criado; worker já não inicia na Vercel. Nenhuma mensagem/e-mail/push real enviado. Uploads ficam indisponíveis com erro de configuração, sem usar o Blob de produção; não são certificados como funcionais.
+- No Preview, Gemini/Google ficam desligados por padrão e credenciais Gemini/Google herdadas, e-mail Brevo, push VAPID, dispatch e Blob são esvaziadas antes de carregar o backend. A homologação opcional descrita no final deste arquivo é a única forma de religar texto Gemini e Calendar nesse ambiente. Avatar externo também é desabilitado. Não há scheduler criado; worker já não inicia na Vercel. Nenhuma mensagem/e-mail/push real enviado. Uploads ficam indisponíveis com erro de configuração, sem usar o Blob de produção; não são certificados como funcionais.
 - `api/src/database/migrate.ts`: mensagem de conclusão agora se refere ao banco selecionado, sem anunciar produção em uma migração de homologação.
 
 ## Migrações e configuração confirmadas
@@ -29,7 +39,7 @@
 - Migrações novas do assistente (`1793923200000`) e Calendar (`1794009600000`) apenas criam tabelas/índices/vínculos. Migrações up anteriores criam tabelas/adicionam colunas; push também popula fila de lembretes de tarefas existentes. Nenhuma up destrutiva foi identificada; existem downs antigos com DROP COLUMN, que não serão executados.
 - Ledger do banco isolado contém 8 migrations após bootstrap inicial; não copiar schema sem ledger nem reaplicar migrations manualmente.
 - Variáveis no Preview: recurso Neon prefixado em escopo Preview (`COLABORA_PREVIEW_DATABASE_URL`, `_UNPOOLED`, host e aliases); `SESSION_SECRET` secreto no Preview geral e override branch-specific, ambos próprios e aleatórios. O deployment CLI não possui metadados Git. Política valida as conexões, converte a URL isolada para `DATABASE_URL` e apaga aliases/segredos prefixados herdados antes de carregar a API. DB_SSL/schema e WEB_ORIGIN/PUBLIC_APP_URL são definidos pela política. VITE_API_URL é fixado vazio no build para `/api`; sem secrets VITE_*.
-- GEMINI_ENABLED=false e GOOGLE_ENABLED=false. Sem OAuth redirect URI, credenciais ou chave de cifra. E-mail, push, dispatch e Blob desabilitados pelo wrapper. Variáveis Production/Preview compartilhadas permanecem configuradas no Vercel, mas a política limpa essas credenciais antes de carregar build/runtime Preview; nenhum valor de Production foi baixado.
+- No deployment já publicado, GEMINI_ENABLED=false e GOOGLE_ENABLED=false. Sem OAuth redirect URI, credenciais ou chave de cifra. E-mail, push, dispatch e Blob desabilitados pelo wrapper. Variáveis Production/Preview compartilhadas permanecem configuradas no Vercel, mas a política limpa essas credenciais antes de carregar build/runtime Preview; nenhum valor de Production foi baixado. Flags de opt-in não estavam definidas nesse deployment.
 - Projeto Vercel reporta `Ready`, target `preview`, função `server` 25,73 MB em `gru1`, build 1m52s. A autenticação Vercel protege o Preview: GET anônimo retorna 302; não foi desativada. Sessão CLI existente acessou o deployment para smoke tests.
 
 ## Validação executada agora
@@ -47,3 +57,13 @@
 2. Rollback seguro: excluir/desativar apenas este Preview na Vercel. Manter o banco de homologação enquanto for necessário; não reverter migrations nem tocar nos bancos existentes.
 
 Riscos residuais: login/logout real não testado por falta de conta descartável; Deployment Protection exige acesso Vercel; integrações reais e uploads desabilitados; 29 avisos low/moderate de dependências; CSP unsafe-inline e PDF ZAP ausente. Nenhuma aprovação de release Production.
+
+## Homologação opcional — Gemini texto e Google Calendar
+
+O Preview publicado acima continua com as duas integrações desligadas. Um Preview futuro pode ligá-las sem alterar Production:
+
+- Ausência das flags, ou qualquer valor que não seja exatamente `true`, mantém `GEMINI_ENABLED=false` e `GOOGLE_ENABLED=false` e apaga credenciais `GEMINI_*` / `GOOGLE_*` herdadas. Blob, Brevo, VAPID e o segredo de dispatch continuam vazios.
+- Gemini texto: no escopo Preview da Vercel, `COLABORA_PREVIEW_GEMINI=true` e `COLABORA_PREVIEW_GEMINI_API_KEY`. A política copia a chave para `GEMINI_API_KEY` e remove o nome prefixado. Não há entrada de áudio ou imagem; a CSP segue com `microphone=()`.
+- Google Calendar: `COLABORA_PREVIEW_GOOGLE=true` mais `COLABORA_PREVIEW_GOOGLE_CLIENT_ID`, `COLABORA_PREVIEW_GOOGLE_CLIENT_SECRET` e `COLABORA_PREVIEW_GOOGLE_TOKEN_ENCRYPTION_KEY` (32 bytes em base64, distinta de `SESSION_SECRET`). O callback gravado é sempre `https://$VERCEL_URL/api/google/callback`. Um redirect diferente faz o build falhar. Cadastre essa URL exata no cliente OAuth de teste e abra esse deployment, não outro alias.
+- Build com `VERCEL_ENV=production` e `GEMINI_ENABLED=true` ou `GOOGLE_ENABLED=true` para antes de compilar. As flags `COLABORA_PREVIEW_*` não têm efeito fora de Preview.
+- Nenhuma chave real foi gravada neste repositório e nenhuma chamada a Gemini ou Google foi feita. A prova com conta de teste fica para um Preview autorizado, separada dos mocks.

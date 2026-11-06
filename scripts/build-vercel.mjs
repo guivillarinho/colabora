@@ -6,6 +6,14 @@ import { applyPreviewEnvironment } from "./preview-policy.mjs";
 import { securityHeaders } from "./security-headers.mjs";
 
 applyPreviewEnvironment(process.env);
+if (
+  process.env.VERCEL &&
+  process.env.VERCEL_ENV !== "preview" &&
+  (process.env.GEMINI_ENABLED === "true" || process.env.GOOGLE_ENABLED === "true")
+)
+  throw new Error(
+    "Gemini (texto) e Google Calendar só podem ser homologados no Preview, via COLABORA_PREVIEW_GEMINI e COLABORA_PREVIEW_GOOGLE. Production permanece desligado.",
+  );
 const headers = securityHeaders(process.env.VITE_USER_AVATAR_URL);
 
 const root = fileURLToPath(new URL("../", import.meta.url));
