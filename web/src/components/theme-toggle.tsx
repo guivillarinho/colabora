@@ -1,5 +1,5 @@
 import { Moon, Sun } from 'lucide-react'
-import { useTheme } from 'next-themes'
+import { useAppTheme } from '@/app/theme-provider'
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -11,7 +11,7 @@ const themeModes = [
 ] as const
 
 export function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme()
+  const { resolvedTheme, setTheme } = useAppTheme()
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export function ThemeToggle() {
 }
 
 export function ThemeModePicker() {
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme } = useAppTheme()
   const [ready, setReady] = useState(false)
 
   useEffect(() => {

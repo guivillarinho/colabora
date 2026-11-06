@@ -4,7 +4,7 @@ const start = '2026-11-06T20:00:00.000Z'
 const end = '2026-11-06T20:40:00.000Z'
 const due = '2026-11-06T20:00:00.000Z'
 
-it('keeps the finish instant of a timed task', () => {
+it('keeps the execution interval of a finished timed task', () => {
   expect(
     taskWindow({
       timed: true,
@@ -18,7 +18,7 @@ it('keeps the finish instant of a timed task', () => {
   )
 })
 
-it('shows a scheduled task from its due date until it is finished', () => {
+it('includes the completion day in the scheduled task interval', () => {
   expect(
     taskWindow({
       timed: false,
@@ -41,4 +41,25 @@ it('leaves a running timed task without an end', () => {
       completedAt: null,
     }),
   ).toEqual({ startDate: start, endDate: null })
+})
+
+it('puts an unscheduled completed task in the calendar', () => {
+  expect(
+    taskWindow({
+      timed: false,
+      dueDate: null,
+      startedAt: null,
+      completedAt: end,
+    }),
+  ).toEqual({ startDate: end, endDate: end })
+})
+it('does not invert a calendar interval when finishing before the deadline', () => {
+  expect(
+    taskWindow({
+      timed: false,
+      dueDate: '2026-11-09T20:00:00.000Z',
+      startedAt: null,
+      completedAt: end,
+    }),
+  ).toEqual({ startDate: end, endDate: end })
 })

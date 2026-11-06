@@ -659,6 +659,18 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       .set('X-CSRF-Token', c.csrf)
       .send({ actualTime: 20 })
       .expect(200)
+    for (const participant of [a, c]) {
+      const history = await participant.agent.get('/api/tasks').expect(200)
+      expect(history.body).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: created.id,
+            status: 'completed',
+            completedAt: expect.any(String),
+          }),
+        ]),
+      )
+    }
     await a.agent
       .delete(`/api/tasks/${created.id}`)
       .set('Origin', origin)
@@ -773,13 +785,69 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
     expect(finished.body.task.actualTime).toBe(0)
   })
 
+  it('stores appearance only on the authenticated account and restores it at login', async () => {
+    const a = await actor('Aparência Alpha')
+    const b = await actor('Aparência Bravo')
+    await a.agent
+      .patch('/api/users/me/preferences')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', a.csrf)
+      .send({ theme: 'dark', palette: 'green' })
+      .expect(200)
+    const saved = await a.agent.get('/api/auth/me').expect(200)
+    expect(saved.body.user.preferences).toEqual({
+      theme: 'dark',
+      palette: 'green',
+    })
+    const other = await b.agent.get('/api/auth/me').expect(200)
+    expect(other.body.user.preferences).toEqual({
+      theme: 'system',
+      palette: 'purple',
+    })
+    await a.agent
+      .patch('/api/users/me/preferences')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', a.csrf)
+      .send({ theme: 'light' })
+      .expect(200)
+    expect((await a.agent.get('/api/auth/me')).body.user.preferences).toEqual({
+      theme: 'light',
+      palette: 'green',
+    })
+    for (const body of [
+      { theme: null },
+      { palette: 'invalid' },
+      { userId: b.user.id, theme: 'dark' },
+    ]) {
+      await a.agent
+        .patch('/api/users/me/preferences')
+        .set('Origin', origin)
+        .set('X-CSRF-Token', a.csrf)
+        .send(body)
+        .expect(400)
+    }
+    const client = await anonymous()
+    const login = await client.agent
+      .post('/api/auth/login')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', client.csrf)
+      .send({ email: a.user.email, password })
+      .expect(200)
+    expect(login.body.user.preferences).toEqual({
+      theme: 'light',
+      palette: 'green',
+    })
+  })
+
   it('limits the user directory to public fields and bounded searches', async () => {
     const user = await actor('Directory')
     await user.agent.get('/api/users?query=a').expect(400)
     const nameSearch = await user.agent
       .get('/api/users?query=Directory')
       .expect(200)
-    expect(nameSearch.body).toEqual([])
+    expect(nameSearch.body).toEqual([
+      { id: user.user.id, name: user.user.name, avatar: null },
+    ])
     const missing = await user.agent
       .get('/api/users?query=nobody%40example.test')
       .expect(200)
@@ -789,7 +857,9 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
         `/api/users?query=${encodeURIComponent(user.user.email.toUpperCase())}`,
       )
       .expect(200)
-    expect(result.body).toEqual([{ id: user.user.id, name: user.user.name }])
+    expect(result.body).toEqual([
+      { id: user.user.id, name: user.user.name, avatar: null },
+    ])
     expect(result.body.length).toBeLessThanOrEqual(10)
   })
 
@@ -1102,6 +1172,24 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       .set('X-CSRF-Token', assignee.csrf)
       .attach('file', png, 'foto.png')
       .expect(201)
+    const directory = await owner.agent
+      .get(`/api/users?query=${encodeURIComponent(assignee.user.email)}`)
+      .expect(200)
+    expect(directory.body).toEqual([
+      expect.objectContaining({
+        id: assignee.user.id,
+        avatar: { kind: 'image', revision: expect.any(String) },
+      }),
+    ])
+    expect(JSON.stringify(directory.body)).not.toContain('avatarKey')
+    expect(JSON.stringify(directory.body)).not.toContain('avatars/')
+    const directoryPhoto = `/api/users/directory/${assignee.user.id}/avatar`
+    await request(app.getHttpServer()).get(directoryPhoto).expect(401)
+    await owner.agent
+      .get(directoryPhoto)
+      .expect(200)
+      .expect('Content-Type', /image\/png/)
+      .expect('Cache-Control', 'private, no-store')
     const shared = await task(owner, { assignedToId: assignee.user.id })
     const detail = await owner.agent.get(`/api/tasks/${shared.id}`).expect(200)
     expect(detail.body.assignedTo).toMatchObject({

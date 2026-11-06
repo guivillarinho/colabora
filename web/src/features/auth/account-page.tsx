@@ -244,7 +244,7 @@ export function AccountPage() {
         <DialogContent
           className={cn(
             'flex max-h-[85svh] flex-col overflow-hidden sm:max-w-lg',
-            selected === 'avatar' && 'gap-6 p-6 sm:p-8',
+            selected === 'avatar' && 'gap-3 p-4 sm:gap-4 sm:p-6',
           )}
           onCloseAutoFocus={(event) => {
             event.preventDefault()
@@ -257,10 +257,10 @@ export function AccountPage() {
           </DialogHeader>
           <div
             className={cn(
-              'grid min-h-0 gap-5 overflow-y-auto',
+              'min-h-0 gap-4',
               selected === 'avatar'
-                ? 'px-1 py-1'
-                : '-mx-1 px-1 pb-1 [&>section]:border-0 [&>section]:bg-transparent [&>section]:p-0 [&>section]:shadow-none [&>section]:backdrop-blur-none',
+                ? 'flex min-h-0 flex-1 overflow-hidden px-1 py-1'
+                : 'grid overflow-y-auto -mx-1 px-1 pb-1 [&>section]:border-0 [&>section]:bg-transparent [&>section]:p-0 [&>section]:shadow-none [&>section]:backdrop-blur-none',
             )}
           >
             {selected === 'avatar' ? (

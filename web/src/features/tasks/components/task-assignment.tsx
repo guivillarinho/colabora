@@ -28,9 +28,10 @@ function AssignmentResponse({ task }: { task: Task }) {
     }
   }
   return (
-    <div className="grid gap-2 rounded-lg border bg-background/60 p-3">
-      <div className="flex flex-wrap gap-2">
+    <div className="grid gap-2 border-t border-border/60 pt-3">
+      <div className="grid grid-cols-2 items-stretch gap-2">
         <Button
+          className="h-10 w-full px-2 text-sm"
           type="button"
           size="sm"
           disabled={saving}
@@ -41,6 +42,7 @@ function AssignmentResponse({ task }: { task: Task }) {
           Aceitar tarefa
         </Button>
         <Button
+          className="h-10 w-full px-2 text-sm"
           type="button"
           size="sm"
           variant="outline"

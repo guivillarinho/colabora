@@ -243,6 +243,7 @@ export class AuthService {
       name: user.name,
       email: user.email,
       avatar: presentAvatar(user.avatarKey),
+      preferences: user.preferences ?? { theme: 'system', palette: 'purple' },
     }
   }
 }

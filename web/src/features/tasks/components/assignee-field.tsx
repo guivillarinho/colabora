@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { apiRequest } from '@/lib/http-client'
 import { useAuth } from '@/features/auth/auth-context'
+import { PersonAvatar } from './person-avatar'
 import type { Person } from '../types/task'
 
 type AssigneeFieldProps = {
@@ -17,7 +18,7 @@ export function AssigneeField({ value, onChange }: AssigneeFieldProps) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   useEffect(() => {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(query.trim())) {
+    if (query.trim().length < 3) {
       setResults([])
       setError(null)
       setLoading(false)
@@ -34,8 +35,7 @@ export function AssigneeField({ value, onChange }: AssigneeFieldProps) {
         .then((users) => {
           if (!controller.signal.aborted) {
             setResults(users)
-            if (!users.length)
-              setError('Nenhum usuário cadastrado com este e-mail.')
+            if (!users.length) setError('Nenhum usuário encontrado.')
           }
         })
         .catch(() => {
@@ -80,16 +80,24 @@ export function AssigneeField({ value, onChange }: AssigneeFieldProps) {
       </div>
       <Input
         id="assignee-search"
-        placeholder="Buscar pelo e-mail completo"
+        placeholder="Buscar por nome ou e-mail completo"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-haspopup="listbox"
+        aria-controls="assignee-suggestions"
+        aria-expanded={results.length > 0}
         type="search"
         maxLength={254}
         value={query}
         onChange={(event) => setQuery(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') event.preventDefault()
+        }}
         autoComplete="off"
       />
       <p className="text-xs text-muted-foreground">
-        Informe o e-mail completo de uma conta cadastrada. A pessoa receberá a
-        tarefa e poderá aceitar ou recusar.
+        Digite pelo menos 3 caracteres do nome ou o e-mail completo. A pessoa
+        poderá aceitar ou recusar a tarefa.
       </p>
       {loading ? (
         <p role="status" className="text-sm">
@@ -104,22 +112,29 @@ export function AssigneeField({ value, onChange }: AssigneeFieldProps) {
       {results.length ? (
         <ul
           aria-label="Usuários encontrados"
-          className="grid gap-1 rounded-lg border p-2"
+          id="assignee-suggestions"
+          role="listbox"
+          className="max-h-56 overflow-y-auto rounded-lg border bg-popover text-popover-foreground shadow-md"
         >
           {results.map((person) => (
-            <li key={person.id}>
-              <Button
-                variant="ghost"
+            <li key={person.id} role="presentation">
+              <button
+                role="option"
+                aria-selected={value?.id === person.id}
                 type="button"
-                className="w-full justify-start"
+                className="flex w-full min-w-0 items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
                 onClick={() => {
                   onChange(person)
                   setQuery('')
                   setResults([])
                 }}
               >
-                {person.name}
-              </Button>
+                <PersonAvatar
+                  key={`${person.id}:${person.avatar?.kind === 'image' ? person.avatar.revision : ''}`}
+                  person={person}
+                />
+                <span className="min-w-0 wrap-break-word">{person.name}</span>
+              </button>
             </li>
           ))}
         </ul>

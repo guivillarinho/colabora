@@ -5,6 +5,7 @@ import { AuthProvider } from '@/features/auth/auth-context'
 import { AuthGate } from '@/features/auth/auth-gate'
 import { applyPalette, readStoredPalette } from './app/palette'
 import { PaletteProvider } from './app/palette-provider'
+import { AccountPreferencesProvider } from './app/account-preferences'
 import { ThemeProvider } from './app/theme-provider.tsx'
 import './index.css'
 
@@ -26,12 +27,14 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <ThemeProvider>
-      <PaletteProvider>
-        <AuthProvider>
-          <AuthGate />
-        </AuthProvider>
-      </PaletteProvider>
-    </ThemeProvider>
+    <AuthProvider>
+      <AccountPreferencesProvider>
+        <ThemeProvider>
+          <PaletteProvider>
+            <AuthGate />
+          </PaletteProvider>
+        </ThemeProvider>
+      </AccountPreferencesProvider>
+    </AuthProvider>
   </StrictMode>,
 )

@@ -474,7 +474,8 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           transition: swipeTransition,
         }}
         className={cn(
-          task.assignmentStatus === 'pending' && '!h-auto min-h-52',
+          task.assignmentStatus === 'pending' &&
+            '!h-auto min-h-52 !grid-rows-[auto_auto_auto_minmax(0,1fr)_auto_auto]',
           'glass-card colabora-timeline-card relative z-10 grid h-52 min-w-0 cursor-pointer select-none grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] gap-2 overflow-hidden rounded-xl border p-3 [overflow-wrap:anywhere] active:cursor-grabbing motion-reduce:!transition-none sm:p-4',
         )}
       >
@@ -493,7 +494,6 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           <TaskAttachmentIndicator count={task.attachments.length} />
         </div>
         <TaskAssigneeBadge task={task} />
-        <TaskAssignment task={task} />
         <div className="min-h-0 overflow-hidden">
           {completing ? (
             <p role="status" className="text-sm text-muted-foreground">
@@ -535,6 +535,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
             {formatDuration(task.estimatedTime)} estimados
           </span>
         </div>
+        <TaskAssignment task={task} />
       </article>
       {detailsOpen ? (
         <AgendaDetails

@@ -1,3 +1,4 @@
+import { AccountPreferences1794355200000 } from './migrations/1794355200000-account-preferences'
 import { TaskAssignment1794268800000 } from './migrations/1794268800000-task-assignment'
 import { TaskCompletion1794182400000 } from './migrations/1794182400000-task-completion'
 import { GoogleCalendar1794009600000 } from './migrations/1794009600000-google-calendar'
@@ -49,6 +50,7 @@ import { databaseSchema } from './schema'
           UserAvatar1794096000000,
           TaskCompletion1794182400000,
           TaskAssignment1794268800000,
+          AccountPreferences1794355200000,
         ],
         migrationsRun: !process.env.VERCEL,
       }),

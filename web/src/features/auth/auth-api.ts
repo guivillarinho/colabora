@@ -2,7 +2,12 @@ import { apiRequest } from '@/lib/http-client'
 export type AuthAvatar =
   | { kind: 'preset'; id: 'violet' | 'leaf' | 'wave' | 'sun' | 'ember' }
   | { kind: 'image'; revision: string }
+export type AccountPreferences = {
+  theme: 'system' | 'light' | 'dark'
+  palette: 'purple' | 'green' | 'blue' | 'yellow' | 'red'
+}
 export type AuthUser = {
+  preferences?: AccountPreferences
   id: string
   name: string
   email: string

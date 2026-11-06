@@ -14,6 +14,8 @@ import {
   type AppPalette,
 } from './palette'
 
+import { useAccountPreferences } from './account-preferences'
+
 type PaletteContextValue = {
   palette: AppPalette
   setPalette: (palette: AppPalette) => void
@@ -22,7 +24,9 @@ type PaletteContextValue = {
 const PaletteContext = createContext<PaletteContextValue | null>(null)
 
 export function PaletteProvider({ children }: { children: ReactNode }) {
-  const [palette, setPaletteState] = useState(readStoredPalette)
+  const account = useAccountPreferences()
+  const [guestPalette, setPaletteState] = useState(readStoredPalette)
+  const palette = account?.preferences.palette ?? guestPalette
 
   useLayoutEffect(() => {
     applyPalette(palette)
@@ -32,11 +36,16 @@ export function PaletteProvider({ children }: { children: ReactNode }) {
     () => ({
       palette,
       setPalette(next) {
-        setPaletteState(next)
-        storePalette(next)
+        if (account) {
+          account.setPreferences({ palette: next })
+          applyPalette(next)
+        } else {
+          setPaletteState(next)
+          storePalette(next)
+        }
       },
     }),
-    [palette],
+    [palette, account],
   )
 
   return (

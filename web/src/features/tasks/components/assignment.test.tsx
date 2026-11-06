@@ -44,7 +44,7 @@ it('assigns a new task to a selected user without supplying the creator identity
     screen.getByLabelText('Responsável'),
     'recipient@example.test',
   )
-  await user.click(await screen.findByRole('button', { name: 'Destinatário' }))
+  await user.click(await screen.findByRole('option', { name: 'Destinatário' }))
   await user.click(screen.getByRole('button', { name: /Salvar tarefa/ }))
   expect(api.create).toHaveBeenCalledWith(
     expect.objectContaining({ assignedToId: 'recipient', title: 'Delegada' }),
@@ -204,17 +204,17 @@ it('shows the incoming request on the timeline and blocks completion before acce
   ).not.toBeInTheDocument()
 })
 
-it('searches only a complete email and reports when the account does not exist', async () => {
+it('searches names and reports when the account does not exist', async () => {
   const fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => [] })
   globalThis.fetch = fetch
   renderAuthenticated(<AssigneeField value={null} onChange={jest.fn()} />)
   const input = screen.getByLabelText('Responsável')
   await userEvent.type(input, 'Pessoa')
-  expect(fetch).not.toHaveBeenCalled()
+  await waitFor(() => expect(fetch).toHaveBeenCalled())
   await userEvent.clear(input)
   await userEvent.type(input, 'missing@example.test')
   expect(await screen.findByRole('alert')).toHaveTextContent(
-    'Nenhum usuário cadastrado com este e-mail.',
+    'Nenhum usuário encontrado.',
   )
   expect(fetch).toHaveBeenCalledWith(
     expect.stringContaining('/users?query=missing%40example.test'),

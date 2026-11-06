@@ -129,7 +129,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const updateUser = useCallback((next: AuthUser) => {
-    setUser((current) => (current && current.id === next.id ? next : current))
+    setUser((current) =>
+      current && current.id === next.id
+        ? {
+            ...current,
+            ...next,
+            preferences: next.preferences ?? current.preferences,
+          }
+        : current,
+    )
     channel.current?.postMessage('avatar')
   }, [])
 

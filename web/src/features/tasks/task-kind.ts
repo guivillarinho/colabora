@@ -19,10 +19,10 @@ export function taskWindow(task: {
   completedAt?: string | null
   actualTimeSource?: Task['actualTimeSource']
 }): { startDate: string | null; endDate: string | null } {
-  if (isTimedTask(task))
-    return { startDate: task.startedAt, endDate: task.completedAt ?? null }
-  return {
-    startDate: task.dueDate,
-    endDate: task.completedAt ?? task.dueDate,
-  }
+  const timed = isTimedTask(task)
+  const end = task.completedAt ?? null
+  const start = timed ? task.startedAt : (task.dueDate ?? task.startedAt ?? end)
+  if (end && (!start || new Date(start).getTime() > new Date(end).getTime()))
+    return { startDate: end, endDate: end }
+  return { startDate: start, endDate: end ?? (timed ? null : start) }
 }

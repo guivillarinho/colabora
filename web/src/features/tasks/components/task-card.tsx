@@ -66,7 +66,6 @@ export function TaskCard({
       </div>
       <TaskAssigneeBadge task={task} />
       <TaskPeople task={task} />
-      <TaskAssignment task={task} />
       {task.description ? (
         <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
           <LinkedText>{task.description}</LinkedText>
@@ -103,6 +102,7 @@ export function TaskCard({
           ? ` · ${formatDuration(task.actualTime)} reais`
           : ''}
       </p>
+      <TaskAssignment task={task} />
       <div className="flex flex-wrap gap-2">
         {task.permissions.edit ? (
           <Button
