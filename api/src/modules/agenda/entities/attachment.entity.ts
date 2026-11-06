@@ -19,6 +19,9 @@ export class Attachment {
   @Column({ type: 'varchar', length: 200 })
   storagePath: string
 
+  @Column({ type: 'bytea', nullable: true, select: false })
+  content: Buffer | null
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
 }

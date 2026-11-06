@@ -9,7 +9,11 @@ describe('AgendaFilesController', () => {
   const files = {
     readable: jest.fn(async (filename: string) => {
       if (!attachmentFilename.test(filename)) throw new NotFoundException()
-      return { filename, storagePath: `agenda/${filename}` }
+      return {
+        filename,
+        storagePath: `agenda/${filename}`,
+        content: null as Buffer | null,
+      }
     }),
   }
   const controller = new AgendaFilesController(
@@ -76,6 +80,24 @@ describe('AgendaFilesController', () => {
       'agenda/12345678-1234-1234-1234-123456789abc.pdf',
       { access: 'private' },
     )
+  })
+
+  it('streams database bytes without calling Blob', async () => {
+    files.readable.mockResolvedValueOnce({
+      filename: '12345678-1234-1234-1234-123456789abc.txt',
+      storagePath: 'db/12345678-1234-1234-1234-123456789abc.txt',
+      content: Buffer.from('privado'),
+    })
+    const response = await controller.download(
+      '12345678-1234-1234-1234-123456789abc.txt',
+      { id: 'owner', name: 'Owner', email: 'owner@example.test' },
+    )
+    const chunks: Buffer[] = []
+    for await (const chunk of response.getStream())
+      chunks.push(Buffer.from(chunk))
+    expect(Buffer.concat(chunks)).toEqual(Buffer.from('privado'))
+    expect(response.getHeaders().type).toBe('text/plain')
+    expect(get).not.toHaveBeenCalled()
   })
 
   it('never serves uploader-controlled HTML or JavaScript MIME types', async () => {

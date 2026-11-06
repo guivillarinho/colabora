@@ -18,10 +18,13 @@ function run(command, args, cwd = root, env = process.env) {
     throw new Error(`Falha ao executar ${command} ${args.join(" ")}`);
 }
 
+const cloudUploads = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 run("npm", ["run", "build"], path.join(root, "web"), {
   ...process.env,
   VITE_API_URL: "",
-  VITE_CLOUD_UPLOADS: "true",
+  VITE_CLOUD_UPLOADS: cloudUploads ? "true" : "false",
+  // Preview has no Blob token. Parts stay under the 4.5 MB function body limit.
+  VITE_UPLOAD_CHUNK_BYTES: cloudUploads ? "" : String(3 * 1024 * 1024),
 });
 run("npm", ["run", "build"], path.join(root, "api"));
 if (

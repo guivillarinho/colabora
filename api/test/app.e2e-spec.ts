@@ -7,7 +7,7 @@ import request from 'supertest'
 import { Client } from 'pg'
 import { DataSource } from 'typeorm'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { rm } from 'node:fs/promises'
+import { readFile, rm } from 'node:fs/promises'
 import { createApplication } from '../src/bootstrap'
 import { InitialSchema1793448000000 } from '../src/database/migrations/1793448000000-initial-schema'
 jest.mock('@google/genai', () => ({ GoogleGenAI: jest.fn() }))
@@ -827,6 +827,148 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
     await b.agent.get(`/api${file.url}`).expect(404)
     await c.agent.get(`/api${file.url}`).expect(200)
     await a.agent.get(`/api/uploads/agenda/../other.txt`).expect(404)
+  })
+
+  it('stores chunked event and project files without cloud storage', async () => {
+    const owner = await actor()
+    const other = await actor()
+    const guest = await anonymous()
+    await guest.agent
+      .post('/api/agenda-items/upload-parts')
+      .set('Origin', origin)
+      .attach('chunk', Buffer.from('x'), 'chunk')
+      .field('part', '0')
+      .field('total', '1')
+      .field('originalName', 'nota.txt')
+      .expect(401)
+    await owner.agent
+      .post('/api/agenda-items/upload-parts')
+      .attach('chunk', Buffer.from('x'), 'chunk')
+      .field('part', '0')
+      .field('total', '1')
+      .field('originalName', 'nota.txt')
+      .expect(403)
+    const started = await owner.agent
+      .post('/api/agenda-items/upload-parts')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', owner.csrf)
+      .field('part', '0')
+      .field('total', '2')
+      .field('originalName', 'relatório.txt')
+      .attach('chunk', Buffer.from('Olá '), 'chunk')
+      .expect(201)
+    expect(started.body.url).toBeUndefined()
+    const uploadId = started.body.uploadId as string
+    expect(uploadId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    )
+    await other.agent
+      .post('/api/agenda-items/upload-parts')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', other.csrf)
+      .field('uploadId', uploadId)
+      .field('part', '1')
+      .field('total', '2')
+      .field('originalName', 'relatório.txt')
+      .attach('chunk', Buffer.from('mundo'), 'chunk')
+      .expect(400)
+    await owner.agent
+      .post('/api/agenda-items/upload-parts')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', owner.csrf)
+      .field('uploadId', uploadId)
+      .field('part', '0')
+      .field('total', '2')
+      .field('originalName', 'relatório.txt')
+      .attach('chunk', Buffer.from('x'), 'chunk')
+      .expect(400)
+    const finished = await owner.agent
+      .post('/api/agenda-items/upload-parts')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', owner.csrf)
+      .field('uploadId', uploadId)
+      .field('part', '1')
+      .field('total', '2')
+      .field('originalName', 'relatório.txt')
+      .attach('chunk', Buffer.from('mundo'), 'chunk')
+      .expect(201)
+    expect(finished.body).toMatchObject({
+      name: 'relatório.txt',
+      url: expect.stringMatching(/^\/uploads\/agenda\/[0-9a-f-]+\.txt$/),
+    })
+    const downloaded = await owner.agent
+      .get(`/api${finished.body.url}`)
+      .expect(200)
+      .expect('X-Content-Type-Options', 'nosniff')
+      .expect('Content-Type', /text\/plain/)
+    expect(downloaded.text).toBe('Olá mundo')
+    await other.agent.get(`/api${finished.body.url}`).expect(404)
+    const reference = `${finished.body.name}||${finished.body.url}`
+    await task(owner, { attachments: [reference] })
+    const event = await owner.agent
+      .post('/api/agenda-items')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', owner.csrf)
+      .send({
+        title: 'Reunião',
+        type: 'event',
+        startDate: new Date().toISOString(),
+        endDate: new Date().toISOString(),
+        attachments: [reference],
+      })
+      .expect(201)
+    expect(event.body.attachments).toEqual([reference])
+    await owner.agent
+      .post('/api/agenda-items/upload-parts')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', owner.csrf)
+      .field('part', '0')
+      .field('total', '1')
+      .field('originalName', 'pagina.html')
+      .attach('chunk', Buffer.from('<html>'), 'chunk')
+      .expect(400)
+  })
+
+  it('keeps a preview upload when Blob credentials are absent', async () => {
+    const owner = await actor()
+    const previousVercel = process.env.VERCEL
+    const previousToken = process.env.BLOB_READ_WRITE_TOKEN
+    process.env.VERCEL = '1'
+    process.env.BLOB_READ_WRITE_TOKEN = ''
+    try {
+      const upload = await owner.agent
+        .post('/api/agenda-items/uploads')
+        .set('Origin', origin)
+        .set('X-CSRF-Token', owner.csrf)
+        .attach('files', Buffer.from('preview'), 'preview.txt')
+        .expect(201)
+      const file = upload.body[0] as { name: string; url: string }
+      const saved = await owner.agent.get(`/api${file.url}`).expect(200)
+      expect(saved.text).toBe('preview')
+      const filename = file.url.split('/').at(-1) ?? ''
+      await expect(readFile(join(uploadDir, filename))).rejects.toThrow()
+      process.env.BLOB_READ_WRITE_TOKEN = 'configured'
+      await owner.agent
+        .post('/api/agenda-items/uploads')
+        .set('Origin', origin)
+        .set('X-CSRF-Token', owner.csrf)
+        .attach('files', Buffer.from('nope'), 'nope.txt')
+        .expect(400)
+      await owner.agent
+        .post('/api/agenda-items/upload-parts')
+        .set('Origin', origin)
+        .set('X-CSRF-Token', owner.csrf)
+        .field('part', '0')
+        .field('total', '1')
+        .field('originalName', 'nope.txt')
+        .attach('chunk', Buffer.from('nope'), 'chunk')
+        .expect(400)
+    } finally {
+      if (previousVercel === undefined) delete process.env.VERCEL
+      else process.env.VERCEL = previousVercel
+      if (previousToken === undefined) delete process.env.BLOB_READ_WRITE_TOKEN
+      else process.env.BLOB_READ_WRITE_TOKEN = previousToken
+    }
   })
 
   it('uses the same persistent session on a second API instance', async () => {

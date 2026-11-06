@@ -19,6 +19,9 @@ export default defineConfig(({ command }) => ({
     'process.env.VITE_CLOUD_UPLOADS': JSON.stringify(
       process.env.VITE_CLOUD_UPLOADS ?? 'false',
     ),
+    'process.env.VITE_UPLOAD_CHUNK_BYTES': JSON.stringify(
+      process.env.VITE_UPLOAD_CHUNK_BYTES ?? '',
+    ),
   },
   server: {
     proxy: {

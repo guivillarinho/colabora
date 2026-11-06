@@ -41,6 +41,12 @@ export class AgendaFilesController {
     const contentType =
       attachmentTypes[extname(file.filename).toLowerCase()] ||
       'application/octet-stream'
+    if (file.content != null) {
+      return new StreamableFile(Buffer.from(file.content), {
+        type: contentType,
+        disposition: `attachment; filename="${file.filename}"`,
+      })
+    }
     if (!process.env.VERCEL) {
       const path = join(uploadsDirectory(), file.filename)
       if (!existsSync(path))

@@ -9,7 +9,7 @@ import { cn } from 'cn'
 type AttachmentFieldProps = {
   id: string
   initialName?: string | null
-  onChange: (name: string | null) => void
+  onChange: (file: File | null) => void
 }
 
 type FileTone = 'pdf' | 'word' | 'excel' | 'other'
@@ -74,7 +74,7 @@ export function AttachmentField({
   function chooseFile(next: File | null) {
     setFile(next)
     setKeptName('')
-    onChange(next?.name ?? null)
+    onChange(next)
   }
 
   function removeFile() {
@@ -131,6 +131,7 @@ export function AttachmentField({
         key={inputKey}
         ref={inputRef}
         className="sr-only"
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.webp"
         id={id}
         type="file"
         onChange={(event) => {

@@ -1,6 +1,11 @@
 import { CurrentUser } from '../auth/auth.decorators'
 import type { Identity } from '../auth/entities/user.entity'
-import { AttachmentsService, attachmentFilename } from './attachments.service'
+import {
+  AttachmentsService,
+  attachmentFilename,
+  maxUploadPartBytes,
+  parseUploadPart,
+} from './attachments.service'
 import { RateLimitService } from '../auth/rate-limit.service'
 import {
   BadRequestException,
@@ -12,23 +17,22 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  UploadedFile,
   UploadedFiles,
   Req,
   ServiceUnavailableException,
   UseInterceptors,
   UseGuards,
 } from '@nestjs/common'
-import { FilesInterceptor } from '@nestjs/platform-express'
-import { diskStorage } from 'multer'
-import { extname } from 'node:path'
-import { randomUUID } from 'node:crypto'
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express'
+import { memoryStorage } from 'multer'
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client'
 import type { Request } from 'express'
 
 import { CreateAgendaItemDto } from './dto/create-agenda-item.dto'
 import { AgendaService } from './agenda.service'
-import { uploadsDirectory } from '../../uploads-directory'
 import { UploadQuotaGuard } from './upload-quota.guard'
+import { agendaUploadStorage } from './agenda-upload.storage'
 
 @Controller('agenda-items')
 export class AgendaController {
@@ -61,24 +65,7 @@ export class AgendaController {
   @UseGuards(UploadQuotaGuard)
   @UseInterceptors(
     FilesInterceptor('files', 10, {
-      storage: diskStorage({
-        destination: (_request, _file, callback) => {
-          if (process.env.VERCEL) {
-            callback(
-              new BadRequestException('Use o envio direto de anexos na nuvem.'),
-              '',
-            )
-          } else {
-            callback(null, uploadsDirectory())
-          }
-        },
-        filename: (_request, file, callback) => {
-          callback(
-            null,
-            `${randomUUID()}${extname(file.originalname).toLowerCase().slice(0, 12)}`,
-          )
-        },
-      }),
+      storage: agendaUploadStorage(),
       limits: { fileSize: 10 * 1024 * 1024 },
       fileFilter: (_request, file, callback) => {
         const allowed = /\.(pdf|docx?|xlsx?|csv|txt|png|jpe?g|webp)$/i.test(
@@ -94,21 +81,54 @@ export class AgendaController {
     }),
   )
   async upload(
-    @UploadedFiles() files: Array<{ originalname: string; filename: string }>,
+    @UploadedFiles()
+    files: Array<{
+      originalname: string
+      filename: string
+      buffer?: Buffer
+    }>,
     @CurrentUser() user: Identity,
   ) {
     if (!files?.length)
       throw new BadRequestException('Selecione ao menos um arquivo.')
-    for (const file of files)
+    for (const file of files) {
+      const storedInDatabase = Buffer.isBuffer(file.buffer)
       await this.attachments.register(
         file.filename,
         user.id,
-        `agenda/${file.filename}`,
+        storedInDatabase ? `db/${file.filename}` : `agenda/${file.filename}`,
+        storedInDatabase ? file.buffer : undefined,
       )
+    }
     return files.map((file) => ({
       name: file.originalname.slice(0, 180),
       url: `/uploads/agenda/${file.filename}`,
     }))
+  }
+
+  @Post('upload-parts')
+  @UseInterceptors(
+    FileInterceptor('chunk', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: maxUploadPartBytes,
+        files: 1,
+        fields: 8,
+        fieldSize: 1024,
+      },
+    }),
+  )
+  async uploadPart(
+    @UploadedFile() file: { buffer?: Buffer } | undefined,
+    @Body() body: Record<string, unknown>,
+    @CurrentUser() user: Identity,
+  ) {
+    if (process.env.BLOB_READ_WRITE_TOKEN)
+      throw new BadRequestException('Use o envio direto de anexos na nuvem.')
+    const request = parseUploadPart(body, file?.buffer)
+    if (request.part === 0)
+      await this.limits.consume('uploads', user.id, 30, 3600)
+    return this.attachments.acceptPart(user.id, request)
   }
 
   @Post('upload-token')
