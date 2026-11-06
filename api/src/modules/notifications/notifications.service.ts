@@ -7,7 +7,7 @@ import { ConfigService } from '@nestjs/config'
 import { InjectRepository } from '@nestjs/typeorm'
 import type { PushSubscription as WebPushSubscription } from 'web-push'
 import webPush from 'web-push'
-import { LessThanOrEqual, Repository } from 'typeorm'
+import { LessThan, LessThanOrEqual, Repository } from 'typeorm'
 
 import { Task } from '../tasks/entities/task.entity'
 import { TaskStatus } from '../tasks/task-status.enum'
@@ -19,6 +19,7 @@ import {
 import type { PushSubscriptionDto } from './notifications.dto'
 
 const TEN_MINUTES = 10 * 60 * 1000
+const MAX_REMINDER_ATTEMPTS = 8
 
 @Injectable()
 export class NotificationsService {
@@ -135,12 +136,25 @@ export class NotificationsService {
       { status: 'pending' },
     )
     const due = await this.reminders.find({
-      where: { status: 'pending', scheduledAt: LessThanOrEqual(now) },
+      where: {
+        status: 'pending',
+        scheduledAt: LessThanOrEqual(now),
+        attempts: LessThan(MAX_REMINDER_ATTEMPTS),
+      },
       order: { scheduledAt: 'ASC' },
       take: 100,
     })
     let delivered = 0
     for (const reminder of due) {
+      if (reminder.attempts >= MAX_REMINDER_ATTEMPTS) continue
+      if (reminder.attempts > 0 && reminder.updatedAt) {
+        const wait = Math.min(
+          60 * 60 * 1000,
+          15_000 * 2 ** (reminder.attempts - 1),
+        )
+        if (now.getTime() - new Date(reminder.updatedAt).getTime() < wait)
+          continue
+      }
       const claim = await this.reminders.update(
         { id: reminder.id, status: 'pending' },
         { status: 'processing' },

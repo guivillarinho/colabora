@@ -6,7 +6,7 @@ import {
   ConflictException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { DataSource } from 'typeorm'
+import { DataSource, QueryFailedError } from 'typeorm'
 import { createHash } from 'node:crypto'
 import { plainToInstance } from 'class-transformer'
 import { validate } from 'class-validator'
@@ -137,8 +137,15 @@ export class AssistantService {
     try {
       task = await this.tasks.create(input, actor, id)
     } catch (error) {
-      if ((error as { code?: string }).code !== '23505') throw error
-      task = await this.tasks.findOne(id, actor)
+      if (!isUniqueViolation(error)) throw error
+      try {
+        task = await this.tasks.findOne(id, actor)
+      } catch (lookup) {
+        if (!(lookup instanceof NotFoundException)) throw lookup
+        throw new ConflictException(
+          'A confirmação já está em andamento. Tente novamente.',
+        )
+      }
     }
     await this.source.query(
       'UPDATE assistant_receipts SET completed=true WHERE id=$1',
@@ -146,4 +153,11 @@ export class AssistantService {
     )
     return task
   }
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    error instanceof QueryFailedError &&
+    (error.driverError as { code?: string } | undefined)?.code === '23505'
+  )
 }

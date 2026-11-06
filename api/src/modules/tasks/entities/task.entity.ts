@@ -73,6 +73,12 @@ export class Task {
   @Column({ type: 'timestamptz', nullable: true })
   startedAt: Date | null
 
+  @Column({ type: 'timestamptz', nullable: true })
+  completedAt: Date | null
+
+  @Column({ type: 'boolean', default: false })
+  timed: boolean
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
 

@@ -45,9 +45,9 @@ export class CreateTaskDto {
   @IsEnum(TaskColor)
   color: TaskColor
 
-  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @ValidateIf((_object, value: unknown) => value != null && value !== '')
   @IsDateString()
-  dueDate?: string
+  dueDate?: string | null
 
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsString()

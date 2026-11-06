@@ -10,7 +10,8 @@ import { FindOptionsWhere, Repository } from 'typeorm'
 import { CompleteTaskDto } from './dto/complete-task.dto'
 import { CreateTaskDto } from './dto/create-task.dto'
 import { UpdateTaskDto } from './dto/update-task.dto'
-import { Task, type ActualTimeSource } from './entities/task.entity'
+import { Task } from './entities/task.entity'
+import { resolveExecution } from './execution-time'
 import { ProductivityAdvisorService } from './productivity-advisor.service'
 import { TaskPriority } from './task-priority.enum'
 import { TaskStatus } from './task-status.enum'
@@ -96,6 +97,8 @@ export class TasksService {
       actualTime: null,
       status: dto.startImmediately ? TaskStatus.InProgress : TaskStatus.Pending,
       startedAt: dto.startImmediately ? new Date() : null,
+      completedAt: null,
+      timed: dto.startImmediately === true,
       createdById: actor,
       assignedToId: dto.assignedToId === undefined ? actor : dto.assignedToId,
     })
@@ -144,7 +147,8 @@ export class TasksService {
     if (dto.category !== undefined) changes.category = dto.category.trim()
     if (dto.priority !== undefined) changes.priority = dto.priority
     if (dto.color !== undefined) changes.color = dto.color
-    if (dto.dueDate !== undefined) changes.dueDate = new Date(dto.dueDate)
+    if (dto.dueDate !== undefined)
+      changes.dueDate = dto.dueDate ? new Date(dto.dueDate) : null
     if (dto.location !== undefined) changes.location = emptyToNull(dto.location)
     if (dto.attachments !== undefined) changes.attachments = dto.attachments
     if (dto.estimatedTime !== undefined)
@@ -205,7 +209,12 @@ export class TasksService {
     const changes: Partial<Task> = {
       status: TaskStatus.Pending,
       ...(reopening
-        ? { startedAt: null, actualTime: null, actualTimeSource: null }
+        ? {
+            startedAt: null,
+            actualTime: null,
+            actualTimeSource: null,
+            completedAt: null,
+          }
         : {}),
     }
     const result = await this.tasksRepository.update(
@@ -232,13 +241,20 @@ export class TasksService {
     const task = await this.visible(id, actor)
     if (task.status === TaskStatus.Completed)
       return { task: this.view(task, actor), productivityAdvice: null }
-    const { actualTime, actualTimeSource } = this.resolveActualTime(
+    const completedAt = new Date()
+    const { actualTime, actualTimeSource } = resolveExecution(
       task,
       dto.actualTime,
+      completedAt,
     )
     const result = await this.tasksRepository.update(
       this.visibility(actor, id),
-      { actualTime, actualTimeSource, status: TaskStatus.Completed },
+      {
+        actualTime,
+        actualTimeSource,
+        status: TaskStatus.Completed,
+        completedAt,
+      },
     )
     if (!result.affected) throw new NotFoundException('Tarefa não encontrada.')
     await this.notifications.scheduleTaskReminders({
@@ -258,35 +274,6 @@ export class TasksService {
           ? null
           : this.productivityAdvisor.advise(saved.estimatedTime, actualTime),
     }
-  }
-
-  private resolveActualTime(
-    task: Task,
-    actualTime?: number,
-  ): {
-    actualTime: number
-    actualTimeSource: ActualTimeSource
-  } {
-    if (actualTime !== undefined)
-      return { actualTime, actualTimeSource: 'manual' }
-    const now = Date.now()
-    if (task.startedAt)
-      return {
-        actualTime: Math.max(
-          0,
-          Math.round((now - task.startedAt.getTime()) / 60000),
-        ),
-        actualTimeSource: 'timer',
-      }
-    if (task.dueDate && task.dueDate.getTime() <= now)
-      return {
-        actualTime: Math.max(
-          0,
-          Math.round((now - task.dueDate.getTime()) / 60000),
-        ),
-        actualTimeSource: 'schedule',
-      }
-    return { actualTime: task.estimatedTime, actualTimeSource: 'estimate' }
   }
 }
 function emptyToNull(value?: string): string | null {
