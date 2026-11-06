@@ -1,10 +1,15 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderAuthenticated as render, taskAccess } from '@/test/auth-fixture'
+import { uploadAgendaFiles } from '@/features/dashboard/upload-agenda-files'
 import { tasksApi } from '../api/tasks-api'
 import { TasksProvider } from '../tasks-context'
 import type { Task } from '../types/task'
 import { TaskFormDialog } from './task-form-dialog'
+
+jest.mock('@/features/dashboard/upload-agenda-files', () => ({
+  uploadAgendaFiles: jest.fn(),
+}))
 
 jest.mock('../api/tasks-api', () => ({
   tasksApi: { list: jest.fn(), create: jest.fn(), update: jest.fn() },
@@ -92,6 +97,20 @@ it('keeps an existing task schedule when editing its title', async () => {
   expect(screen.getByLabelText('Data e hora')).toHaveValue('2026-11-07T15:00')
 })
 
+it('shows a notebook and a stopwatch on the creation modes', async () => {
+  await renderForm()
+  expect(
+    screen
+      .getByRole('button', { name: 'Tarefa agendada' })
+      .querySelector('svg'),
+  ).not.toBeNull()
+  expect(
+    screen
+      .getByRole('button', { name: 'Tarefa cronometrada' })
+      .querySelector('svg'),
+  ).not.toBeNull()
+})
+
 it('starts a quick activity without scheduling it from its title', async () => {
   const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
   await renderForm()
@@ -102,6 +121,56 @@ it('starts a quick activity without scheduling it from its title', async () => {
   await waitFor(() => expect(api.create).toHaveBeenCalled())
   expect(api.create.mock.calls[0][0]).toMatchObject({ startImmediately: true })
   expect(api.create.mock.calls[0][0]).not.toHaveProperty('dueDate')
+})
+
+it('clears a saved due date when the field is emptied', async () => {
+  api.update.mockResolvedValue({ ...taskAccess, dueDate: null } as Task)
+  await renderForm({
+    ...taskAccess,
+    id: 'task',
+    title: 'Consulta',
+    category: 'Pessoal',
+    dueDate: new Date(2026, 10, 7, 15).toISOString(),
+    attachments: [],
+    estimatedTime: 60,
+  } as Task)
+  fireEvent.change(screen.getByLabelText('Data e hora'), {
+    target: { value: '' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
+  await waitFor(() =>
+    expect(api.update).toHaveBeenCalledWith(
+      'task',
+      expect.objectContaining({ dueDate: null }),
+    ),
+  )
+})
+
+it('uploads a chosen file before saving its reference', async () => {
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+  jest.mocked(uploadAgendaFiles).mockResolvedValue([
+    {
+      name: 'proposta.pdf',
+      url: '/uploads/agenda/7d7f0a4e-6c2b-4f1a-9d3e-1b2c3d4e5f60.pdf',
+    },
+  ])
+  await renderForm()
+  await user.type(screen.getByLabelText('Título'), 'Enviar proposta')
+  await user.click(screen.getByRole('button', { name: 'Opções avançadas' }))
+  const input = document.getElementById('create-attachment')
+  if (!(input instanceof HTMLInputElement)) throw new Error('Campo ausente')
+  const file = new File(['proposta'], 'proposta.pdf', {
+    type: 'application/pdf',
+  })
+  await user.upload(input, file)
+  await user.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
+  await waitFor(() => expect(api.create).toHaveBeenCalled())
+  expect(uploadAgendaFiles).toHaveBeenCalledWith([file], expect.any(String))
+  expect(api.create.mock.calls[0][0]).toMatchObject({
+    attachments: [
+      'proposta.pdf||/uploads/agenda/7d7f0a4e-6c2b-4f1a-9d3e-1b2c3d4e5f60.pdf',
+    ],
+  })
 })
 
 it('loads the latest saved title and date when an updated task is reopened', async () => {

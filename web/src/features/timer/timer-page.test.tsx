@@ -26,6 +26,10 @@ describe('TimerPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Timer' })).toBeVisible()
     expect(screen.getByLabelText('Conquistas de foco')).toBeVisible()
+    const level = screen.getByRole('progressbar', {
+      name: 'Progresso para o próximo nível',
+    })
+    expect(level).toHaveClass('h-3', 'overflow-hidden', 'rounded-full')
     expect(screen.queryByText('Sessões de hoje')).not.toBeInTheDocument()
     expect(screen.queryByText('Foco hoje')).not.toBeInTheDocument()
     expect(screen.queryByText('Tempo total')).not.toBeInTheDocument()

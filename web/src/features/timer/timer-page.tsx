@@ -331,12 +331,19 @@ export function TimerPage() {
             {cycles * 100} pontos · {cycles} ciclos completos
           </span>
         </div>
-        <progress
-          className="h-3 w-full accent-primary"
+        <div
           aria-label="Progresso para o próximo nível"
-          max={5}
-          value={cycles % 5}
-        />
+          aria-valuemax={5}
+          aria-valuemin={0}
+          aria-valuenow={cycles % 5}
+          className="h-3 overflow-hidden rounded-full bg-muted"
+          role="progressbar"
+        >
+          <div
+            className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
+            style={{ width: `${((cycles % 5) / 5) * 100}%` }}
+          />
+        </div>
         <MutedText>
           Mais {5 - (cycles % 5)} ciclos para o próximo nível. Sessões
           encerradas antes do prazo contam como tempo de foco, sem pontos.

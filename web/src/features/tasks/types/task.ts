@@ -32,6 +32,8 @@ export type Task = {
   actualTimeSource?: 'timer' | 'schedule' | 'estimate' | 'manual' | null
   status: TaskStatus
   startedAt: string | null
+  completedAt?: string | null
+  timed?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -43,7 +45,7 @@ export type TaskInput = {
   category: string
   priority: TaskPriority
   color: TaskColor
-  dueDate?: string
+  dueDate?: string | null
   location?: string
   attachments?: string[]
   estimatedTime: number

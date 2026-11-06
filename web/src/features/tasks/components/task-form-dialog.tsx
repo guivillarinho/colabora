@@ -1,7 +1,8 @@
+import { uploadAgendaFiles } from '@/features/dashboard/upload-agenda-files'
 import { useAuth } from '@/features/auth/auth-context'
 import { AssigneeField } from './assignee-field'
 import { MinutesInput, parseMinutes } from './minutes-input'
-import { CalendarDays, Plus } from 'lucide-react'
+import { CalendarDays, NotebookPen, Plus, Timer } from 'lucide-react'
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 
 import { pastelSwatches } from '@/components/pastel'
@@ -28,6 +29,10 @@ import { categoryByName, taskCategories } from '../task-categories'
 import { useTasks } from '../tasks-context'
 import type { Task, TaskInput, TaskPriority } from '../types/task'
 import { AttachmentField } from './attachment-field'
+import {
+  attachmentReference as storedAttachment,
+  parseAttachment,
+} from './attachment-reference'
 import { LocationField } from './location-field'
 import { suggestTaskDate } from '../suggest-task-date'
 
@@ -92,7 +97,8 @@ function TaskFormContent({
     categoryByName(task?.category).name,
   )
   const [location, setLocation] = useState(task?.location ?? '')
-  const [attachmentName, setAttachmentName] = useState<string | null>(
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null)
+  const [attachmentReference, setAttachmentReference] = useState<string | null>(
     task?.attachments[0] ?? null,
   )
   const [creationMode, setCreationMode] = useState<'scheduled' | 'timer'>(
@@ -115,7 +121,8 @@ function TaskFormContent({
     )
     setCategoryName(categoryByName(task?.category).name)
     setLocation(task?.location ?? '')
-    setAttachmentName(task?.attachments[0] ?? null)
+    setAttachmentFile(null)
+    setAttachmentReference(task?.attachments[0] ?? null)
     setCreationMode('scheduled')
     setTitle(task?.title ?? '')
     setDueDate(toDateTimeLocal(task?.dueDate ?? null))
@@ -162,25 +169,37 @@ function TaskFormContent({
     }
 
     const dueDate = String(formData.get('dueDate') ?? '')
-    const input: TaskInput = {
-      assignedToId: assignee?.id ?? null,
-      title,
-      description: String(formData.get('description') ?? '').trim(),
-      category: selectedCategory.name,
-      priority: String(formData.get('priority') ?? 'medium') as TaskPriority,
-      color: selectedCategory.color,
-      estimatedTime,
-      location: location.trim(),
-      attachments: attachmentName ? [attachmentName] : [],
-      ...(!task && creationMode === 'timer' ? { startImmediately: true } : {}),
-      ...(dueDate && creationMode !== 'timer'
-        ? { dueDate: new Date(dueDate).toISOString() }
-        : {}),
-    }
-
     submitting.current = true
     setSaving(true)
     try {
+      let attachments: string[] = []
+      if (attachmentFile) {
+        if (!user) throw new Error('Entre para anexar um arquivo.')
+        const [uploaded] = await uploadAgendaFiles([attachmentFile], user.id)
+        if (!uploaded) throw new Error('Não foi possível enviar o anexo.')
+        attachments = [storedAttachment(uploaded.name, uploaded.url)]
+      } else if (attachmentReference) {
+        attachments = [attachmentReference]
+      }
+      const input: TaskInput = {
+        assignedToId: assignee?.id ?? null,
+        title,
+        description: String(formData.get('description') ?? '').trim(),
+        category: selectedCategory.name,
+        priority: String(formData.get('priority') ?? 'medium') as TaskPriority,
+        color: selectedCategory.color,
+        estimatedTime,
+        location: location.trim(),
+        attachments,
+        ...(!task && creationMode === 'timer'
+          ? { startImmediately: true }
+          : {}),
+        ...(dueDate && creationMode !== 'timer'
+          ? { dueDate: new Date(dueDate).toISOString() }
+          : task
+            ? { dueDate: null }
+            : {}),
+      }
       if (task) {
         await updateTask(task.id, input)
       } else {
@@ -231,7 +250,7 @@ function TaskFormContent({
               size="sm"
               variant="ghost"
               className={cn(
-                'h-8 min-w-0 rounded-lg text-xs sm:text-sm',
+                'h-auto min-h-8 min-w-0 whitespace-normal rounded-lg px-2 py-1.5 text-xs leading-tight sm:text-sm',
                 creationMode === 'scheduled'
                   ? 'border-border bg-background/80 text-foreground shadow-xs'
                   : 'text-muted-foreground',
@@ -242,6 +261,7 @@ function TaskFormContent({
                 updateScheduleFromTitle(title)
               }}
             >
+              <NotebookPen aria-hidden="true" />
               Tarefa agendada
             </Button>
             <Button
@@ -249,7 +269,7 @@ function TaskFormContent({
               size="sm"
               variant="ghost"
               className={cn(
-                'h-8 min-w-0 rounded-lg text-xs sm:text-sm',
+                'h-auto min-h-8 min-w-0 whitespace-normal rounded-lg px-2 py-1.5 text-xs leading-tight sm:text-sm',
                 creationMode === 'timer'
                   ? 'border-border bg-background/80 text-foreground shadow-xs'
                   : 'text-muted-foreground',
@@ -257,6 +277,7 @@ function TaskFormContent({
               type="button"
               onClick={() => setCreationMode('timer')}
             >
+              <Timer aria-hidden="true" />
               Tarefa cronometrada
             </Button>
           </div>
@@ -413,8 +434,13 @@ function TaskFormContent({
                 <CollapsibleContent className="grid min-w-0 gap-4 pt-4">
                   <AttachmentField
                     id={`${fieldPrefix}-attachment`}
-                    initialName={task?.attachments[0]}
-                    onChange={setAttachmentName}
+                    initialName={
+                      parseAttachment(task?.attachments[0]).name || null
+                    }
+                    onChange={(file) => {
+                      setAttachmentFile(file)
+                      if (!file) setAttachmentReference(null)
+                    }}
                   />
                   <LocationField
                     id={`${fieldPrefix}-location`}

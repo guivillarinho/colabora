@@ -1,7 +1,7 @@
 import { apiBase, apiRequest } from '@/lib/http-client'
 import { useAuth } from '@/features/auth/auth-context'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { cn } from 'cn'
 import {
   ArrowLeft,
@@ -13,10 +13,13 @@ import {
   Clock3,
   FolderKanban,
   MapPin,
+  NotebookPen,
+  Pencil,
   Plus,
   RotateCcw,
   Search,
   SlidersHorizontal,
+  Timer,
   Trash2,
 } from 'lucide-react'
 
@@ -32,10 +35,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useTasks } from '@/features/tasks/tasks-context'
+import {
+  attachmentReference,
+  parseAttachment,
+} from '@/features/tasks/components/attachment-reference'
 import { LocationField } from '@/features/tasks/components/location-field'
 import { uploadAgendaFiles } from './upload-agenda-files'
 import type { Task } from '@/features/tasks/types/task'
 import { TaskExecutionTime } from '@/features/tasks/components/task-execution-time'
+import { TaskFormDialog } from '@/features/tasks/components/task-form-dialog'
+import { TaskPeople } from '@/features/tasks/components/task-people'
+import { isTimedTask, taskWindow } from '@/features/tasks/task-kind'
 import { LinkedText } from '@/components/linked-text'
 
 type AgendaKind = 'event' | 'project' | 'task'
@@ -135,8 +145,7 @@ export function AgendaPage() {
         ...tasks.map((task) => ({
           ...task,
           type: 'task' as const,
-          startDate: task.dueDate,
-          endDate: task.dueDate,
+          ...taskWindow(task),
           icon: null,
           task,
         })),
@@ -165,7 +174,11 @@ export function AgendaPage() {
     () =>
       allItems
         .filter((item) =>
-          overlapsDay(item.startDate, item.endDate, selectedDay),
+          overlapsDay(
+            item.startDate,
+            item.endDate ?? item.startDate,
+            selectedDay,
+          ),
         )
         .sort((a, b) => sortItems(a, b, 'date')),
     [allItems, selectedDay],
@@ -543,6 +556,17 @@ function AgendaCard({
   )
 }
 
+function TaskKindLabel({ task }: { task: Task }) {
+  const timed = isTimedTask(task)
+  const Icon = timed ? Timer : NotebookPen
+  return (
+    <span className="inline-flex max-w-[55%] items-center justify-end gap-1.5 text-right text-xs text-muted-foreground">
+      <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+      {timed ? 'tarefa cronometrada' : 'tarefa agendada'}
+    </span>
+  )
+}
+
 function AgendaTaskStatus({ status }: { status: Task['status'] }) {
   const appearance = taskStatusAppearance[status]
   const Icon = appearance.icon
@@ -576,11 +600,16 @@ export function AgendaDetails({
   returnFocus?: () => void
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [reopening, setReopening] = useState(false)
   const [reopenError, setReopenError] = useState<string | null>(null)
   const [completing, setCompleting] = useState(false)
   const [completeError, setCompleteError] = useState<string | null>(null)
   const task = item?.type === 'task' ? (item.task ?? null) : null
+  const openedId = item?.id ?? null
+  useEffect(() => {
+    setEditing(false)
+  }, [openedId])
   const entity =
     item?.type === 'task'
       ? 'tarefa'
@@ -598,9 +627,9 @@ export function AgendaDetails({
               }
             : undefined
         }
-        className="max-h-[85svh] overflow-y-auto sm:max-w-lg [overflow-wrap:anywhere]"
+        className="flex max-h-[85svh] flex-col overflow-hidden sm:max-w-lg [overflow-wrap:anywhere]"
       >
-        <DialogHeader className="min-w-0 pr-8">
+        <DialogHeader className="shrink-0 min-w-0 pr-8">
           <DialogTitle className="leading-snug">
             {item?.title ?? 'Detalhes'}
           </DialogTitle>
@@ -613,10 +642,27 @@ export function AgendaDetails({
           </DialogDescription>
         </DialogHeader>
         {item ? (
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 text-sm">
+          <div className="-mx-3 grid min-h-0 flex-1 content-start gap-4 overflow-x-hidden overflow-y-auto px-3 pb-3 text-sm">
             {task ? (
               <>
-                <AgendaTaskStatus status={task.status} />
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-1">
+                    <AgendaTaskStatus status={task.status} />
+                    {task.permissions.edit ? (
+                      <Button
+                        aria-label="Editar tarefa"
+                        size="icon-sm"
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setEditing(true)}
+                      >
+                        <Pencil aria-hidden="true" />
+                      </Button>
+                    ) : null}
+                  </div>
+                  <TaskKindLabel task={task} />
+                </div>
+                <TaskPeople task={task} />
                 <TaskExecutionTime task={task} />
               </>
             ) : null}
@@ -631,7 +677,7 @@ export function AgendaDetails({
                 <LinkedText>{item.description || 'Sem descrição.'}</LinkedText>
               </p>
             </section>
-            {item.startDate && item.endDate ? (
+            {item.startDate ? (
               <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/60 p-3">
                 <div>
                   <p className="text-xs text-muted-foreground">Início</p>
@@ -642,7 +688,11 @@ export function AgendaDetails({
                 <div>
                   <p className="text-xs text-muted-foreground">Final</p>
                   <p>
-                    {formatDate(item.endDate)} · {formatTime(item.endDate)}
+                    {item.endDate
+                      ? `${formatDate(item.endDate)} · ${formatTime(item.endDate)}`
+                      : task?.status === 'completed'
+                        ? 'Não registrado'
+                        : 'Em andamento'}
                   </p>
                 </div>
               </div>
@@ -657,17 +707,21 @@ export function AgendaDetails({
                 <p className="mb-1 font-medium">Documentos</p>
                 <ul className="grid gap-1 text-primary">
                   {item.attachments.map((attachment) => {
-                    const [name, url] = attachment.split('||')
+                    const { name, url } = parseAttachment(attachment)
                     return (
                       <li key={attachment}>
-                        <a
-                          className="underline"
-                          href={url ? `${apiBase}${url}` : undefined}
-                          rel="noreferrer"
-                          target={url ? '_blank' : undefined}
-                        >
-                          {name}
-                        </a>
+                        {url ? (
+                          <a
+                            className="underline"
+                            href={`${apiBase}${url}`}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            {name}
+                          </a>
+                        ) : (
+                          <span>{name}</span>
+                        )}
                       </li>
                     )
                   })}
@@ -742,6 +796,13 @@ export function AgendaDetails({
               name={item.title}
               onConfirm={() => onDelete(item)}
             />
+            {task ? (
+              <TaskFormDialog
+                open={editing}
+                task={task}
+                onOpenChange={setEditing}
+              />
+            ) : null}
           </div>
         ) : null}
       </DialogContent>
@@ -772,6 +833,7 @@ function AgendaCreateDialog({
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const uploads = useRef(0)
   function reset() {
     setTitle('')
     setDescription('')
@@ -921,26 +983,28 @@ function AgendaCreateDialog({
               multiple
               type="file"
               onChange={async (event) => {
-                const selected = Array.from(event.target.files ?? []).slice(
-                  0,
-                  10,
-                )
-                if (!selected.length) return
+                const input = event.currentTarget
+                const selected = Array.from(input.files ?? []).slice(0, 10)
+                input.value = ''
+                if (!selected.length || !user) return
+                uploads.current += 1
                 setUploading(true)
                 setError('')
                 try {
-                  const uploaded = await uploadAgendaFiles(selected, user!.id)
+                  const uploaded = await uploadAgendaFiles(selected, user.id)
                   setFiles((current) =>
                     [
                       ...current,
-                      ...uploaded.map((file) => `${file.name}||${file.url}`),
+                      ...uploaded.map((file) =>
+                        attachmentReference(file.name, file.url),
+                      ),
                     ].slice(0, 10),
                   )
                 } catch (cause) {
                   setError(messageOf(cause))
                 } finally {
-                  setUploading(false)
-                  event.target.value = ''
+                  uploads.current -= 1
+                  if (uploads.current === 0) setUploading(false)
                 }
               }}
             />

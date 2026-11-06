@@ -1,4 +1,5 @@
-import { TaskPeople } from '@/features/tasks/components/task-people'
+import { TaskCreatorBadge } from '@/features/tasks/components/task-creator-badge'
+import { taskWindow } from '@/features/tasks/task-kind'
 import { LinkedText } from '@/components/linked-text'
 import {
   useEffect,
@@ -26,7 +27,6 @@ import type { Task } from '@/features/tasks/types/task'
 
 import { hapticFeedback } from '@/lib/haptics'
 import { TaskAttachmentIndicator } from '../../tasks/components/task-attachment-indicator'
-import { TaskFormDialog } from '../../tasks/components/task-form-dialog'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
 
 type TaskTimelineProps = {
@@ -148,7 +148,6 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
   const [completing, setCompleting] = useState(false)
   const completionPending = useRef(false)
   const [completionError, setCompletionError] = useState<string | null>(null)
-  const [editing, setEditing] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const cardRef = useRef<HTMLElement>(null)
   const rowRef = useRef<HTMLLIElement>(null)
@@ -165,7 +164,8 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
   const currentOffset = useRef(0)
   const swatch =
     pastelSwatches.find((item) => item.id === task.color) ?? pastelSwatches[1]
-  const date = task.dueDate ? new Date(task.dueDate) : null
+  const schedule = task.dueDate ?? task.startedAt
+  const date = schedule ? new Date(schedule) : null
   const dateLabel = date
     ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(date)
     : 'Sem data'
@@ -473,7 +473,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           transition: swipeTransition,
         }}
         className={cn(
-          'glass-card colabora-timeline-card relative z-10 grid min-w-0 grid-cols-[minmax(0,1fr)] cursor-pointer select-none gap-2 rounded-xl border p-3 [overflow-wrap:anywhere] active:cursor-grabbing motion-reduce:!transition-none sm:p-4',
+          'glass-card colabora-timeline-card relative z-10 grid h-52 min-w-0 cursor-pointer select-none grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] gap-2 overflow-hidden rounded-xl border p-3 [overflow-wrap:anywhere] active:cursor-grabbing motion-reduce:!transition-none sm:p-4',
         )}
       >
         <div className="flex items-center justify-between gap-3">
@@ -485,29 +485,39 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           </div>
         </div>
         <div className="flex min-w-0 items-start gap-2">
-          <h3 className="min-w-0 font-semibold leading-snug">{task.title}</h3>
+          <h3 className="line-clamp-1 min-w-0 font-semibold leading-snug">
+            {task.title}
+          </h3>
           <TaskAttachmentIndicator count={task.attachments.length} />
         </div>
-        {completing ? (
-          <p role="status" className="text-sm text-muted-foreground">
-            Concluindo...
-          </p>
-        ) : null}
-        {completionError ? (
-          <p role="alert" className="text-sm text-destructive">
-            {completionError}
-          </p>
-        ) : null}
-        <TaskPeople task={task} />
-        {task.description ? (
-          <p className="line-clamp-2 text-sm text-muted-foreground">
-            <LinkedText>{task.description}</LinkedText>
-          </p>
-        ) : null}
+        <TaskCreatorBadge task={task} />
+        <div className="min-h-0 overflow-hidden">
+          {completing ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              Concluindo...
+            </p>
+          ) : null}
+          {completionError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {completionError}
+            </p>
+          ) : null}
+          {task.description ? (
+            <p className="line-clamp-2 text-sm text-muted-foreground">
+              <LinkedText>{task.description}</LinkedText>
+            </p>
+          ) : null}
+          {task.location?.trim() ? (
+            <p className="mt-1 flex items-start gap-1 text-xs leading-relaxed text-muted-foreground">
+              <MapPin aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+              <span className="line-clamp-1 min-w-0">{task.location}</span>
+            </p>
+          ) : null}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <span
             className={cn(
-              'min-w-0 max-w-full rounded-full px-2.5 py-1 text-xs font-medium',
+              'min-w-0 max-w-full truncate rounded-full px-2.5 py-1 text-xs font-medium',
               swatch.className,
             )}
           >
@@ -516,32 +526,14 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           <span className="text-xs text-muted-foreground">
             {formatDuration(task.estimatedTime)} estimados
           </span>
-          {task.permissions.edit ? (
-            <Button
-              className="ml-auto min-h-11"
-              size="sm"
-              type="button"
-              variant="outline"
-              onClick={() => setEditing(true)}
-            >
-              Editar
-            </Button>
-          ) : null}
         </div>
-        {task.location?.trim() ? (
-          <p className="flex items-start gap-1 text-xs leading-relaxed text-muted-foreground">
-            <MapPin aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
-            <span className="min-w-0">{task.location}</span>
-          </p>
-        ) : null}
       </article>
       {detailsOpen ? (
         <AgendaDetails
           item={{
             ...task,
             type: 'task',
-            startDate: task.dueDate,
-            endDate: task.dueDate,
+            ...taskWindow(task),
             icon: null,
             task,
           }}
@@ -557,7 +549,6 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           }}
         />
       ) : null}
-      <TaskFormDialog open={editing} task={task} onOpenChange={setEditing} />
       <DeleteConfirmationDialog
         open={confirmingDelete}
         entity="tarefa"

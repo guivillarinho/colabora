@@ -102,6 +102,10 @@ it.each(['Enter', ' '])(
       screen.queryByRole('button', { name: 'Editar' }),
     ).not.toBeInTheDocument()
     expect(
+      screen.queryByRole('button', { name: 'Editar tarefa' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText(/Criada por Guilherme/)).toBeVisible()
+    expect(
       screen.queryByRole('button', { name: 'Excluir tarefa' }),
     ).not.toBeInTheDocument()
   },
@@ -209,14 +213,39 @@ it('ignores extra pointers and does not reveal actions without permission', () =
   expect(hapticFeedback).not.toHaveBeenCalled()
 })
 
-it('keeps editing separate from opening details', async () => {
+it('keeps editing on the details pencil and off the card', async () => {
   const user = userEvent.setup()
   setup()
-  await user.click(screen.getByRole('button', { name: 'Editar' }))
-  expect(screen.getByRole('dialog', { name: 'Editar tarefa' })).toBeVisible()
   expect(
-    screen.queryByRole('dialog', { name: task.title }),
+    screen.queryByRole('button', { name: 'Editar' }),
   ).not.toBeInTheDocument()
+  expect(screen.getByText('atribuído')).toBeVisible()
+  expect(screen.queryByText(/Criada por/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/Responsável/)).not.toBeInTheDocument()
+  expect(screen.getByRole('article')).toHaveClass('h-52')
+  await user.click(screen.getByRole('article'))
+  expect(screen.getByText('tarefa agendada')).toBeVisible()
+  expect(screen.getByText(/Criada por Guilherme/)).toBeVisible()
+  expect(screen.getByText(/Responsável: Guilherme/)).toBeVisible()
+  await user.click(screen.getByRole('button', { name: 'Editar tarefa' }))
+  expect(screen.getByRole('dialog', { name: 'Editar tarefa' })).toBeVisible()
+})
+
+it('shows a timed task with its start and an open finish', async () => {
+  const user = userEvent.setup()
+  setup({
+    ...task,
+    dueDate: null,
+    startedAt: '2026-11-06T20:00:00.000Z',
+    completedAt: null,
+    timed: true,
+    status: 'in_progress',
+  })
+  expect(screen.queryByText('Sem horário')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('article'))
+  expect(screen.getByText('tarefa cronometrada')).toBeVisible()
+  expect(screen.getAllByText('Em andamento').length).toBeGreaterThan(0)
+  expect(screen.queryByText('tarefa agendada')).not.toBeInTheDocument()
 })
 
 it('recovers from unexpected pointer capture loss without executing the action', () => {
@@ -342,18 +371,28 @@ it('cancels native multi-touch without completing a task', () => {
   expect(onComplete).not.toHaveBeenCalled()
 })
 
-it('does not start a native swipe or open details on the edit button', () => {
-  const { card, onComplete } = setup()
-  const button = screen.getByRole('button', { name: 'Editar' })
-  touch(button, 'touchstart', 100)
-  touch(button, 'touchmove', 180)
-  touch(button, 'touchend', 180)
-  expect(card).toHaveStyle({ transform: 'translateX(0px)' })
-  expect(onComplete).not.toHaveBeenCalled()
-  fireEvent.click(button)
-  expect(screen.getByRole('dialog', { name: 'Editar tarefa' })).toBeVisible()
+it('gives every card the same height and keeps edit off the card', () => {
+  const second: Task = {
+    ...task,
+    id: 'task-2',
+    title: 'Outra tarefa com um título bem maior do que o card comporta',
+    description: 'Descrição longa que não deve aumentar a altura do card.',
+    location: 'Rua das Flores, 100',
+  }
+  render(
+    <TaskTimeline
+      tasks={[task, second]}
+      onComplete={jest.fn()}
+      onDelete={jest.fn()}
+    />,
+  )
+  const cards = screen.getAllByRole('article')
+  expect(cards).toHaveLength(2)
+  expect(cards[0]).toHaveClass('h-52')
+  expect(cards[1]).toHaveClass('h-52')
+  expect(screen.getAllByText('atribuído')).toHaveLength(2)
   expect(
-    screen.queryByRole('dialog', { name: task.title }),
+    screen.queryByRole('button', { name: 'Editar' }),
   ).not.toBeInTheDocument()
 })
 
