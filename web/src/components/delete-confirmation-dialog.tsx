@@ -15,6 +15,7 @@ type DeleteConfirmationDialogProps = {
   onOpenChange: (open: boolean) => void
   entity: string
   name: string
+  description?: string
   onConfirm: () => void | Promise<void>
 }
 
@@ -23,6 +24,7 @@ export function DeleteConfirmationDialog({
   onOpenChange,
   entity,
   name,
+  description,
   onConfirm,
 }: DeleteConfirmationDialogProps) {
   const [pending, setPending] = useState(false)
@@ -61,8 +63,8 @@ export function DeleteConfirmationDialog({
         <DialogHeader>
           <DialogTitle>Excluir {entity}?</DialogTitle>
           <DialogDescription>
-            Tem certeza de que deseja excluir “{name}”? Essa ação não pode ser
-            desfeita.
+            {description ??
+              `Tem certeza de que deseja excluir “${name}”? Essa ação não pode ser desfeita.`}
           </DialogDescription>
         </DialogHeader>
         {error ? (

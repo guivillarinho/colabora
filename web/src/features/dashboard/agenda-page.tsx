@@ -1,7 +1,14 @@
 import { apiBase, apiRequest } from '@/lib/http-client'
 import { useAuth } from '@/features/auth/auth-context'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { cn } from 'cn'
 import {
   ArrowLeft,
@@ -13,10 +20,13 @@ import {
   Clock3,
   FolderKanban,
   MapPin,
+  NotebookPen,
+  Pencil,
   Plus,
   RotateCcw,
   Search,
   SlidersHorizontal,
+  Timer,
   Trash2,
 } from 'lucide-react'
 
@@ -32,10 +42,19 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useTasks } from '@/features/tasks/tasks-context'
+import { parseAttachment } from '@/features/tasks/components/attachment-reference'
 import { LocationField } from '@/features/tasks/components/location-field'
-import { uploadAgendaFiles } from './upload-agenda-files'
+import {
+  AgendaUploadError,
+  uploadAgendaFiles,
+  type AgendaUploadProgress,
+} from './upload-agenda-files'
 import type { Task } from '@/features/tasks/types/task'
 import { TaskExecutionTime } from '@/features/tasks/components/task-execution-time'
+import { TaskFormDialog } from '@/features/tasks/components/task-form-dialog'
+import { TaskPeople } from '@/features/tasks/components/task-people'
+import { TaskAssigneeBadge } from '@/features/tasks/components/task-assignee-badge'
+import { isTimedTask, taskWindow } from '@/features/tasks/task-kind'
 import { LinkedText } from '@/components/linked-text'
 
 type AgendaKind = 'event' | 'project' | 'task'
@@ -135,8 +154,7 @@ export function AgendaPage() {
         ...tasks.map((task) => ({
           ...task,
           type: 'task' as const,
-          startDate: task.dueDate,
-          endDate: task.dueDate,
+          ...taskWindow(task),
           icon: null,
           task,
         })),
@@ -165,7 +183,11 @@ export function AgendaPage() {
     () =>
       allItems
         .filter((item) =>
-          overlapsDay(item.startDate, item.endDate, selectedDay),
+          overlapsDay(
+            item.startDate,
+            item.endDate ?? item.startDate,
+            selectedDay,
+          ),
         )
         .sort((a, b) => sortItems(a, b, 'date')),
     [allItems, selectedDay],
@@ -437,7 +459,13 @@ export function AgendaPage() {
       />
       <AgendaDetails
         key={details ? `${details.type}-${details.id}` : 'closed'}
-        item={details}
+        item={
+          details?.type === 'task'
+            ? (allItems.find(
+                (item) => item.type === 'task' && item.id === details.id,
+              ) ?? null)
+            : details
+        }
         onClose={() => setDetails(null)}
         onComplete={async (task) => {
           await completeTask(task.id)
@@ -515,6 +543,7 @@ function AgendaCard({
           ) : null}
         </div>
       ) : null}
+      {item.task ? <TaskAssigneeBadge task={item.task} /> : null}
       {item.description ? (
         <p className="line-clamp-2 text-sm text-muted-foreground [overflow-wrap:anywhere]">
           {item.description}
@@ -540,6 +569,17 @@ function AgendaCard({
         ) : null}
       </div>
     </button>
+  )
+}
+
+function TaskKindLabel({ task }: { task: Task }) {
+  const timed = isTimedTask(task)
+  const Icon = timed ? Timer : NotebookPen
+  return (
+    <span className="inline-flex max-w-[55%] items-center justify-end gap-1.5 text-right text-xs text-muted-foreground">
+      <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+      {timed ? 'tarefa cronometrada' : 'tarefa agendada'}
+    </span>
   )
 }
 
@@ -576,11 +616,16 @@ export function AgendaDetails({
   returnFocus?: () => void
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [reopening, setReopening] = useState(false)
   const [reopenError, setReopenError] = useState<string | null>(null)
   const [completing, setCompleting] = useState(false)
   const [completeError, setCompleteError] = useState<string | null>(null)
   const task = item?.type === 'task' ? (item.task ?? null) : null
+  const openedId = item?.id ?? null
+  useEffect(() => {
+    setEditing(false)
+  }, [openedId])
   const entity =
     item?.type === 'task'
       ? 'tarefa'
@@ -598,9 +643,9 @@ export function AgendaDetails({
               }
             : undefined
         }
-        className="max-h-[85svh] overflow-y-auto sm:max-w-lg [overflow-wrap:anywhere]"
+        className="flex max-h-[85svh] flex-col overflow-hidden sm:max-w-lg [overflow-wrap:anywhere]"
       >
-        <DialogHeader className="min-w-0 pr-8">
+        <DialogHeader className="shrink-0 min-w-0 pr-8">
           <DialogTitle className="leading-snug">
             {item?.title ?? 'Detalhes'}
           </DialogTitle>
@@ -613,10 +658,28 @@ export function AgendaDetails({
           </DialogDescription>
         </DialogHeader>
         {item ? (
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 text-sm">
+          <div className="-mx-3 grid min-h-0 flex-1 content-start gap-4 overflow-x-hidden overflow-y-auto px-3 pb-3 text-sm">
             {task ? (
               <>
-                <AgendaTaskStatus status={task.status} />
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-1">
+                    <AgendaTaskStatus status={task.status} />
+                    {task.permissions.edit ? (
+                      <Button
+                        aria-label="Editar tarefa"
+                        size="icon-sm"
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setEditing(true)}
+                      >
+                        <Pencil aria-hidden="true" />
+                      </Button>
+                    ) : null}
+                  </div>
+                  <TaskKindLabel task={task} />
+                </div>
+                <TaskAssigneeBadge task={task} />
+                <TaskPeople task={task} />
                 <TaskExecutionTime task={task} />
               </>
             ) : null}
@@ -631,7 +694,7 @@ export function AgendaDetails({
                 <LinkedText>{item.description || 'Sem descrição.'}</LinkedText>
               </p>
             </section>
-            {item.startDate && item.endDate ? (
+            {item.startDate ? (
               <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/60 p-3">
                 <div>
                   <p className="text-xs text-muted-foreground">Início</p>
@@ -642,7 +705,11 @@ export function AgendaDetails({
                 <div>
                   <p className="text-xs text-muted-foreground">Final</p>
                   <p>
-                    {formatDate(item.endDate)} · {formatTime(item.endDate)}
+                    {item.endDate
+                      ? `${formatDate(item.endDate)} · ${formatTime(item.endDate)}`
+                      : task?.status === 'completed'
+                        ? 'Não registrado'
+                        : 'Em andamento'}
                   </p>
                 </div>
               </div>
@@ -657,17 +724,21 @@ export function AgendaDetails({
                 <p className="mb-1 font-medium">Documentos</p>
                 <ul className="grid gap-1 text-primary">
                   {item.attachments.map((attachment) => {
-                    const [name, url] = attachment.split('||')
+                    const { name, url } = parseAttachment(attachment)
                     return (
                       <li key={attachment}>
-                        <a
-                          className="underline"
-                          href={url ? `${apiBase}${url}` : undefined}
-                          rel="noreferrer"
-                          target={url ? '_blank' : undefined}
-                        >
-                          {name}
-                        </a>
+                        {url ? (
+                          <a
+                            className="underline"
+                            href={`${apiBase}${url}`}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            {name}
+                          </a>
+                        ) : (
+                          <span>{name}</span>
+                        )}
                       </li>
                     )
                   })}
@@ -742,6 +813,13 @@ export function AgendaDetails({
               name={item.title}
               onConfirm={() => onDelete(item)}
             />
+            {task ? (
+              <TaskFormDialog
+                open={editing}
+                task={task}
+                onOpenChange={setEditing}
+              />
+            ) : null}
           </div>
         ) : null}
       </DialogContent>
@@ -772,7 +850,19 @@ function AgendaCreateDialog({
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] =
+    useState<AgendaUploadProgress | null>(null)
+  const uploadController = useRef<AbortController | null>(null)
+  const uploadRequest = useRef(0)
+  const stopUpload = useCallback(() => {
+    uploadRequest.current += 1
+    uploadController.current?.abort()
+    uploadController.current = null
+    setUploading(false)
+    setUploadProgress(null)
+  }, [])
   function reset() {
+    stopUpload()
     setTitle('')
     setDescription('')
     setStartDate('')
@@ -782,6 +872,10 @@ function AgendaCreateDialog({
     setFiles([])
     setError('')
   }
+  useEffect(() => {
+    if (open) return
+    stopUpload()
+  }, [open, stopUpload])
   return (
     <Dialog
       open={open}
@@ -920,37 +1014,101 @@ function AgendaCreateDialog({
               id="agenda-files"
               multiple
               type="file"
-              onChange={async (event) => {
-                const selected = Array.from(event.target.files ?? []).slice(
-                  0,
-                  10,
-                )
-                if (!selected.length) return
-                setUploading(true)
-                setError('')
-                try {
-                  const uploaded = await uploadAgendaFiles(selected, user!.id)
-                  setFiles((current) =>
-                    [
-                      ...current,
-                      ...uploaded.map((file) => `${file.name}||${file.url}`),
-                    ].slice(0, 10),
-                  )
-                } catch (cause) {
-                  setError(messageOf(cause))
-                } finally {
-                  setUploading(false)
-                  event.target.value = ''
+              disabled={uploading}
+              onChange={(event) => {
+                const selected = Array.from(event.target.files ?? [])
+                event.target.value = ''
+                if (!selected.length || !user) return
+                const room = 10 - files.length
+                if (room <= 0) {
+                  setError('A agenda aceita no máximo 10 arquivos.')
+                  return
                 }
+                const batch = selected.slice(0, room)
+                setError(
+                  batch.length < selected.length
+                    ? 'A agenda aceita no máximo 10 arquivos. Os excedentes não foram enviados.'
+                    : '',
+                )
+                stopUpload()
+                const current = ++uploadRequest.current
+                const controller = new AbortController()
+                uploadController.current = controller
+                setUploading(true)
+                setUploadProgress(null)
+                uploadAgendaFiles(batch, user.id, {
+                  signal: controller.signal,
+                  onProgress: (progress) => {
+                    if (current === uploadRequest.current)
+                      setUploadProgress(progress)
+                  },
+                })
+                  .then((uploaded) => {
+                    if (current !== uploadRequest.current) return
+                    setFiles((existing) => rememberFiles(existing, uploaded))
+                  })
+                  .catch((cause: unknown) => {
+                    if (current !== uploadRequest.current) return
+                    if (
+                      cause instanceof AgendaUploadError &&
+                      cause.completed.length
+                    ) {
+                      setFiles((existing) =>
+                        rememberFiles(existing, cause.completed),
+                      )
+                    }
+                    setError(messageOf(cause))
+                  })
+                  .finally(() => {
+                    if (current !== uploadRequest.current) return
+                    uploadController.current = null
+                    setUploading(false)
+                    setUploadProgress(null)
+                  })
               }}
             />
             <MutedText>
-              {uploading
-                ? 'Enviando documentos...'
-                : files.length
-                  ? files.map((file) => file.split('||')[0]).join(', ')
-                  : 'Até 10 arquivos, máximo de 10 MB cada.'}
+              {files.length
+                ? files.map((file) => file.split('||')[0]).join(', ')
+                : 'Até 10 arquivos, máximo de 10 MB cada.'}
             </MutedText>
+            {uploading ? (
+              <div className="grid gap-2">
+                <p role="status">
+                  {uploadProgress
+                    ? `Enviando ${uploadProgress.index} de ${uploadProgress.total}${
+                        uploadProgress.percentage == null
+                          ? ''
+                          : ` · ${uploadProgress.percentage}%`
+                      }`
+                    : 'Enviando documentos...'}
+                </p>
+                {uploadProgress?.percentage == null ? null : (
+                  <div
+                    aria-label={`Envio do arquivo ${uploadProgress.index} de ${uploadProgress.total}`}
+                    aria-valuemax={100}
+                    aria-valuemin={0}
+                    aria-valuenow={uploadProgress.percentage}
+                    className="h-1.5 overflow-hidden rounded-full bg-muted"
+                    role="progressbar"
+                  >
+                    <div
+                      className="h-full bg-primary motion-safe:transition-[width]"
+                      style={{ width: `${uploadProgress.percentage}%` }}
+                    />
+                  </div>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    uploadController.current?.abort()
+                  }}
+                >
+                  Cancelar envio
+                </Button>
+              </div>
+            ) : null}
           </div>
           {error ? (
             <p className="text-sm text-destructive" role="alert">
@@ -1100,6 +1258,17 @@ function Empty({ children }: { children: ReactNode }) {
       <MutedText>{children}</MutedText>
     </div>
   )
+}
+function rememberFiles(
+  current: string[],
+  uploaded: Array<{ name: string; url: string }>,
+) {
+  return [
+    ...current,
+    ...uploaded
+      .filter((file) => file.url.startsWith('/uploads/agenda/'))
+      .map((file) => `${file.name}||${file.url}`),
+  ].slice(0, 10)
 }
 function messageOf(cause: unknown) {
   return cause instanceof Error

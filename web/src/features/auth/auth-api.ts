@@ -1,5 +1,13 @@
 import { apiRequest } from '@/lib/http-client'
-export type AuthUser = { id: string; name: string; email: string }
+export type AuthAvatar =
+  | { kind: 'preset'; id: 'violet' | 'leaf' | 'wave' | 'sun' | 'ember' }
+  | { kind: 'image'; revision: string }
+export type AuthUser = {
+  id: string
+  name: string
+  email: string
+  avatar?: AuthAvatar | null
+}
 export type SessionResponse = { user: AuthUser; csrfToken: string }
 export const authApi = {
   me: (signal?: AbortSignal) =>

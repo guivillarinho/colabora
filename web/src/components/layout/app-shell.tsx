@@ -2,7 +2,8 @@ import { ChatPage } from '@/features/assistant/chat-page'
 import { useAuth } from '@/features/auth/auth-context'
 import { AccountPage } from '@/features/auth/account-page'
 import { useEffect, useState } from 'react'
-import { LogOut, UserRound, MessageCircle } from 'lucide-react'
+import { ArrowLeft, LogOut, MessageCircle } from 'lucide-react'
+import { UserAvatar } from '@/features/auth/user-avatar'
 
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
@@ -15,12 +16,6 @@ import { useTasks } from '@/features/tasks/tasks-context'
 
 import { AppNav } from './app-nav'
 import { useNavigation } from './navigation'
-
-declare const process: {
-  env: {
-    VITE_USER_AVATAR_URL?: string
-  }
-}
 
 export function AppShell() {
   const { section, goTo } = useNavigation()
@@ -69,10 +64,28 @@ export function AppShell() {
         >
           <div className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
-              <UserAvatar />
-              <p className="truncate text-lg font-medium text-muted-foreground">
-                Olá, {user?.name}
-              </p>
+              {section === 'perfil' ? (
+                <>
+                  <Button
+                    aria-label="Voltar para Hoje"
+                    size="icon"
+                    type="button"
+                    variant="outline"
+                    className="size-11 rounded-full"
+                    onClick={() => goTo('hoje')}
+                  >
+                    <ArrowLeft aria-hidden="true" />
+                  </Button>
+                  <p className="text-lg font-semibold">Perfil</p>
+                </>
+              ) : (
+                <>
+                  <UserAvatar />
+                  <p className="truncate text-lg font-medium text-muted-foreground">
+                    Olá, {user?.name}
+                  </p>
+                </>
+              )}
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <div className="hidden md:block">
@@ -87,18 +100,20 @@ export function AppShell() {
                 <MessageCircle aria-hidden="true" />
               </Button>
               <ThemeToggle />
-              <Button
-                aria-label={loggingOut ? 'Saindo...' : 'Sair da conta'}
-                aria-busy={loggingOut}
-                title="Sair da conta"
-                disabled={loggingOut}
-                size="icon"
-                type="button"
-                variant="outline"
-                onClick={handleLogout}
-              >
-                <LogOut aria-hidden="true" />
-              </Button>
+              {section !== 'perfil' ? (
+                <Button
+                  aria-label={loggingOut ? 'Saindo...' : 'Sair da conta'}
+                  aria-busy={loggingOut}
+                  title="Sair da conta"
+                  disabled={loggingOut}
+                  size="icon"
+                  type="button"
+                  variant="outline"
+                  onClick={handleLogout}
+                >
+                  <LogOut aria-hidden="true" />
+                </Button>
+              ) : null}
             </div>
           </div>
         </header>
@@ -124,31 +139,6 @@ export function AppShell() {
         <AppNav center={<CreateTaskDialog variant="icon" />} layout="bottom" />
       </div>
       <ProductivityAdviceDialog advice={advice} onClose={clearAdvice} />
-    </div>
-  )
-}
-
-function UserAvatar() {
-  const { user } = useAuth()
-  const [imageUnavailable, setImageUnavailable] = useState(false)
-  const imageUrl = process.env.VITE_USER_AVATAR_URL || ''
-
-  return (
-    <div
-      aria-label={`Perfil de ${user?.name ?? 'usuário'}`}
-      className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/20 bg-secondary text-secondary-foreground"
-      role="img"
-    >
-      {imageUrl && !imageUnavailable ? (
-        <img
-          alt="Avatar ilustrativo do perfil"
-          className="size-full object-cover"
-          src={imageUrl}
-          onError={() => setImageUnavailable(true)}
-        />
-      ) : (
-        <UserRound aria-hidden="true" className="size-6" />
-      )}
     </div>
   )
 }

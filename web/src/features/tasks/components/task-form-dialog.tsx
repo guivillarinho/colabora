@@ -1,7 +1,7 @@
 import { useAuth } from '@/features/auth/auth-context'
 import { AssigneeField } from './assignee-field'
 import { MinutesInput, parseMinutes } from './minutes-input'
-import { CalendarDays, Plus } from 'lucide-react'
+import { CalendarDays, NotebookPen, Plus, Timer } from 'lucide-react'
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 
 import { pastelSwatches } from '@/components/pastel'
@@ -27,7 +27,7 @@ import { cn } from 'cn'
 import { categoryByName, taskCategories } from '../task-categories'
 import { useTasks } from '../tasks-context'
 import type { Task, TaskInput, TaskPriority } from '../types/task'
-import { AttachmentField } from './attachment-field'
+import { AttachmentField, persistedAttachment } from './attachment-field'
 import { LocationField } from './location-field'
 import { suggestTaskDate } from '../suggest-task-date'
 
@@ -92,9 +92,10 @@ function TaskFormContent({
     categoryByName(task?.category).name,
   )
   const [location, setLocation] = useState(task?.location ?? '')
-  const [attachmentName, setAttachmentName] = useState<string | null>(
-    task?.attachments[0] ?? null,
+  const [attachmentReference, setAttachmentReference] = useState<string | null>(
+    persistedAttachment(task?.attachments[0]),
   )
+  const [attachmentPending, setAttachmentPending] = useState(false)
   const [creationMode, setCreationMode] = useState<'scheduled' | 'timer'>(
     'scheduled',
   )
@@ -115,7 +116,8 @@ function TaskFormContent({
     )
     setCategoryName(categoryByName(task?.category).name)
     setLocation(task?.location ?? '')
-    setAttachmentName(task?.attachments[0] ?? null)
+    setAttachmentReference(persistedAttachment(task?.attachments[0]))
+    setAttachmentPending(false)
     setCreationMode('scheduled')
     setTitle(task?.title ?? '')
     setDueDate(toDateTimeLocal(task?.dueDate ?? null))
@@ -140,7 +142,7 @@ function TaskFormContent({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (submitting.current) return
+    if (submitting.current || attachmentPending) return
     setFormError(null)
     const form = event.currentTarget
     const formData = new FormData(form)
@@ -162,6 +164,7 @@ function TaskFormContent({
     }
 
     const dueDate = String(formData.get('dueDate') ?? '')
+    const attachment = persistedAttachment(attachmentReference)
     const input: TaskInput = {
       assignedToId: assignee?.id ?? null,
       title,
@@ -171,11 +174,13 @@ function TaskFormContent({
       color: selectedCategory.color,
       estimatedTime,
       location: location.trim(),
-      attachments: attachmentName ? [attachmentName] : [],
+      attachments: attachment ? [attachment] : [],
       ...(!task && creationMode === 'timer' ? { startImmediately: true } : {}),
       ...(dueDate && creationMode !== 'timer'
         ? { dueDate: new Date(dueDate).toISOString() }
-        : {}),
+        : task
+          ? { dueDate: null }
+          : {}),
     }
 
     submitting.current = true
@@ -231,7 +236,7 @@ function TaskFormContent({
               size="sm"
               variant="ghost"
               className={cn(
-                'h-8 min-w-0 rounded-lg text-xs sm:text-sm',
+                'h-auto min-h-8 min-w-0 whitespace-normal rounded-lg px-2 py-1.5 text-xs leading-tight sm:text-sm',
                 creationMode === 'scheduled'
                   ? 'border-border bg-background/80 text-foreground shadow-xs'
                   : 'text-muted-foreground',
@@ -242,6 +247,7 @@ function TaskFormContent({
                 updateScheduleFromTitle(title)
               }}
             >
+              <NotebookPen aria-hidden="true" />
               Tarefa agendada
             </Button>
             <Button
@@ -249,7 +255,7 @@ function TaskFormContent({
               size="sm"
               variant="ghost"
               className={cn(
-                'h-8 min-w-0 rounded-lg text-xs sm:text-sm',
+                'h-auto min-h-8 min-w-0 whitespace-normal rounded-lg px-2 py-1.5 text-xs leading-tight sm:text-sm',
                 creationMode === 'timer'
                   ? 'border-border bg-background/80 text-foreground shadow-xs'
                   : 'text-muted-foreground',
@@ -257,6 +263,7 @@ function TaskFormContent({
               type="button"
               onClick={() => setCreationMode('timer')}
             >
+              <Timer aria-hidden="true" />
               Tarefa cronometrada
             </Button>
           </div>
@@ -413,8 +420,9 @@ function TaskFormContent({
                 <CollapsibleContent className="grid min-w-0 gap-4 pt-4">
                   <AttachmentField
                     id={`${fieldPrefix}-attachment`}
-                    initialName={task?.attachments[0]}
-                    onChange={setAttachmentName}
+                    initialReference={persistedAttachment(task?.attachments[0])}
+                    onChange={setAttachmentReference}
+                    onPendingChange={setAttachmentPending}
                   />
                   <LocationField
                     id={`${fieldPrefix}-location`}
@@ -432,7 +440,7 @@ function TaskFormContent({
             <DialogFooter className="mx-0 mb-0 px-0 py-3 sm:p-4">
               <Button
                 className="h-9 w-full text-sm sm:w-auto"
-                disabled={saving}
+                disabled={saving || attachmentPending}
                 type="submit"
               >
                 Salvar tarefa

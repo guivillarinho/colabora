@@ -52,6 +52,32 @@ describe('TaskCard', () => {
     expect(screen.getByRole('article')).toHaveClass('bg-pastel-blue')
     expect(screen.getByRole('article')).not.toHaveClass('bg-pastel-red')
   })
+
+  it('links only files stored by the application', () => {
+    render(
+      <TasksProvider>
+        <TaskCard
+          task={{
+            ...sampleTask('purple'),
+            attachments: [
+              'proposta.pdf||/uploads/agenda/7d7f0a4e-6c2b-4f1a-9d3e-1b2c3d4e5f60.pdf',
+              'rascunho.txt',
+            ],
+          }}
+          onComplete={async () => undefined}
+          onDelete={() => undefined}
+          onStart={() => undefined}
+        />
+      </TasksProvider>,
+    )
+    expect(screen.getByRole('link', { name: /proposta\.pdf/ })).toHaveAttribute(
+      'href',
+      expect.stringContaining(
+        '/uploads/agenda/7d7f0a4e-6c2b-4f1a-9d3e-1b2c3d4e5f60.pdf',
+      ),
+    )
+    expect(screen.getByText('rascunho.txt').closest('a')).toBeNull()
+  })
 })
 
 function sampleTask(color: Task['color']): Task {

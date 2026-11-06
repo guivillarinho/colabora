@@ -1,4 +1,4 @@
-import { TaskPeople } from './task-people'
+import { apiBase } from '@/lib/http-client'
 import { LinkedText } from '@/components/linked-text'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
 import { useState } from 'react'
@@ -8,6 +8,9 @@ import { formatDuration } from '@/lib/format-duration'
 import { cn } from 'cn'
 import { pastelSwatches } from '@/components/pastel'
 
+import { parseAttachment } from './attachment-reference'
+import { TaskPeople } from './task-people'
+import { TaskAssigneeBadge } from './task-assignee-badge'
 import { CompleteTaskDialog } from './complete-task-dialog'
 import { TaskAttachmentIndicator } from './task-attachment-indicator'
 import { TaskFormDialog } from './task-form-dialog'
@@ -60,11 +63,36 @@ export function TaskCard({
           {statusLabel[task.status]}
         </span>
       </div>
+      <TaskAssigneeBadge task={task} />
       <TaskPeople task={task} />
       {task.description ? (
         <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
           <LinkedText>{task.description}</LinkedText>
         </p>
+      ) : null}
+      {task.attachments.length ? (
+        <ul className="grid gap-1 text-sm">
+          {task.attachments.map((attachment) => {
+            const { name, url } = parseAttachment(attachment)
+            return (
+              <li key={attachment}>
+                {url ? (
+                  <a
+                    className="font-medium text-primary underline"
+                    href={`${apiBase}${url}`}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {name}
+                    <span className="sr-only"> (abre em nova aba)</span>
+                  </a>
+                ) : (
+                  <span>{name}</span>
+                )}
+              </li>
+            )
+          })}
+        </ul>
       ) : null}
       <p className="text-sm">
         {task.category} · {priorityLabel[task.priority]} ·{' '}

@@ -24,6 +24,7 @@ export function TestAuth({ children }: { children: ReactNode }) {
         login: async () => undefined,
         register: async () => undefined,
         logout: async () => undefined,
+        updateUser: () => undefined,
       }}
     >
       {children}

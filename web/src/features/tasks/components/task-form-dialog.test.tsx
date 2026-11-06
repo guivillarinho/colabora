@@ -1,10 +1,19 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderAuthenticated as render, taskAccess } from '@/test/auth-fixture'
+import {
+  renderAuthenticated as render,
+  taskAccess,
+  testUser,
+} from '@/test/auth-fixture'
+import { uploadAgendaFiles } from '@/features/dashboard/upload-agenda-files'
 import { tasksApi } from '../api/tasks-api'
 import { TasksProvider } from '../tasks-context'
 import type { Task } from '../types/task'
 import { TaskFormDialog } from './task-form-dialog'
+
+jest.mock('@/features/dashboard/upload-agenda-files', () => ({
+  uploadAgendaFiles: jest.fn(),
+}))
 
 jest.mock('../api/tasks-api', () => ({
   tasksApi: { list: jest.fn(), create: jest.fn(), update: jest.fn() },
@@ -137,4 +146,134 @@ it('loads the latest saved title and date when an updated task is reopened', asy
   rerender(view(updated, true))
   expect(screen.getByLabelText('Título')).toHaveValue('Consulta salva')
   expect(screen.getByLabelText('Data e hora')).toHaveValue('2026-11-08T16:00')
+})
+
+const uploadedUrl = '/uploads/agenda/12345678-1234-1234-1234-123456789abc.pdf'
+
+function savedTask(attachments: string[]): Task {
+  return {
+    ...taskAccess,
+    id: 'task',
+    title: 'Consulta',
+    description: '',
+    category: 'Pessoal',
+    priority: 'medium',
+    color: 'blue',
+    dueDate: null,
+    location: '',
+    attachments,
+    estimatedTime: 60,
+    actualTime: null,
+    status: 'pending',
+    startedAt: null,
+    createdAt: '2026-11-04T08:00:00.000Z',
+    updatedAt: '2026-11-04T08:00:00.000Z',
+  }
+}
+
+it('saves an uploaded task file as name and recoverable url', async () => {
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+  jest
+    .mocked(uploadAgendaFiles)
+    .mockResolvedValue([{ name: 'proposta.pdf', url: uploadedUrl }])
+  await renderForm()
+  await user.type(screen.getByLabelText('Título'), 'Enviar proposta')
+  await user.click(screen.getByRole('button', { name: 'Opções avançadas' }))
+  const file = new File(['%PDF'], 'proposta.pdf', { type: 'application/pdf' })
+  await user.upload(screen.getByLabelText('Anexos'), file)
+  expect(await screen.findByText('proposta.pdf')).toBeInTheDocument()
+  expect(uploadAgendaFiles).toHaveBeenCalledWith([file], testUser.id)
+  await user.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
+  await waitFor(() =>
+    expect(api.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachments: [`proposta.pdf||${uploadedUrl}`],
+      }),
+    ),
+  )
+})
+
+it('does not save a filename when the upload fails', async () => {
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+  jest
+    .mocked(uploadAgendaFiles)
+    .mockRejectedValue(new Error('Cada arquivo deve ter no máximo 10 MB.'))
+  await renderForm()
+  await user.type(screen.getByLabelText('Título'), 'Sem arquivo')
+  await user.click(screen.getByRole('button', { name: 'Opções avançadas' }))
+  await user.upload(
+    screen.getByLabelText('Anexos'),
+    new File(['x'], 'grande.pdf', { type: 'application/pdf' }),
+  )
+  expect(await screen.findByRole('alert')).toHaveTextContent('10 MB')
+  await user.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
+  await waitFor(() => expect(api.create).toHaveBeenCalled())
+  expect(api.create.mock.calls.at(-1)?.[0].attachments).toEqual([])
+})
+
+it('does not keep a bare filename as a task attachment', async () => {
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+  api.update.mockResolvedValue(savedTask([]))
+  await renderForm(savedTask(['somente-nome.pdf']))
+  expect(screen.queryByText('somente-nome.pdf')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
+  await waitFor(() =>
+    expect(api.update).toHaveBeenCalledWith(
+      'task',
+      expect.objectContaining({ attachments: [] }),
+    ),
+  )
+})
+
+it('keeps an already uploaded attachment reference when editing', async () => {
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+  const reference = `proposta.pdf||${uploadedUrl}`
+  api.update.mockResolvedValue(savedTask([reference]))
+  await renderForm(savedTask([reference]))
+  await user.click(screen.getByRole('button', { name: 'Opções avançadas' }))
+  expect(screen.getByText('proposta.pdf')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
+  await waitFor(() =>
+    expect(api.update).toHaveBeenCalledWith(
+      'task',
+      expect.objectContaining({ attachments: [reference] }),
+    ),
+  )
+})
+
+it('clears a saved due date when the field is emptied', async () => {
+  api.update.mockResolvedValue({ ...taskAccess, dueDate: null } as Task)
+  await renderForm({
+    ...taskAccess,
+    id: 'task',
+    title: 'Consulta',
+    category: 'Pessoal',
+    dueDate: new Date(2026, 10, 7, 15).toISOString(),
+    attachments: [],
+    estimatedTime: 60,
+  } as Task)
+  fireEvent.change(screen.getByLabelText('Data e hora'), {
+    target: { value: '' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
+  await waitFor(() =>
+    expect(api.update).toHaveBeenCalledWith(
+      'task',
+      expect.objectContaining({ dueDate: null }),
+    ),
+  )
+})
+
+it('shows a notebook and a stopwatch on the creation modes', async () => {
+  await renderForm()
+  expect(
+    screen
+      .getByRole('button', { name: 'Tarefa agendada' })
+      .querySelector('svg'),
+  ).not.toBeNull()
+  expect(
+    screen
+      .getByRole('button', { name: 'Tarefa cronometrada' })
+      .querySelector('svg'),
+  ).not.toBeNull()
 })

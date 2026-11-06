@@ -3,13 +3,27 @@ import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
+import { useAuth } from '@/features/auth/auth-context'
+import { uploadAgendaFiles } from '@/features/dashboard/upload-agenda-files'
 import { Label } from '@/components/ui/label'
 import { cn } from 'cn'
+import { attachmentReference, parseAttachment } from './attachment-reference'
 
 type AttachmentFieldProps = {
   id: string
-  initialName?: string | null
-  onChange: (name: string | null) => void
+  initialReference?: string | null
+  onChange: (reference: string | null) => void
+  onPendingChange?: (pending: boolean) => void
+}
+
+export function persistedAttachment(
+  value: string | null | undefined,
+): string | null {
+  return parseAttachment(value).url ? value! : null
+}
+
+export function attachmentLabel(reference: string): string {
+  return reference.split('||')[0] ?? reference
 }
 
 type FileTone = 'pdf' | 'word' | 'excel' | 'other'
@@ -23,16 +37,23 @@ const toneClass: Record<FileTone, string> = {
 
 export function AttachmentField({
   id,
-  initialName,
+  initialReference,
   onChange,
+  onPendingChange,
 }: AttachmentFieldProps) {
+  const { user } = useAuth()
   const [file, setFile] = useState<File | null>(null)
-  const [keptName, setKeptName] = useState(initialName ?? '')
+  const [keptReference, setKeptReference] = useState(
+    persistedAttachment(initialReference) ?? '',
+  )
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [inputKey, setInputKey] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
-  const name = file?.name || keptName
+  const request = useRef(0)
+  const name = attachmentLabel(keptReference)
   const extension = fileExtension(name)
   const tone = fileTone(extension)
 
@@ -71,15 +92,46 @@ export function AttachmentField({
     }
   }, [file])
 
-  function chooseFile(next: File | null) {
-    setFile(next)
-    setKeptName('')
-    onChange(next?.name ?? null)
+  async function chooseFile(next: File | null) {
+    if (!next) return
+    const current = ++request.current
+    setError(null)
+    setUploading(true)
+    onPendingChange?.(true)
+    try {
+      if (!user) throw new Error('Entre na conta para anexar um arquivo.')
+      const [uploaded] = await uploadAgendaFiles([next], user.id)
+      if (current !== request.current) return
+      if (!uploaded?.url.startsWith('/uploads/agenda/')) {
+        throw new Error('Não foi possível enviar o anexo.')
+      }
+      const reference = attachmentReference(uploaded.name, uploaded.url)
+      setFile(next)
+      setKeptReference(reference)
+      onChange(reference)
+    } catch (cause) {
+      if (current !== request.current) return
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Não foi possível enviar o anexo.',
+      )
+    } finally {
+      if (current === request.current) {
+        setUploading(false)
+        onPendingChange?.(false)
+      }
+      if (inputRef.current) inputRef.current.value = ''
+    }
   }
 
   function removeFile() {
+    request.current += 1
     setFile(null)
-    setKeptName('')
+    setKeptReference('')
+    setError(null)
+    setUploading(false)
+    onPendingChange?.(false)
     setConfirming(false)
     setInputKey((current) => current + 1)
     onChange(null)
@@ -116,6 +168,7 @@ export function AttachmentField({
           </div>
           <Button
             aria-label="Excluir anexo"
+            disabled={uploading}
             size="icon"
             type="button"
             variant="destructive"
@@ -131,6 +184,7 @@ export function AttachmentField({
         key={inputKey}
         ref={inputRef}
         className="sr-only"
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.webp"
         id={id}
         type="file"
         onChange={(event) => {
@@ -139,6 +193,7 @@ export function AttachmentField({
       />
       <Button
         className="h-11 w-full bg-muted text-black hover:bg-muted/80 dark:text-foreground"
+        disabled={uploading}
         type="button"
         variant="outline"
         onClick={() => {
@@ -148,6 +203,16 @@ export function AttachmentField({
         <Paperclip />
         Escolher arquivo
       </Button>
+      {uploading ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          Enviando anexo...
+        </p>
+      ) : null}
+      {error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
       <DeleteConfirmationDialog
         open={confirming}
         onOpenChange={setConfirming}

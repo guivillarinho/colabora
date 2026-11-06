@@ -9,6 +9,19 @@ import { acceptHttpSession } from '@/lib/http-client'
 import type { Task } from '@/features/tasks/types/task'
 import { DashboardPage } from './dashboard-page'
 import { NavigationProvider } from '@/components/layout/navigation'
+import {
+  AgendaUploadError,
+  uploadAgendaFiles,
+  type AgendaUploadOptions,
+} from './upload-agenda-files'
+
+jest.mock('./upload-agenda-files', () => {
+  const actual = jest.requireActual('./upload-agenda-files')
+  return {
+    ...actual,
+    uploadAgendaFiles: jest.fn(),
+  }
+})
 
 jest.mock('@/features/tasks/api/tasks-api', () => ({
   tasksApi: {
@@ -70,6 +83,39 @@ describe('AgendaPage', () => {
     expect(
       screen.getByRole('button', { name: 'Pesquisar na agenda' }),
     ).toBeVisible()
+  })
+
+  it('refreshes the open task details after editing from the pencil', async () => {
+    const [original] = await api.list()
+    api.update.mockResolvedValue({
+      ...original,
+      title: 'Proposta revisada',
+      dueDate: null,
+      updatedAt: new Date(Date.now() + 1000).toISOString(),
+    })
+    const user = userEvent.setup()
+    render(
+      <TasksProvider>
+        <AgendaPage />
+      </TasksProvider>,
+    )
+    await user.click(
+      await screen.findByRole('button', { name: /Enviar proposta/ }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }))
+    const editor = within(screen.getByRole('dialog', { name: 'Editar tarefa' }))
+    await user.clear(editor.getByLabelText('Título'))
+    await user.type(editor.getByLabelText('Título'), 'Proposta revisada')
+    await user.clear(editor.getByLabelText('Data e hora'))
+    await user.click(editor.getByRole('button', { name: 'Salvar tarefa' }))
+    const details = await screen.findByRole('dialog', {
+      name: 'Proposta revisada',
+    })
+    expect(within(details).getByText('Sem data agendada.')).toBeVisible()
+    expect(api.update).toHaveBeenCalledWith(
+      original.id,
+      expect.objectContaining({ title: 'Proposta revisada', dueDate: null }),
+    )
   })
 
   it.each([dueDate, null])(
@@ -423,5 +469,165 @@ describe('AgendaPage', () => {
     expect(
       screen.queryByRole('region', { name: 'Semana' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('shows honest upload progress and keeps the save action available after failure', async () => {
+    const user = userEvent.setup()
+    let fail: (error: Error) => void = () => undefined
+    jest.mocked(uploadAgendaFiles).mockImplementation(
+      (_files, _id, options) =>
+        new Promise((_resolve, reject) => {
+          options?.onProgress?.({
+            index: 1,
+            total: 2,
+            name: 'proposta.pdf',
+            percentage: 40,
+          })
+          fail = reject
+        }),
+    )
+    render(
+      <TasksProvider>
+        <AgendaPage />
+      </TasksProvider>,
+    )
+    await user.click(await screen.findByRole('button', { name: /Adicionar/ }))
+    await user.upload(
+      screen.getByLabelText('Enviar documentos'),
+      new File(['%PDF'], 'proposta.pdf', { type: 'application/pdf' }),
+    )
+    expect(await screen.findByText('Enviando 1 de 2 · 40%')).toBeVisible()
+    expect(screen.getByRole('progressbar')).toHaveAttribute(
+      'aria-valuenow',
+      '40',
+    )
+    expect(
+      screen.getByRole('button', { name: 'Salvar na agenda' }),
+    ).toBeDisabled()
+    fail(
+      new AgendaUploadError('Falhou no meio.', 'failed', [
+        {
+          name: 'pronto.pdf',
+          url: '/uploads/agenda/11111111-1111-4111-8111-111111111111.pdf',
+        },
+      ]),
+    )
+    expect(await screen.findByText('pronto.pdf')).toBeVisible()
+    expect(screen.getByRole('alert')).toHaveTextContent('Falhou no meio.')
+    expect(screen.queryByText(/Enviando/)).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Salvar na agenda' }),
+    ).toBeEnabled()
+    expect(screen.queryByText('proposta.pdf')).not.toBeInTheDocument()
+  })
+
+  it('cancels an agenda upload and does not keep the interrupted file', async () => {
+    const user = userEvent.setup()
+    jest.mocked(uploadAgendaFiles).mockImplementation(
+      (_files, _userId, options?: AgendaUploadOptions) =>
+        new Promise((_resolve, reject) => {
+          options?.onProgress?.({
+            index: 1,
+            total: 1,
+            name: 'proposta.pdf',
+            percentage: null,
+          })
+          options?.signal?.addEventListener('abort', () => {
+            reject(new AgendaUploadError('Envio cancelado.', 'cancelled'))
+          })
+        }),
+    )
+    render(
+      <TasksProvider>
+        <AgendaPage />
+      </TasksProvider>,
+    )
+    await user.click(await screen.findByRole('button', { name: /Adicionar/ }))
+    await user.upload(
+      screen.getByLabelText('Enviar documentos'),
+      new File(['%PDF'], 'proposta.pdf', { type: 'application/pdf' }),
+    )
+    expect(await screen.findByText('Enviando 1 de 1')).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Salvar na agenda' }),
+    ).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Cancelar envio' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Envio cancelado.',
+    )
+    expect(screen.queryByText(/Enviando/)).not.toBeInTheDocument()
+    expect(screen.queryByText('proposta.pdf')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Salvar na agenda' }),
+    ).toBeEnabled()
+  })
+
+  it('stops the upload when the dialog closes', async () => {
+    const user = userEvent.setup()
+    let signal: AbortSignal | undefined
+    jest
+      .mocked(uploadAgendaFiles)
+      .mockImplementation((_files, _id, options) => {
+        signal = options?.signal
+        options?.onProgress?.({
+          index: 1,
+          total: 1,
+          name: 'proposta.pdf',
+          percentage: null,
+        })
+        return new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => {
+            reject(new AgendaUploadError('Envio cancelado.', 'cancelled'))
+          })
+        })
+      })
+    render(
+      <TasksProvider>
+        <AgendaPage />
+      </TasksProvider>,
+    )
+    await user.click(await screen.findByRole('button', { name: /Adicionar/ }))
+    await user.upload(
+      screen.getByLabelText('Enviar documentos'),
+      new File(['%PDF'], 'proposta.pdf', { type: 'application/pdf' }),
+    )
+    expect(await screen.findByText('Enviando 1 de 1')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Fechar' }))
+    await waitFor(() => expect(signal?.aborted).toBe(true))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Adicionar/ }))
+    expect(screen.queryByText(/Enviando/)).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Salvar na agenda' }),
+    ).toBeEnabled()
+  })
+
+  it('sends at most 10 files and explains the files left out', async () => {
+    const user = userEvent.setup()
+    jest.mocked(uploadAgendaFiles).mockResolvedValue([])
+    render(
+      <TasksProvider>
+        <AgendaPage />
+      </TasksProvider>,
+    )
+    await user.click(await screen.findByRole('button', { name: /Adicionar/ }))
+    await user.upload(
+      screen.getByLabelText('Enviar documentos'),
+      Array.from(
+        { length: 11 },
+        (_, index) =>
+          new File(['%PDF'], `arquivo-${index}.pdf`, {
+            type: 'application/pdf',
+          }),
+      ),
+    )
+    await waitFor(() => expect(uploadAgendaFiles).toHaveBeenCalled())
+    expect(jest.mocked(uploadAgendaFiles).mock.calls[0][0]).toHaveLength(10)
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Os excedentes não foram enviados.',
+    )
+    expect(
+      screen.getByRole('button', { name: 'Salvar na agenda' }),
+    ).toBeEnabled()
   })
 })

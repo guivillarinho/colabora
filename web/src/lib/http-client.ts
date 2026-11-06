@@ -31,19 +31,23 @@ export function acceptHttpSession(token: string, userId?: string) {
   expectedUserId = userId ?? null
 }
 
-export async function getCsrfToken(): Promise<string> {
+export async function getCsrfToken(signal?: AbortSignal): Promise<string> {
   if (csrfToken) return csrfToken
+  if (signal?.aborted)
+    throw new DOMException('The operation was aborted.', 'AbortError')
   if (!csrfRequest) {
     const current = epoch
     csrfRequest = (async () => {
       let response = await fetch(`${apiBase}/auth/csrf`, {
         credentials: 'include',
         cache: 'no-store',
+        signal,
       })
       if (response.status === 401)
         response = await fetch(`${apiBase}/auth/csrf`, {
           credentials: 'include',
           cache: 'no-store',
+          signal,
         })
       if (!response.ok)
         throw new HttpError(
@@ -71,7 +75,7 @@ export async function apiRequest<T>(
   if (init.body && !(init.body instanceof FormData))
     headers.set('Content-Type', 'application/json')
   if (!['GET', 'HEAD', 'OPTIONS'].includes(init.method?.toUpperCase() ?? 'GET'))
-    headers.set('X-CSRF-Token', await getCsrfToken())
+    headers.set('X-CSRF-Token', await getCsrfToken(init.signal ?? undefined))
   if (current !== epoch)
     throw new HttpError(409, 'A sessão mudou. Tente novamente.')
   const response = await fetch(`${apiBase}${path}`, {

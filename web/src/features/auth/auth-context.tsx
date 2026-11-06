@@ -22,6 +22,7 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>
   register: (name: string, email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  updateUser: (user: AuthUser) => void
   clearLocalSession?: () => void
 }
 export const AuthContext = createContext<AuthContextValue | null>(null)
@@ -74,7 +75,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof BroadcastChannel === 'undefined') return
     const broadcast = new BroadcastChannel('colabora-auth')
     channel.current = broadcast
-    broadcast.onmessage = () => {
+    broadcast.onmessage = (event) => {
+      if (event.data === 'avatar') {
+        const current = generation.current
+        authApi
+          .me()
+          .then((response) => {
+            if (generation.current === current) setUser(response.user)
+          })
+          .catch(() => undefined)
+        return
+      }
       const current = ++generation.current
       clearHttpSession()
       setUser(null)
@@ -117,6 +128,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     channel.current?.postMessage('changed')
   }
 
+  const updateUser = useCallback((next: AuthUser) => {
+    setUser((current) => (current && current.id === next.id ? next : current))
+    channel.current?.postMessage('avatar')
+  }, [])
+
   function clearLocalSession() {
     generation.current += 1
     clearHttpSession()
@@ -134,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
+        updateUser,
         clearLocalSession,
       }}
     >

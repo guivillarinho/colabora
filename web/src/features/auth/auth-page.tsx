@@ -262,13 +262,13 @@ export function AuthPage() {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
       >
-        <div className="absolute left-[calc(50%-18rem)] top-[calc(50%-18rem)] size-72 rounded-full bg-pastel-purple/70 blur-3xl" />
-        <div className="absolute left-[calc(50%-1rem)] top-[calc(50%+2rem)] size-64 rounded-full bg-pastel-blue/60 blur-3xl" />
+        <div className="absolute left-[calc(50%-18rem)] top-[calc(50%-18rem)] size-72 rounded-full bg-primary/25 blur-3xl" />
+        <div className="absolute left-[calc(50%-1rem)] top-[calc(50%+2rem)] size-64 rounded-full bg-accent blur-3xl" />
       </div>
       <div className="colabora-page-enter grid w-full max-w-md gap-6">
         <header className="flex items-center justify-between gap-4 px-2">
           <div className="flex items-center gap-3">
-            <div className="glass-card flex size-11 items-center justify-center rounded-2xl border border-primary/15 bg-pastel-purple/60 text-primary">
+            <div className="glass-card flex size-11 items-center justify-center rounded-2xl border border-primary/15 bg-primary/15 text-primary">
               <ListTodo aria-hidden="true" className="size-6" />
             </div>
             <div>

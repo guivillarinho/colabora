@@ -1,0 +1,111 @@
+import { useEffect, useState } from 'react'
+
+import { useAuth } from '@/features/auth/auth-context'
+import { presetById } from '@/features/auth/user-avatar'
+import {
+  apiBase,
+  clearHttpSession,
+  sessionExpiredEvent,
+} from '@/lib/http-client'
+
+import type { Task } from '../types/task'
+
+export function TaskAssigneeBadge({ task }: { task: Task }) {
+  const { user } = useAuth()
+  const assignee = task.assignedTo
+  const name = assignee?.name?.trim() || 'Sem responsável'
+  const avatar = assignee?.id === user?.id ? user?.avatar : assignee?.avatar
+  const preset = avatar?.kind === 'preset' ? presetById(avatar.id) : null
+  const Icon = preset?.icon
+  const revision = avatar?.kind === 'image' ? avatar.revision : null
+  const initials = assignee
+    ? name
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part[0]?.toLocaleUpperCase('pt-BR') ?? '')
+        .join('')
+    : '—'
+
+  return (
+    <p className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+      <span
+        aria-label={`Responsável: ${name}`}
+        className="grid size-6 shrink-0 place-items-center overflow-hidden rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground"
+        role="img"
+      >
+        {preset && Icon ? (
+          <span
+            className={`grid size-full place-items-center ${preset.className}`}
+          >
+            <Icon aria-hidden="true" className="size-3.5" />
+          </span>
+        ) : revision && user ? (
+          <AssigneeImage
+            key={`${user.id}:${task.id}:${assignee?.id}:${revision}`}
+            taskId={task.id}
+            viewerId={user.id}
+            fallback={initials}
+          />
+        ) : (
+          initials
+        )}
+      </span>
+      <span className="min-w-0 truncate">{name}</span>
+    </p>
+  )
+}
+
+function AssigneeImage({
+  taskId,
+  viewerId,
+  fallback,
+}: {
+  taskId: string
+  viewerId: string
+  fallback: string
+}) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let objectUrl: string | null = null
+    let active = true
+    fetch(`${apiBase}/tasks/${taskId}/assignee/avatar`, {
+      credentials: 'include',
+      cache: 'no-store',
+      signal: controller.signal,
+      headers: { 'X-Session-User': viewerId },
+    })
+      .then(async (response) => {
+        if (response.status === 401 && active) {
+          clearHttpSession()
+          window.dispatchEvent(new Event(sessionExpiredEvent))
+        }
+        if (!response.ok) throw new Error('Foto indisponível.')
+        const blob = await response.blob()
+        if (!active) return
+        objectUrl = URL.createObjectURL(blob)
+        setUrl(objectUrl)
+      })
+      .catch(() => {
+        if (active && !controller.signal.aborted) setFailed(true)
+      })
+    return () => {
+      active = false
+      controller.abort()
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [taskId, viewerId])
+
+  return url && !failed ? (
+    <img
+      alt=""
+      className="size-full object-cover"
+      src={url}
+      onError={() => setFailed(true)}
+    />
+  ) : (
+    fallback
+  )
+}

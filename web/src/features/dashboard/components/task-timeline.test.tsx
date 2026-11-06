@@ -54,7 +54,7 @@ function pointer(target: Element, type: string, x: number, y = 0, id = 1) {
   })
   Object.defineProperties(event, {
     pointerId: { value: id },
-    pointerType: { value: 'touch' },
+    pointerType: { value: 'mouse' },
   })
   fireEvent(target, event)
 }
@@ -66,8 +66,8 @@ beforeEach(() => {
 
 it('opens the existing details on click and restores focus when closed', async () => {
   const user = userEvent.setup()
-  const { card, onComplete, onDelete } = setup()
-  await user.click(screen.getByRole('heading', { name: task.title }))
+  const { onComplete, onDelete } = setup()
+  await user.click(screen.getByRole('article'))
   expect(screen.getByRole('dialog', { name: task.title })).toBeVisible()
   expect(screen.getByRole('region', { name: 'Descrição' })).toHaveTextContent(
     'Consultar https://example.test',
@@ -76,15 +76,16 @@ it('opens the existing details on click and restores focus when closed', async (
   await waitFor(() =>
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
   )
-  expect(card).toHaveFocus()
+  expect(screen.getByRole('article')).toHaveFocus()
   expect(onComplete).not.toHaveBeenCalled()
   expect(onDelete).not.toHaveBeenCalled()
 })
 
 it.each(['Enter', ' '])(
   'opens details with the %s key for a participant without edit permission',
-  (key) => {
-    const { card } = setup({
+  async (key) => {
+    const user = userEvent.setup()
+    setup({
       ...task,
       permissions: {
         edit: false,
@@ -93,11 +94,17 @@ it.each(['Enter', ' '])(
         changeStatus: true,
       },
     })
-    fireEvent.keyDown(card, { key })
+    const button = screen.getByRole('article')
+    button.focus()
+    await user.keyboard(key === 'Enter' ? '{Enter}' : ' ')
     expect(screen.getByRole('dialog', { name: task.title })).toBeVisible()
     expect(
       screen.queryByRole('button', { name: 'Editar' }),
     ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Editar tarefa' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText(/Criada por Guilherme/)).toBeVisible()
     expect(
       screen.queryByRole('button', { name: 'Excluir tarefa' }),
     ).not.toBeInTheDocument()
@@ -109,7 +116,7 @@ it('accepts a tap with small movement without executing an action', () => {
   pointer(card, 'pointerdown', 100, 100)
   pointer(card, 'pointermove', 104, 103)
   pointer(card, 'pointerup', 104, 103)
-  fireEvent.click(card)
+  fireEvent.click(card, { detail: 1 })
   expect(screen.getByRole('dialog', { name: task.title })).toBeVisible()
   expect(onComplete).not.toHaveBeenCalled()
   expect(hapticFeedback).not.toHaveBeenCalled()
@@ -132,7 +139,7 @@ it('pulses once per threshold entry, including reentry and switching direction b
   expect(hapticFeedback).toHaveBeenLastCalledWith('threshold')
   expect(onDelete).not.toHaveBeenCalled()
   pointer(card, 'pointerup', 50)
-  fireEvent.click(card)
+  fireEvent.click(card, { detail: 1 })
   expect(screen.getByText(/Tem certeza de que deseja excluir/)).toBeVisible()
   expect(
     screen.queryByRole('dialog', { name: task.title }),
@@ -145,42 +152,15 @@ it('does not open details after a short drag that never reaches the action thres
   pointer(card, 'pointerdown', 100)
   pointer(card, 'pointermove', 125)
   pointer(card, 'pointerup', 125)
-  fireEvent.click(card)
+  fireEvent.click(card, { detail: 1 })
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(onComplete).not.toHaveBeenCalled()
   expect(onDelete).not.toHaveBeenCalled()
   // A subsequent intentional tap remains usable.
   pointer(card, 'pointerdown', 100)
   pointer(card, 'pointerup', 100)
-  fireEvent.click(card)
+  fireEvent.click(screen.getByRole('article'))
   expect(screen.getByRole('dialog', { name: task.title })).toBeVisible()
-})
-
-it('swipes reliably from the mobile handle after initial diagonal finger jitter', () => {
-  const { card, onComplete, onDelete } = setup()
-  const handle = card.querySelector('.colabora-swipe-handle')!
-  expect(handle).toHaveClass('touch-none', 'md:hidden')
-  pointer(handle, 'pointerdown', 100, 100)
-  pointer(handle, 'pointermove', 107, 108)
-  expect(card).toHaveStyle({ transform: 'translateX(0px)' })
-  pointer(handle, 'pointermove', 115, 110)
-  expect(card).toHaveStyle({ transform: 'translateX(15px)' })
-  pointer(handle, 'pointermove', 130, 112)
-  expect(card).toHaveStyle({ transform: 'translateX(30px)' })
-  pointer(handle, 'pointerup', 130, 112)
-  fireEvent.click(handle)
-  expect(card).toHaveStyle({ transform: 'translateX(0px)' })
-  expect(onComplete).not.toHaveBeenCalled()
-  expect(onDelete).not.toHaveBeenCalled()
-  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-})
-
-it('does not open task details when the swipe handle itself is tapped', () => {
-  const { card } = setup()
-  const handle = card.querySelector('.colabora-swipe-handle')!
-  fireEvent.click(handle)
-  expect(card).toHaveStyle({ transform: 'translateX(0px)' })
-  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
 it.each(['pointerup', 'pointercancel'])(
@@ -191,7 +171,7 @@ it.each(['pointerup', 'pointercancel'])(
     pointer(card, 'pointermove', 110, 150)
     pointer(card, 'pointermove', 180, 180)
     pointer(card, end, 180, 180)
-    fireEvent.click(card)
+    fireEvent.click(card, { detail: 1 })
     expect(card).toHaveStyle({ transform: 'translateX(0px)' })
     expect(onComplete).not.toHaveBeenCalled()
     expect(onDelete).not.toHaveBeenCalled()
@@ -205,7 +185,7 @@ it('cancels a horizontal gesture without executing it or opening details', () =>
   pointer(card, 'pointerdown', 100)
   pointer(card, 'pointermove', 160)
   pointer(card, 'pointercancel', 160)
-  fireEvent.click(card)
+  fireEvent.click(card, { detail: 1 })
   expect(card).toHaveStyle({ transform: 'translateX(0px)' })
   expect(onComplete).not.toHaveBeenCalled()
   expect(onDelete).not.toHaveBeenCalled()
@@ -233,14 +213,41 @@ it('ignores extra pointers and does not reveal actions without permission', () =
   expect(hapticFeedback).not.toHaveBeenCalled()
 })
 
-it('keeps editing separate from opening details', async () => {
+it('keeps editing on the details pencil and off the card', async () => {
   const user = userEvent.setup()
   setup()
-  await user.click(screen.getByRole('button', { name: 'Editar' }))
-  expect(screen.getByRole('dialog', { name: 'Editar tarefa' })).toBeVisible()
   expect(
-    screen.queryByRole('dialog', { name: task.title }),
+    screen.queryByRole('button', { name: 'Editar' }),
   ).not.toBeInTheDocument()
+  expect(
+    screen.getByRole('img', { name: 'Responsável: Guilherme' }),
+  ).toBeVisible()
+  expect(screen.queryByText(/Criada por/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/Responsável/)).not.toBeInTheDocument()
+  expect(screen.getByRole('article')).toHaveClass('h-52')
+  await user.click(screen.getByRole('article'))
+  expect(screen.getByText('tarefa agendada')).toBeVisible()
+  expect(screen.getByText(/Criada por Guilherme/)).toBeVisible()
+  expect(screen.getByText(/Responsável: Guilherme/)).toBeVisible()
+  await user.click(screen.getByRole('button', { name: 'Editar tarefa' }))
+  expect(screen.getByRole('dialog', { name: 'Editar tarefa' })).toBeVisible()
+})
+
+it('shows a timed task with its start and an open finish', async () => {
+  const user = userEvent.setup()
+  setup({
+    ...task,
+    dueDate: null,
+    startedAt: '2026-11-06T20:00:00.000Z',
+    completedAt: null,
+    timed: true,
+    status: 'in_progress',
+  })
+  expect(screen.queryByText('Sem horário')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('article'))
+  expect(screen.getByText('tarefa cronometrada')).toBeVisible()
+  expect(screen.getAllByText('Em andamento').length).toBeGreaterThan(0)
+  expect(screen.queryByText('tarefa agendada')).not.toBeInTheDocument()
 })
 
 it('recovers from unexpected pointer capture loss without executing the action', () => {
@@ -249,25 +256,25 @@ it('recovers from unexpected pointer capture loss without executing the action',
   pointer(card, 'pointermove', 160)
   pointer(row, 'lostpointercapture', 160)
   pointer(card, 'pointerup', 160)
-  fireEvent.click(card)
+  fireEvent.click(card, { detail: 1 })
   expect(onComplete).not.toHaveBeenCalled()
   expect(card).toHaveStyle({ transform: 'translateX(0px)' })
   pointer(card, 'pointerdown', 100)
   pointer(card, 'pointerup', 100)
-  fireEvent.click(card)
+  fireEvent.click(screen.getByRole('article'))
   expect(screen.getByRole('dialog', { name: task.title })).toBeVisible()
 })
 
 it('disables completion while saving, shows its error and allows a retry from details', async () => {
   const user = userEvent.setup()
-  const { card, onComplete } = setup()
+  const { onComplete } = setup()
   let fail!: (reason: Error) => void
   onComplete.mockReturnValueOnce(
     new Promise((_resolve, reject) => {
       fail = reject
     }),
   )
-  await user.click(card)
+  await user.click(screen.getByRole('article'))
   await user.click(screen.getByRole('button', { name: 'Concluir tarefa' }))
   const saving = screen.getByRole('button', { name: 'Concluindo...' })
   expect(saving).toBeDisabled()
@@ -285,4 +292,154 @@ it('disables completion while saving, shows its error and allows a retry from de
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
   )
   expect(onComplete).toHaveBeenCalledTimes(2)
+})
+
+function touch(target: Element, type: string, x: number, y = 100) {
+  const point = { identifier: 1, clientX: x, clientY: y }
+  const event = new Event(type, { bubbles: true, cancelable: true })
+  Object.defineProperties(event, {
+    touches: {
+      value: type === 'touchend' || type === 'touchcancel' ? [] : [point],
+    },
+    changedTouches: { value: [point] },
+  })
+  fireEvent(target, event)
+  return event
+}
+
+it('completes a native touch swipe and prevents horizontal browser scrolling', async () => {
+  const { card, onComplete } = setup()
+  touch(card, 'touchstart', 100)
+  const event = touch(card, 'touchmove', 165, 105)
+  expect(event.defaultPrevented).toBe(true)
+  expect(card).toHaveStyle({ transform: 'translateX(65px)' })
+  touch(card, 'touchend', 165, 105)
+  fireEvent.click(card, { detail: 1 })
+  await waitFor(() => expect(onComplete).toHaveBeenCalledWith(task.id))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+it('requires confirmation for native touch deletion and can cancel it', () => {
+  const { card, onDelete } = setup()
+  touch(card, 'touchstart', 200)
+  touch(card, 'touchmove', 125)
+  touch(card, 'touchend', 125)
+  expect(screen.getByRole('dialog', { name: 'Excluir tarefa?' })).toBeVisible()
+  expect(onDelete).not.toHaveBeenCalled()
+  const cancel = screen.getByRole('button', { name: 'Cancelar' })
+  touch(cancel, 'touchstart', 100)
+  touch(cancel, 'touchend', 100)
+  fireEvent.click(cancel, { detail: 1 })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(card).toHaveStyle({ transform: 'translateX(0px)' })
+  expect(onDelete).not.toHaveBeenCalled()
+})
+
+it('locks native vertical scrolling even when the finger later moves horizontally', () => {
+  const { card, onComplete, onDelete } = setup()
+  touch(card, 'touchstart', 100)
+  expect(touch(card, 'touchmove', 104, 130).defaultPrevented).toBe(false)
+  expect(touch(card, 'touchmove', 190, 140).defaultPrevented).toBe(false)
+  touch(card, 'touchend', 190, 140)
+  expect(card).toHaveStyle({ transform: 'translateX(0px)' })
+  expect(onComplete).not.toHaveBeenCalled()
+  expect(onDelete).not.toHaveBeenCalled()
+})
+
+it('resets a cancelled native touch gesture and accepts a subsequent swipe', async () => {
+  const { card, onComplete } = setup()
+  touch(card, 'touchstart', 100)
+  touch(card, 'touchmove', 170)
+  touch(card, 'touchcancel', 170)
+  expect(onComplete).not.toHaveBeenCalled()
+  expect(card).toHaveStyle({ transform: 'translateX(0px)' })
+  touch(card, 'touchstart', 100)
+  touch(card, 'touchend', 170)
+  await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1))
+})
+
+it('cancels native multi-touch without completing a task', () => {
+  const { card, onComplete } = setup()
+  touch(card, 'touchstart', 100)
+  touch(card, 'touchmove', 165)
+  fireEvent.touchStart(card, {
+    touches: [
+      { identifier: 1, clientX: 165, clientY: 100 },
+      { identifier: 2, clientX: 180, clientY: 100 },
+    ],
+  })
+  touch(card, 'touchend', 165)
+  expect(card).toHaveStyle({ transform: 'translateX(0px)' })
+  expect(onComplete).not.toHaveBeenCalled()
+})
+
+it('gives every card the same height and keeps edit off the card', () => {
+  const second: Task = {
+    ...task,
+    id: 'task-2',
+    title: 'Outra tarefa com um título bem maior do que o card comporta',
+    description: 'Descrição longa que não deve aumentar a altura do card.',
+    location: 'Rua das Flores, 100',
+  }
+  render(
+    <TaskTimeline
+      tasks={[task, second]}
+      onComplete={jest.fn()}
+      onDelete={jest.fn()}
+    />,
+  )
+  const cards = screen.getAllByRole('article')
+  expect(cards).toHaveLength(2)
+  expect(cards[0]).toHaveClass('h-52')
+  expect(cards[1]).toHaveClass('h-52')
+  expect(
+    screen.getAllByRole('img', { name: 'Responsável: Guilherme' }),
+  ).toHaveLength(2)
+  expect(
+    screen.queryByRole('button', { name: 'Editar' }),
+  ).not.toBeInTheDocument()
+})
+
+it('opens details on a native tap with small finger movement and has no details button', () => {
+  const { card } = setup()
+  touch(card, 'touchstart', 100)
+  touch(card, 'touchmove', 104, 103)
+  touch(card, 'touchend', 104, 103)
+  fireEvent.click(card, { detail: 1 })
+  expect(screen.getByRole('dialog', { name: task.title })).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: 'Visualizar detalhes' }),
+  ).not.toBeInTheDocument()
+})
+
+it('blocks the residual native click after a short swipe and accepts the next tap', () => {
+  const { card, onComplete } = setup()
+  touch(card, 'touchstart', 100)
+  touch(card, 'touchmove', 125)
+  touch(card, 'touchend', 125)
+  fireEvent.click(card, { detail: 1 })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(onComplete).not.toHaveBeenCalled()
+  touch(card, 'touchstart', 100)
+  touch(card, 'touchend', 100)
+  fireEvent.click(card, { detail: 1 })
+  expect(screen.getByRole('dialog', { name: task.title })).toBeVisible()
+})
+
+it('keeps links separate from opening task details', () => {
+  setup()
+  const link = screen.getByRole('link', { name: /https:\/\/example\.test/ })
+  link.addEventListener('click', (event) => event.preventDefault(), {
+    once: true,
+  })
+  fireEvent.click(link, { detail: 1 })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+it('does not open details after a cancelled stationary touch', () => {
+  const { card } = setup()
+  touch(card, 'touchstart', 100)
+  touch(card, 'touchcancel', 100)
+  fireEvent.click(card, { detail: 1 })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })

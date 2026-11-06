@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Clock3 } from 'lucide-react'
 import { formatDuration } from '@/lib/format-duration'
+import { shownExecution } from '../execution-minutes'
 import type { Task } from '../types/task'
 
 export function TaskExecutionTime({
@@ -19,18 +20,8 @@ export function TaskExecutionTime({
   }, [running])
 
   const completed = task.status === 'completed'
-  const estimated =
-    completed &&
-    (task.actualTimeSource === 'schedule' ||
-      task.actualTimeSource === 'estimate')
-  const minutes = completed
-    ? task.actualTime
-    : running
-      ? Math.max(
-          0,
-          Math.floor((now - new Date(task.startedAt!).getTime()) / 60000),
-        )
-      : task.estimatedTime
+  const execution = shownExecution(task, now)
+  const { minutes, estimated, origin } = execution
   const label = completed
     ? estimated
       ? 'Tempo estimado de execução'
@@ -38,12 +29,6 @@ export function TaskExecutionTime({
     : running
       ? 'Tempo em execução'
       : 'Tempo previsto'
-  const origin =
-    completed && task.actualTimeSource === 'schedule'
-      ? 'Desde o horário agendado'
-      : completed && task.actualTimeSource === 'estimate'
-        ? 'Duração prevista · sem início registrado'
-        : null
 
   if (compact) {
     const duration =

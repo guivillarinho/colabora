@@ -1,11 +1,33 @@
-import { GoogleSettings } from '@/features/google/google-settings'
-import { useEffect, useState } from 'react'
-import { Bell, BellOff } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { cn } from 'cn'
+import {
+  Bell,
+  BellOff,
+  CalendarDays,
+  Camera,
+  ChartNoAxesCombined,
+  ChevronRight,
+  LogOut,
+  Palette,
+} from 'lucide-react'
+
+import { PalettePicker } from '@/components/palette-picker'
+import { ThemeModePicker } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
-import { apiRequest } from '@/lib/http-client'
-import { useAuth } from './auth-context'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { GoogleSettings } from '@/features/google/google-settings'
 import { useTasks } from '@/features/tasks/tasks-context'
 import { TaskExecutionChart } from '@/features/dashboard/components/task-execution-chart'
+import { apiRequest } from '@/lib/http-client'
+import { useAuth } from './auth-context'
+import { AvatarSettings } from './avatar-settings'
+import { UserAvatar } from './user-avatar'
 
 type PushKey = { publicKey: string }
 type SubscriptionKeys = { p256dh?: string; auth?: string }
@@ -14,11 +36,255 @@ type SubscriptionJSON = {
   keys?: SubscriptionKeys
 }
 
+const profileOptions = [
+  {
+    id: 'appearance',
+    title: 'Aparência',
+    description: 'Tema e cores do aplicativo',
+    detail:
+      'Escolha o tema claro, escuro ou do sistema e a sua paleta de cores.',
+    icon: Palette,
+  },
+  {
+    id: 'notifications',
+    title: 'Notificações',
+    description: 'Lembretes e avisos de tarefas',
+    detail: 'Gerencie os avisos do Colabora neste dispositivo.',
+    icon: Bell,
+  },
+  {
+    id: 'google',
+    title: 'Google Agenda',
+    description: 'Conecte seu calendário',
+    detail: 'Gerencie a conexão com sua conta Google e o envio de tarefas.',
+    icon: CalendarDays,
+  },
+] as const
+
+type ProfileOption =
+  'avatar' | 'productivity' | (typeof profileOptions)[number]['id']
+
 export function AccountPage() {
   const { user, logout } = useAuth()
   const { tasks } = useTasks()
+  const [selected, setSelected] = useState<ProfileOption | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const option = profileOptions.find((item) => item.id === selected)
+  const title =
+    selected === 'avatar'
+      ? 'Foto de perfil'
+      : selected === 'productivity'
+        ? 'Minha produtividade'
+        : option?.title
+  const description =
+    selected === 'avatar'
+      ? 'Envie uma imagem PNG, JPEG ou WebP de até 10 MB.'
+      : selected === 'productivity'
+        ? 'Acompanhe o tempo dedicado às suas tarefas.'
+        : option?.detail
+  const stats = [
+    {
+      label: 'Pendentes',
+      value: tasks.filter((task) => task.status === 'pending').length,
+    },
+    {
+      label: 'Em andamento',
+      value: tasks.filter((task) => task.status === 'in_progress').length,
+    },
+    {
+      label: 'Concluídas',
+      value: tasks.filter((task) => task.status === 'completed').length,
+    },
+  ]
+
+  function openSettings(option: ProfileOption, trigger: HTMLButtonElement) {
+    triggerRef.current = trigger
+    setSelected(option)
+  }
+
+  async function leave() {
+    if (pending) return
+    setPending(true)
+    setError(null)
+    try {
+      await logout()
+    } catch {
+      setError('Não foi possível encerrar a sessão. Tente novamente.')
+      setPending(false)
+    }
+  }
+
+  return (
+    <section
+      aria-label="Perfil do usuário"
+      className="mx-auto grid w-full min-w-0 max-w-xl gap-6 sm:gap-8"
+    >
+      <div className="grid min-w-0 justify-items-center gap-5 px-2 pt-2 text-center sm:pt-4">
+        <div className="relative">
+          <div className="rounded-full border border-primary/20 bg-background/60 p-2 shadow-lg shadow-primary/10">
+            <UserAvatar size="xl" />
+          </div>
+          <Button
+            aria-label="Editar foto de perfil"
+            aria-haspopup="dialog"
+            className="absolute right-0 bottom-1 size-11 rounded-full border-4 border-background shadow-sm"
+            size="icon"
+            type="button"
+            onClick={(event) => openSettings('avatar', event.currentTarget)}
+          >
+            <Camera aria-hidden="true" className="size-4" />
+          </Button>
+        </div>
+        <div className="grid min-w-0 w-full gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight [overflow-wrap:anywhere] sm:text-3xl">
+            {user?.name ?? 'Sua conta'}
+          </h1>
+          <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
+            {user?.email}
+          </p>
+        </div>
+        <dl
+          aria-label="Resumo das tarefas"
+          className="glass-panel grid w-full grid-cols-3 divide-x rounded-2xl border px-2 py-4 sm:py-5"
+        >
+          {stats.map((stat) => (
+            <div
+              key={stat.label}
+              className="grid content-start gap-1 px-1 sm:px-3"
+            >
+              <dd className="order-first text-2xl font-semibold tabular-nums">
+                {stat.value}
+              </dd>
+              <dt className="text-xs leading-snug text-muted-foreground sm:text-sm">
+                {stat.label}
+              </dt>
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      <button
+        aria-haspopup="dialog"
+        className="glass-panel flex min-w-0 items-center gap-3 rounded-2xl border border-primary/20 bg-primary/10 p-4 text-left transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-5"
+        type="button"
+        onClick={(event) => openSettings('productivity', event.currentTarget)}
+      >
+        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+          <ChartNoAxesCombined aria-hidden="true" className="size-5" />
+        </span>
+        <span className="grid min-w-0 flex-1 gap-1">
+          <span className="font-semibold">Minha produtividade</span>
+          <span className="text-sm text-muted-foreground">
+            Seu tempo por categoria
+          </span>
+        </span>
+        <ChevronRight
+          aria-hidden="true"
+          className="size-4 shrink-0 text-primary"
+        />
+      </button>
+
+      <div className="grid gap-3">
+        <h2 className="px-1 text-xs font-medium tracking-wider text-muted-foreground uppercase">
+          Preferências
+        </h2>
+        <div className="glass-panel divide-y overflow-hidden rounded-2xl border">
+          {profileOptions.map((item) => {
+            const Icon = item.icon
+            return (
+              <button
+                key={item.id}
+                aria-haspopup="dialog"
+                className="flex w-full min-w-0 items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5"
+                type="button"
+                onClick={(event) => openSettings(item.id, event.currentTarget)}
+              >
+                <span className="grid size-11 shrink-0 place-items-center rounded-full border border-border/80 text-foreground/80">
+                  <Icon aria-hidden="true" className="size-5" />
+                </span>
+                <span className="grid min-w-0 flex-1 gap-0.5">
+                  <span className="font-medium">{item.title}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {item.description}
+                  </span>
+                </span>
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-muted-foreground"
+                />
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="grid gap-2">
+        <Button
+          className="h-12 w-full justify-start gap-3 rounded-xl px-4 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          variant="ghost"
+          onClick={leave}
+          disabled={pending}
+        >
+          <LogOut aria-hidden="true" className="size-5" />
+          {pending ? 'Saindo...' : 'Sair da conta'}
+        </Button>
+        {error ? (
+          <p role="alert" className="px-4 text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+      </div>
+
+      <Dialog
+        open={selected !== null}
+        onOpenChange={(open) => !open && setSelected(null)}
+      >
+        <DialogContent
+          className={cn(
+            'flex max-h-[85svh] flex-col overflow-hidden sm:max-w-lg',
+            selected === 'avatar' && 'gap-6 p-6 sm:p-8',
+          )}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            triggerRef.current?.focus()
+          }}
+        >
+          <DialogHeader className="shrink-0 pr-8">
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
+          </DialogHeader>
+          <div
+            className={cn(
+              'grid min-h-0 gap-5 overflow-y-auto',
+              selected === 'avatar'
+                ? 'px-1 py-1'
+                : '-mx-1 px-1 pb-1 [&>section]:border-0 [&>section]:bg-transparent [&>section]:p-0 [&>section]:shadow-none [&>section]:backdrop-blur-none',
+            )}
+          >
+            {selected === 'avatar' ? (
+              <AvatarSettings onDone={() => setSelected(null)} />
+            ) : null}
+            {selected === 'appearance' ? (
+              <>
+                <ThemeModePicker />
+                <PalettePicker />
+              </>
+            ) : null}
+            {selected === 'notifications' ? <NotificationSettings /> : null}
+            {selected === 'google' ? <GoogleSettings /> : null}
+            {selected === 'productivity' ? (
+              <TaskExecutionChart tasks={tasks} />
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </section>
+  )
+}
+
+function NotificationSettings() {
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushAvailable, setPushAvailable] = useState(false)
   const [pushPending, setPushPending] = useState(false)
@@ -120,88 +386,63 @@ export function AccountPage() {
     }
   }
 
-  async function leave() {
-    setPending(true)
-    try {
-      await logout()
-    } catch {
-      setError('Não foi possível encerrar a sessão. Tente novamente.')
-      setPending(false)
-    }
-  }
   return (
-    <section className="grid gap-4">
-      <h1 className="text-2xl font-semibold">Seu perfil</h1>
-      <p>{user?.name}</p>
-      <p className="text-muted-foreground">{user?.email}</p>
-      <section className="glass-panel grid gap-3 rounded-2xl border p-4 sm:p-5">
-        <div className="flex items-center gap-3">
-          {pushEnabled ? (
-            <Bell aria-hidden="true" className="size-5 text-primary" />
-          ) : (
-            <BellOff
-              aria-hidden="true"
-              className="size-5 text-muted-foreground"
-            />
-          )}
-          <h2 className="text-lg font-semibold">
-            Notificações neste dispositivo
-          </h2>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Receba avisos quando tarefas forem criadas, alteradas, concluídas ou
-          removidas em outro dispositivo, e lembretes 10 minutos antes e no
-          horário marcado.
-        </p>
-        {iosNeedsInstall ? (
-          <p className="text-sm text-muted-foreground">
-            No iPhone ou iPad, adicione o Colabora à Tela de Início e abra pelo
-            ícone antes de ativar as notificações.
-          </p>
-        ) : null}
-        {!pushSupported ? (
-          <p className="text-sm text-muted-foreground">
-            Este navegador não oferece notificações push. Tente em um navegador
-            compatível com o site aberto por HTTPS.
-          </p>
+    <section className="grid gap-3">
+      <div className="flex items-center gap-3">
+        {pushEnabled ? (
+          <Bell aria-hidden="true" className="size-5 text-primary" />
         ) : (
-          <>
-            <Button
-              className="justify-self-start"
-              variant={pushEnabled ? 'outline' : 'default'}
-              onClick={togglePush}
-              disabled={pushPending || (!pushAvailable && !pushEnabled)}
-            >
-              {pushPending
-                ? 'Aguarde...'
-                : pushEnabled
-                  ? 'Desativar neste dispositivo'
-                  : 'Ativar notificações'}
-            </Button>
-            {!pushAvailable && !pushEnabled ? (
-              <p className="text-sm text-muted-foreground">
-                O serviço push ainda não está configurado no servidor.
-              </p>
-            ) : null}
-          </>
+          <BellOff
+            aria-hidden="true"
+            className="size-5 text-muted-foreground"
+          />
         )}
-        {pushMessage ? (
-          <p aria-live="polite" className="text-sm text-muted-foreground">
-            {pushMessage}
-          </p>
-        ) : null}
-      </section>
-      <GoogleSettings />
-      <TaskExecutionChart tasks={tasks} />
-      {error ? <p role="alert">{error}</p> : null}
-      <Button
-        className="justify-self-start"
-        variant="outline"
-        onClick={leave}
-        disabled={pending}
-      >
-        {pending ? 'Saindo...' : 'Sair da conta'}
-      </Button>
+        <h2 className="text-lg font-semibold">
+          Notificações neste dispositivo
+        </h2>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Receba avisos quando tarefas forem criadas, alteradas, concluídas ou
+        removidas em outro dispositivo, e lembretes 10 minutos antes e no
+        horário marcado.
+      </p>
+      {iosNeedsInstall ? (
+        <p className="text-sm text-muted-foreground">
+          No iPhone ou iPad, adicione o Colabora à Tela de Início e abra pelo
+          ícone antes de ativar as notificações.
+        </p>
+      ) : null}
+      {!pushSupported ? (
+        <p className="text-sm text-muted-foreground">
+          Este navegador não oferece notificações push. Tente em um navegador
+          compatível com o site aberto por HTTPS.
+        </p>
+      ) : (
+        <>
+          <Button
+            className="justify-self-start"
+            variant={pushEnabled ? 'outline' : 'default'}
+            onClick={togglePush}
+            disabled={pushPending || (!pushAvailable && !pushEnabled)}
+          >
+            {pushPending
+              ? 'Aguarde...'
+              : pushEnabled
+                ? 'Desativar neste dispositivo'
+                : 'Ativar notificações'}
+          </Button>
+          {!pushAvailable && !pushEnabled ? (
+            <p className="text-sm text-muted-foreground">
+              O serviço push ainda não está configurado no servidor.
+            </p>
+          ) : null}
+        </>
+      )}
+      {pushMessage ? (
+        <p aria-live="polite" className="text-sm text-muted-foreground">
+          {pushMessage}
+        </p>
+      ) : null}
     </section>
   )
 }
