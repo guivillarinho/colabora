@@ -1,5 +1,15 @@
 # Colabora — progresso
 
+## 2026-11-06 — Cards e criação de tarefas
+
+- **Etapa concluída:** edição de tarefas movida do card para os detalhes; cards da página Hoje padronizados; identificação de tarefas agendadas/cronometradas e seus intervalos exibida de forma consistente. O formulário oferece os modos agendado (caderno) e cronometrado (cronômetro), inicia imediatamente tarefas cronometradas, permite limpar um agendamento salvo e envia anexos antes de salvar sua referência. Detalhes mostram criador, responsável, status e duração/hora de conclusão conforme os dados registrados.
+- **Commit funcional relacionado:** `3a6d7c3` — `feat: move task editing into details and standardize home cards`. Commits relacionados no histórico: `710266f` (registro de conclusão e prevenção de falhas repetidas), `1770f0e` e `9c1b2c1` (gesto móvel dos cards), `402b28d` (refinamentos anteriores de criação) e `623e778` (separação entre tarefas agendadas e cronometradas).
+- **Arquivos principais:** `web/src/features/dashboard/components/task-timeline.tsx`, `web/src/features/dashboard/agenda-page.tsx`, `web/src/features/tasks/components/task-form-dialog.tsx`, `web/src/features/tasks/components/task-creator-badge.tsx`, `web/src/features/tasks/components/task-execution-time.tsx`, `web/src/features/tasks/task-kind.ts`, `web/src/features/tasks/execution-minutes.ts` e respectivos testes.
+- **Orientação para continuar em outra IDE/sessão:** começar por este registro e comparar a branch que contém `3a6d7c3` com a branch local da IDE. Preservar o fluxo existente: card abre detalhes; o lápis nos detalhes abre `TaskFormDialog`; criação usa `TaskInput.startImmediately` para timer; `taskWindow` fornece início/fim à agenda; `execution-minutes.ts` centraliza a duração mostrada. Resolver conflitos por comportamento e permissões, sem substituir a implementação atual por uma versão divergente sem comparar esses arquivos.
+- **Testes desta etapa:** foram adicionados/ajustados testes unitários de `task-timeline`, `task-form-dialog`, `task-execution-time`, `task-kind` e `timer-page`. Não foram executados nesta etapa.
+- **Estado do Git na preparação deste registro:** `3a6d7c3` estava em `feat/ai-autonomous-dev`, sem upstream configurado; a referência remota `origin/feat/colabora-evolucao` apontava para `1770f0e`. A alteração preexistente em `AGENTS.md` não pertence a esta etapa e deve ser preservada.
+- **Próxima ação:** sincronizar o commit documental desta atualização para o GitHub na branch que contém `3a6d7c3`; ao retomar em outro computador, buscar essa branch e usar este arquivo como contexto durável.
+
 ## 2026-11-05 — E0 concluída
 
 - **Etapa concluída:** fase 0, auditoria estática direcionada e plano persistente. Demais etapas pendentes.
