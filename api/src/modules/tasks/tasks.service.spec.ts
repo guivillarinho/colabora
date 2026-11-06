@@ -1,3 +1,6 @@
+import { plainToInstance } from 'class-transformer'
+import { validate } from 'class-validator'
+
 import { UsersService } from '../auth/users.service'
 import { AttachmentsService } from '../agenda/attachments.service'
 import { NotificationsService } from '../notifications/notifications.service'
@@ -14,6 +17,8 @@ import {
 import { TaskColor } from './task-color.enum'
 import { TaskPriority } from './task-priority.enum'
 import { TaskStatus } from './task-status.enum'
+import { CreateTaskDto } from './dto/create-task.dto'
+import { UpdateTaskDto } from './dto/update-task.dto'
 import { TasksService } from './tasks.service'
 
 const taskId = '7d7f0a4e-6c2b-4f1a-9d3e-1b2c3d4e5f60'
@@ -101,6 +106,7 @@ describe('TasksService', () => {
           startedAt: null,
           actualTime: null,
           actualTimeSource: null,
+          completedAt: null,
         },
       )
       expect(result.status).toBe(TaskStatus.Pending)
@@ -239,6 +245,77 @@ describe('TasksService', () => {
     expect(result.task.actualTimeSource).toBe('manual')
   })
 
+  it('records the finish instant and zero minutes when a timed task starts and ends at 17:00', async () => {
+    const sameMinute = new Date('2026-11-06T20:00:00.000Z')
+    jest.useFakeTimers({ now: sameMinute })
+    try {
+      findOne.mockResolvedValue(
+        pendingTask({
+          status: TaskStatus.InProgress,
+          startedAt: sameMinute,
+          timed: true,
+          estimatedTime: 60,
+        }),
+      )
+      const result = await service.complete(taskId, {}, 'owner')
+      expect(result.task.actualTime).toBe(0)
+      expect(result.task.actualTimeSource).toBe('timer')
+      expect(result.task.completedAt).toEqual(sameMinute)
+      expect(result.productivityAdvice).toBeNull()
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('does not turn a date-only schedule finished at 17:55 Brasília into 20 h 55 min', async () => {
+    jest.useFakeTimers({ now: new Date('2026-11-06T20:55:00.000Z') })
+    try {
+      findOne.mockResolvedValue(
+        pendingTask({
+          dueDate: new Date('2026-11-06T00:00:00.000Z'),
+          estimatedTime: 60,
+        }),
+      )
+      const result = await service.complete(taskId, {}, 'owner')
+      expect(result.task.actualTime).toBe(60)
+      expect(result.task.actualTimeSource).toBe('estimate')
+      expect(result.task.actualTime).not.toBe(20 * 60 + 55)
+      expect(result.task.completedAt).toEqual(
+        new Date('2026-11-06T20:55:00.000Z'),
+      )
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('marks an immediate task as timed and stores no completion yet', async () => {
+    repository.save.mockImplementationOnce(async (task: Partial<Task>) => {
+      const saved = pendingTask({ ...task, id: taskId })
+      findOne.mockResolvedValue(saved)
+      return saved
+    })
+    const result = await service.create(
+      {
+        title: 'Revisão',
+        category: 'Pessoal',
+        color: TaskColor.Blue,
+        estimatedTime: 25,
+        startImmediately: true,
+      } as CreateTaskDto,
+      'owner',
+    )
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timed: true,
+        dueDate: null,
+        completedAt: null,
+        status: TaskStatus.InProgress,
+      }),
+    )
+    expect(result.timed).toBe(true)
+    expect(result.completedAt).toBeNull()
+  })
+
   it('does not recalculate or notify again when an already completed task is retried', async () => {
     findOne.mockResolvedValue(
       pendingTask({
@@ -250,6 +327,41 @@ describe('TasksService', () => {
     const result = await service.complete(taskId, {}, 'owner')
     expect(result.task.actualTime).toBe(15)
     expect(repository.update).not.toHaveBeenCalled()
+  })
+
+  it('clears a due date and refreshes reminders when the editor removes it', async () => {
+    const dueDate = new Date('2026-11-06T12:00:00.000Z')
+    findOne.mockResolvedValue(pendingTask({ dueDate }))
+
+    const result = await service.update(
+      taskId,
+      { dueDate: null } as UpdateTaskDto,
+      'owner',
+    )
+
+    expect(repository.update).toHaveBeenCalledWith(
+      { id: taskId, createdById: 'owner' },
+      expect.objectContaining({ dueDate: null }),
+    )
+    expect(result.dueDate).toBeNull()
+    expect(notifications.scheduleTaskReminders).toHaveBeenCalledWith(
+      expect.objectContaining({ id: taskId, dueDate: null }),
+    )
+  })
+
+  it('accepts an empty due date on update and rejects text that is not a date', async () => {
+    expect(
+      await validate(plainToInstance(UpdateTaskDto, { dueDate: null }), {
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    ).toHaveLength(0)
+    expect(
+      await validate(plainToInstance(UpdateTaskDto, { dueDate: 'amanhã' }), {
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    ).not.toHaveLength(0)
   })
 
   it('throws when the task does not exist', async () => {
@@ -279,6 +391,8 @@ function pendingTask(overrides: Partial<Task> = {}): Task {
     actualTimeSource: null,
     status: TaskStatus.Pending,
     startedAt: null,
+    completedAt: null,
+    timed: false,
     createdAt: new Date('2026-10-29T12:00:00.000Z'),
     updatedAt: new Date('2026-10-29T12:00:00.000Z'),
     ...overrides,

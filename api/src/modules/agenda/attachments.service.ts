@@ -34,7 +34,6 @@ export class AttachmentsService {
   ): Promise<void> {
     const filenames: string[] = []
     for (const reference of references) {
-      if (!reference.includes('||')) continue
       const [name, url, extra] = reference.split('||')
       const prefix = '/uploads/agenda/'
       if (

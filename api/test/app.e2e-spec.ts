@@ -7,7 +7,7 @@ import request from 'supertest'
 import { Client } from 'pg'
 import { DataSource } from 'typeorm'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { rm } from 'node:fs/promises'
+import { readdir, rm } from 'node:fs/promises'
 import { createApplication } from '../src/bootstrap'
 import { InitialSchema1793448000000 } from '../src/database/migrations/1793448000000-initial-schema'
 jest.mock('@google/genai', () => ({ GoogleGenAI: jest.fn() }))
@@ -818,6 +818,18 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
         attachments: [ref],
       })
       .expect(400)
+    await a.agent
+      .post('/api/tasks')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', a.csrf)
+      .send({
+        title: 'Só o nome',
+        category: 'Pessoal',
+        color: 'blue',
+        estimatedTime: 1,
+        attachments: [file.name],
+      })
+      .expect(400)
     const created = await task(a, {
       assignedToId: b.user.id,
       attachments: [ref],
@@ -952,6 +964,138 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
     } finally {
       process.env.AUTH_CSRF_LIMIT = '1000'
     }
+  })
+
+  it('keeps profile photos private and deletes the previous file', async () => {
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    )
+    const a = await actor()
+    const b = await actor()
+    expect(a.user).toMatchObject({ avatar: null })
+    await request(app.getHttpServer()).get('/api/users/me/avatar').expect(401)
+    const uploaded = await a.agent
+      .post('/api/users/me/avatar')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', a.csrf)
+      .attach('file', png, 'foto.png')
+      .expect(201)
+    expect(uploaded.body.user.avatar).toEqual({
+      kind: 'image',
+      revision: expect.stringMatching(/^[0-9a-f]{16}$/),
+    })
+    expect(JSON.stringify(uploaded.body)).not.toContain('avatars/')
+    const folder = join(uploadDir, 'avatars', a.user.id)
+    expect(await readdir(folder)).toHaveLength(1)
+    await a.agent
+      .get('/api/users/me/avatar')
+      .expect(200)
+      .expect('Content-Type', /image\/png/)
+      .expect('X-Content-Type-Options', 'nosniff')
+      .expect('Cache-Control', 'private, no-store')
+      .expect('Content-Disposition', 'inline; filename="avatar.png"')
+    await b.agent.get('/api/users/me/avatar').expect(404)
+    await a.agent
+      .post('/api/users/me/avatar')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', a.csrf)
+      .attach('file', Buffer.from('not an image'), 'foto.png')
+      .expect(400)
+    expect(await readdir(folder)).toHaveLength(1)
+    const preset = await a.agent
+      .patch('/api/users/me/avatar')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', a.csrf)
+      .send({ preset: 'leaf' })
+      .expect(200)
+    expect(preset.body.user.avatar).toEqual({ kind: 'preset', id: 'leaf' })
+    await a.agent.get('/api/users/me/avatar').expect(404)
+    expect(await readdir(folder)).toEqual([])
+    const removed = await a.agent
+      .delete('/api/users/me/avatar')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', a.csrf)
+      .expect(200)
+    expect(removed.body.user.avatar).toBeNull()
+    const me = await a.agent.get('/api/auth/me').expect(200)
+    expect(me.body.user.avatar).toBeNull()
+  })
+
+  it('shows the assigned profile photo only to task participants and follows reassignment', async () => {
+    const owner = await actor('Criador')
+    const assignee = await actor('Responsável')
+    const outsider = await actor('Outra pessoa')
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    )
+    await assignee.agent
+      .post('/api/users/me/avatar')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', assignee.csrf)
+      .attach('file', png, 'foto.png')
+      .expect(201)
+    const shared = await task(owner, { assignedToId: assignee.user.id })
+    const detail = await owner.agent.get(`/api/tasks/${shared.id}`).expect(200)
+    expect(detail.body.assignedTo).toMatchObject({
+      id: assignee.user.id,
+      avatar: { kind: 'image', revision: expect.any(String) },
+    })
+    expect(JSON.stringify(detail.body)).not.toContain('avatarKey')
+    expect(JSON.stringify(detail.body)).not.toContain('avatars/')
+    const path = `/api/tasks/${shared.id}/assignee/avatar`
+    await request(app.getHttpServer()).get(path).expect(401)
+    await outsider.agent.get(path).expect(404)
+    await owner.agent
+      .get(path)
+      .expect(200)
+      .expect('Content-Type', /image\/png/)
+      .expect('Cache-Control', 'private, no-store')
+    await assignee.agent.get(path).expect(200)
+    await patch(owner, shared.id, { assignedToId: outsider.user.id }).expect(
+      200,
+    )
+    await assignee.agent.get(path).expect(404)
+    await owner.agent.get(path).expect(404)
+  })
+
+  it('persists task kind, finish time and cleared schedules for the details view', async () => {
+    const owner = await actor()
+    const timed = await task(owner, { startImmediately: true })
+    const started = await owner.agent.get(`/api/tasks/${timed.id}`).expect(200)
+    expect(started.body).toMatchObject({
+      timed: true,
+      completedAt: null,
+      dueDate: null,
+    })
+    const finished = await owner.agent
+      .post(`/api/tasks/${timed.id}/complete`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', owner.csrf)
+      .send({})
+      .expect(200)
+    expect(finished.body.task).toMatchObject({
+      timed: true,
+      status: 'completed',
+      completedAt: expect.any(String),
+    })
+    const reopened = await owner.agent
+      .patch(`/api/tasks/${timed.id}/status`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', owner.csrf)
+      .send({ status: 'pending' })
+      .expect(200)
+    expect(reopened.body).toMatchObject({
+      timed: true,
+      completedAt: null,
+      startedAt: null,
+    })
+    const scheduled = await task(owner, { dueDate: '2026-11-07T12:00:00.000Z' })
+    const cleared = await patch(owner, scheduled.id, { dueDate: null }).expect(
+      200,
+    )
+    expect(cleared.body).toMatchObject({ timed: false, dueDate: null })
   })
 
   it('rate limits repeated login guesses using shared database state', async () => {

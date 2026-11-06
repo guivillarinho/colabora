@@ -1,4 +1,6 @@
+import { TaskCompletion1794182400000 } from './migrations/1794182400000-task-completion'
 import { GoogleCalendar1794009600000 } from './migrations/1794009600000-google-calendar'
+import { UserAvatar1794096000000 } from './migrations/1794096000000-user-avatar'
 import { Assistant1793923200000 } from './migrations/1793923200000-assistant'
 import { Pomodoro1793880000000 } from './migrations/1793880000000-pomodoro'
 import { Module } from '@nestjs/common'
@@ -43,6 +45,8 @@ import { databaseSchema } from './schema'
           Pomodoro1793880000000,
           Assistant1793923200000,
           GoogleCalendar1794009600000,
+          UserAvatar1794096000000,
+          TaskCompletion1794182400000,
         ],
         migrationsRun: !process.env.VERCEL,
       }),

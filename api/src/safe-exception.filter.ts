@@ -6,12 +6,20 @@ import {
   Logger,
 } from '@nestjs/common'
 import type { Response } from 'express'
+import { MulterError } from 'multer'
 
 @Catch()
 export class SafeExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger('HttpError')
   catch(cause: unknown, host: ArgumentsHost) {
     const response = host.switchToHttp().getResponse<Response>()
+    if (cause instanceof MulterError && cause.code === 'LIMIT_FILE_SIZE') {
+      response.status(400).json({
+        statusCode: 400,
+        message: 'O arquivo deve ter no máximo 10 MB.',
+      })
+      return
+    }
     if (cause instanceof HttpException) {
       const status = cause.getStatus()
       const body = cause.getResponse()

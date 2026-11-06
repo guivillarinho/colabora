@@ -10,6 +10,7 @@ import { DataSource, QueryFailedError, Repository } from 'typeorm'
 import * as argon2 from 'argon2'
 import { createHash, randomBytes } from 'node:crypto'
 
+import { presentAvatar } from './avatar'
 import { User, type Identity } from './entities/user.entity'
 import {
   PasswordResetDto,
@@ -237,6 +238,11 @@ export class AuthService {
   }
 
   private identity(user: User): Identity {
-    return { id: user.id, name: user.name, email: user.email }
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatar: presentAvatar(user.avatarKey),
+    }
   }
 }

@@ -33,6 +33,7 @@ describe('AgendaFilesController', () => {
         id: 'owner',
         name: 'Owner',
         email: 'owner@example.test',
+        avatar: null,
       }),
     ).rejects.toBeInstanceOf(NotFoundException)
     expect(get).not.toHaveBeenCalled()
@@ -45,6 +46,7 @@ describe('AgendaFilesController', () => {
         id: 'owner',
         name: 'Owner',
         email: 'owner@example.test',
+        avatar: null,
       }),
     ).rejects.toBeInstanceOf(NotFoundException)
   })
@@ -62,7 +64,7 @@ describe('AgendaFilesController', () => {
     } as NonNullable<Awaited<ReturnType<typeof get>>>)
     const response = await controller.download(
       '12345678-1234-1234-1234-123456789abc.pdf',
-      { id: 'owner', name: 'Owner', email: 'owner@example.test' },
+      { id: 'owner', name: 'Owner', email: 'owner@example.test', avatar: null },
     )
     expect(response).toBeInstanceOf(StreamableFile)
     expect(response.getHeaders().disposition).toBe(
@@ -90,7 +92,7 @@ describe('AgendaFilesController', () => {
     } as NonNullable<Awaited<ReturnType<typeof get>>>)
     const response = await controller.download(
       '12345678-1234-1234-1234-123456789abc.png',
-      { id: 'owner', name: 'Owner', email: 'owner@example.test' },
+      { id: 'owner', name: 'Owner', email: 'owner@example.test', avatar: null },
     )
     expect(response.getHeaders().type).toBe('image/png')
     response.getStream().destroy()

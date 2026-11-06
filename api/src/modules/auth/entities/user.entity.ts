@@ -4,6 +4,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
 } from 'typeorm'
+import type { PublicAvatar } from '../avatar'
 
 @Entity('users')
 export class User {
@@ -19,11 +20,16 @@ export class User {
   @Column({ type: 'text', select: false })
   passwordHash: string
 
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  avatarKey: string | null
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
 }
 
-export type Identity = Pick<User, 'id' | 'name' | 'email'>
+export type Identity = Pick<User, 'id' | 'name' | 'email'> & {
+  avatar: PublicAvatar | null
+}
 export type Person = Pick<User, 'id' | 'name'>
 export function person(user: User | null | undefined): Person | null {
   return user ? { id: user.id, name: user.name } : null
