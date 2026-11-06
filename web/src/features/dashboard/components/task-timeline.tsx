@@ -1,12 +1,17 @@
 import { TaskPeople } from '@/features/tasks/components/task-people'
 import { LinkedText } from '@/components/linked-text'
-import { useRef, useState, type CSSProperties, type PointerEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+} from 'react'
 import { AgendaDetails } from '../agenda-page'
 import {
   ArrowLeft,
   ArrowRight,
   CircleCheck,
-  GripVertical,
   MapPin,
   Trash2,
 } from 'lucide-react'
@@ -80,7 +85,7 @@ export function TaskTimeline({
           aria-label="Como arrastar as tarefas"
           className="grid gap-3 rounded-xl border bg-card p-4 text-sm"
         >
-          <p className="font-semibold">Arraste pelo puxador para agir</p>
+          <p className="font-semibold">Arraste o card para agir</p>
           <p className="flex items-center gap-2 text-pastel-green-foreground">
             <ArrowRight aria-hidden="true" className="size-4 shrink-0" />
             Para a direita: concluir com tempo calculado automaticamente.
@@ -90,7 +95,7 @@ export function TaskTimeline({
             Para a esquerda: abrir a confirmação de exclusão.
           </p>
           <p className="text-muted-foreground">
-            No celular, use o puxador para evitar que o navegador role a página.
+            Arraste na horizontal para agir ou na vertical para rolar a página.
             Solte para realizar a ação; no teclado, foque o card e use as setas.
           </p>
           <Button
@@ -146,13 +151,14 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
   const [editing, setEditing] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const cardRef = useRef<HTMLElement>(null)
+  const rowRef = useRef<HTMLLIElement>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [offset, setOffset] = useState(0)
   const [dragging, setDragging] = useState(false)
   const dragStartX = useRef<number | null>(null)
   const dragStartY = useRef(0)
   const activePointer = useRef<number | null>(null)
-  const dragDirection = useRef<'horizontal' | null>(null)
+  const dragDirection = useRef<'horizontal' | 'vertical' | null>(null)
   const suppressClick = useRef(false)
   const thresholdAction = useRef(0)
   const dragStartOffset = useRef(0)
@@ -207,50 +213,38 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
     }
   }
 
-  function handlePointerDown(event: PointerEvent<HTMLLIElement>) {
-    if (completionPending.current || activePointer.current !== null) return
-    if (
-      event.target instanceof Element &&
-      event.target.closest(interactiveTarget)
-    )
-      return
-    if (
-      event.isPrimary === false ||
-      (event.pointerType === 'mouse' && event.button !== 0)
-    )
-      return
-
+  function startDrag(
+    x: number,
+    y: number,
+    id: number,
+    target: EventTarget | null,
+  ) {
+    if (completionPending.current || activePointer.current !== null)
+      return false
     suppressClick.current = false
-    activePointer.current = event.pointerId
-    dragStartX.current = event.clientX
-    dragStartY.current = event.clientY
+    if (target instanceof Element && target.closest(interactiveTarget))
+      return false
+    activePointer.current = id
+    dragStartX.current = x
+    dragStartY.current = y
     dragStartOffset.current = currentOffset.current
     dragDirection.current = null
     thresholdAction.current = 0
+    return true
   }
 
-  function handlePointerMove(event: PointerEvent<HTMLLIElement>) {
-    if (
-      dragStartX.current === null ||
-      activePointer.current !== event.pointerId
-    )
-      return
-    const dx = event.clientX - dragStartX.current
-    const dy = event.clientY - dragStartY.current
+  function moveDrag(x: number, y: number) {
+    if (dragStartX.current === null) return
+    const dx = x - dragStartX.current
+    const dy = y - dragStartY.current
     if (!dragDirection.current) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) < dragThreshold) return
       suppressClick.current = true
-      // Leave vertical gestures to the browser (touch-action: pan-y). If the
-      // first touch samples contain vertical jitter, keep listening until the
-      // horizontal intent becomes clear instead of locking the gesture early.
-      if (Math.abs(dx) <= Math.abs(dy)) return
-      dragDirection.current = 'horizontal'
-      if (dragDirection.current === 'horizontal') {
-        setDragging(true)
-        event.currentTarget.setPointerCapture?.(event.pointerId)
-      }
+      dragDirection.current =
+        Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical'
     }
     if (dragDirection.current !== 'horizontal') return
+    setDragging(true)
     updateOffset(dragStartOffset.current + dx)
     const action =
       Math.abs(currentOffset.current) >= actionThreshold
@@ -261,23 +255,15 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
     thresholdAction.current = action
   }
 
-  function finishPointerDrag(event: PointerEvent<HTMLLIElement>) {
-    if (
-      dragStartX.current === null ||
-      activePointer.current !== event.pointerId
-    )
-      return
-    // Include final coordinates when the browser coalesces pointermove events.
-    if (event.type !== 'pointercancel') handlePointerMove(event)
+  function finishDrag(cancelled: boolean) {
+    if (activePointer.current === null) return
+    const horizontal = dragDirection.current === 'horizontal'
     dragStartX.current = null
     activePointer.current = null
     thresholdAction.current = 0
     setDragging(false)
-    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
-    if (event.type === 'pointercancel') {
-      suppressClick.current = true
+    if (cancelled) suppressClick.current = true
+    if (cancelled || !horizontal) {
       updateOffset(0)
       return
     }
@@ -292,12 +278,117 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
     }
   }
 
+  function handlePointerDown(event: PointerEvent<HTMLLIElement>) {
+    // Touch uses a non-passive touchmove listener so horizontal swipes can
+    // prevent browser scrolling before it cancels the gesture.
+    if (
+      event.pointerType === 'touch' ||
+      event.button !== 0 ||
+      event.isPrimary === false
+    )
+      return
+    if (
+      startDrag(event.clientX, event.clientY, event.pointerId, event.target)
+    ) {
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+    }
+  }
+
+  function handlePointerMove(event: PointerEvent<HTMLLIElement>) {
+    if (
+      event.pointerType === 'touch' ||
+      activePointer.current !== event.pointerId
+    )
+      return
+    moveDrag(event.clientX, event.clientY)
+  }
+
+  function finishPointerDrag(event: PointerEvent<HTMLLIElement>) {
+    if (
+      event.pointerType === 'touch' ||
+      activePointer.current !== event.pointerId
+    )
+      return
+    if (event.type !== 'pointercancel') moveDrag(event.clientX, event.clientY)
+    finishDrag(event.type === 'pointercancel')
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+  }
+
+  useEffect(() => {
+    const row = rowRef.current
+    if (!row) return
+    function touchStart(event: TouchEvent) {
+      if (event.touches.length !== 1) {
+        finishDrag(true)
+        return
+      }
+      const touch = event.touches[0]
+      startDrag(touch.clientX, touch.clientY, touch.identifier, event.target)
+    }
+    function touchMove(event: TouchEvent) {
+      if (event.touches.length !== 1) {
+        finishDrag(true)
+        return
+      }
+      const touch = Array.from(event.touches).find(
+        (t) => t.identifier === activePointer.current,
+      )
+      if (!touch) return
+      moveDrag(touch.clientX, touch.clientY)
+      if (dragDirection.current === 'horizontal' && event.cancelable)
+        event.preventDefault()
+    }
+    function touchEnd(event: TouchEvent) {
+      const touch = Array.from(event.changedTouches).find(
+        (t) => t.identifier === activePointer.current,
+      )
+      if (!touch) return
+      if (event.type !== 'touchcancel') moveDrag(touch.clientX, touch.clientY)
+      finishDrag(event.type === 'touchcancel')
+    }
+    row.addEventListener('touchstart', touchStart, { passive: true })
+    row.addEventListener('touchmove', touchMove, { passive: false })
+    row.addEventListener('touchend', touchEnd)
+    row.addEventListener('touchcancel', touchEnd)
+    return () => {
+      row.removeEventListener('touchstart', touchStart)
+      row.removeEventListener('touchmove', touchMove)
+      row.removeEventListener('touchend', touchEnd)
+      row.removeEventListener('touchcancel', touchEnd)
+    }
+  })
+
   function closeDetails() {
     setDetailsOpen(false)
   }
 
   return (
     <li
+      ref={rowRef}
+      onClick={(event) => {
+        if (
+          completionPending.current ||
+          (suppressClick.current && event.detail !== 0) ||
+          !(event.target instanceof Element) ||
+          !event.currentTarget.contains(event.target) ||
+          event.target.closest(interactiveTarget)
+        )
+          return
+        setDetailsOpen(true)
+      }}
+      onClickCapture={(event) => {
+        if (
+          suppressClick.current &&
+          event.detail !== 0 &&
+          event.target instanceof Node &&
+          event.currentTarget.contains(event.target)
+        ) {
+          event.preventDefault()
+          event.stopPropagation()
+        }
+      }}
       data-action={completingSwipe ? 'complete' : 'delete'}
       style={
         {
@@ -305,13 +396,17 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           '--swipe-tint': `${revealProgress * 20}%`,
         } as CSSProperties
       }
-      className="colabora-timeline-task relative isolate min-w-0 touch-pan-y overflow-hidden rounded-xl"
+      className="colabora-timeline-task relative isolate min-w-0 touch-auto overflow-hidden rounded-xl"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishPointerDrag}
       onPointerCancel={finishPointerDrag}
       onLostPointerCapture={(event) => {
-        if (activePointer.current !== event.pointerId) return
+        if (
+          event.pointerType === 'touch' ||
+          activePointer.current !== event.pointerId
+        )
+          return
         activePointer.current = null
         dragStartX.current = null
         thresholdAction.current = 0
@@ -349,18 +444,6 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
       <article
         ref={cardRef}
         tabIndex={0}
-        onClick={(event) => {
-          if (
-            event.target instanceof Element &&
-            event.target.closest(interactiveTarget)
-          )
-            return
-          if (suppressClick.current) {
-            event.preventDefault()
-            return
-          }
-          if (!completionPending.current) setDetailsOpen(true)
-        }}
         aria-busy={completing}
         aria-label={`${task.title}. Enter ou espaço para abrir detalhes.${canDelete ? ' Arraste para a esquerda para excluir.' : ''}${canComplete ? ' Arraste para a direita para concluir.' : ''}`}
         onKeyDown={(event) => {
@@ -396,16 +479,6 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
         <div className="flex items-center justify-between gap-3">
           <MutedText>{dateLabel}</MutedText>
           <div className="flex shrink-0 items-center gap-1">
-            <span
-              aria-hidden="true"
-              className="colabora-swipe-handle grid size-11 touch-none place-items-center rounded-full border border-border/60 bg-muted/50 text-muted-foreground md:hidden"
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-              }}
-            >
-              <GripVertical className="size-4" />
-            </span>
             <span className="rounded-lg bg-primary px-2.5 py-1.5 text-sm font-semibold tabular-nums text-primary-foreground">
               {timeLabel}
             </span>
@@ -445,7 +518,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           </span>
           {task.permissions.edit ? (
             <Button
-              className="ml-auto h-8"
+              className="ml-auto min-h-11"
               size="sm"
               type="button"
               variant="outline"

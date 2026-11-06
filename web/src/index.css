@@ -66,10 +66,6 @@
   background-color: var(--background);
 }
 
-.colabora-swipe-handle {
-  touch-action: none;
-}
-
 .colabora-timeline-task[data-action='complete'] {
   --timeline-action: var(--pastel-green);
 }
