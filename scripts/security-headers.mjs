@@ -20,7 +20,7 @@ export function securityHeaders(avatarUrl = '') {
       "style-src 'self' 'unsafe-inline'",
       `img-src ${images.join(' ')}`,
       "font-src 'self'",
-      "connect-src 'self' https://photon.komoot.io https://blob.vercel-storage.com https://*.blob.vercel-storage.com",
+      "connect-src 'self' https://photon.komoot.io https://vercel.com/api/blob/ https://blob.vercel-storage.com https://*.blob.vercel-storage.com",
       'frame-src https://www.openstreetmap.org',
       "worker-src 'self' blob:",
       "object-src 'none'",

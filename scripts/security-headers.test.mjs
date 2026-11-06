@@ -20,6 +20,13 @@ test('blocks arbitrary external images, scripts, plugins and embedding while pre
 test('allows only the configured HTTPS avatar origin, never its path or query', () => {
   assert.deepEqual(directives(securityHeaders('https://images.example/avatar.png?token=private'))['img-src'], ["'self'", 'data:', 'blob:', 'https://images.example']);
 });
+test('allows the Blob SDK API path without allowing arbitrary Vercel connections', () => {
+  const connections = directives(securityHeaders())['connect-src'];
+  assert.ok(connections.includes('https://vercel.com/api/blob/'));
+  assert.equal(connections.includes('https://vercel.com'), false);
+  assert.equal(connections.includes('https:'), false);
+  assert.equal(connections.includes('*'), false);
+});
 for (const value of ['http://images.example/a.png', 'https://user:secret@images.example/a.png', 'https://*.example/a.png', 'javascript:alert(1)', 'https://images.example;img-src https:']) {
   test(`rejects unsafe avatar configuration ${value}`, () => assert.throws(() => securityHeaders(value)));
 }
