@@ -9,8 +9,27 @@ import {
 import { useAuth } from '@/features/auth/auth-context'
 import type { AccountPreferences } from '@/features/auth/auth-api'
 import { apiRequest } from '@/lib/http-client'
+import { isAppPalette } from './palette'
 
 const defaults: AccountPreferences = { theme: 'system', palette: 'purple' }
+const guestStorageKey = 'colabora-guest-appearance'
+function readGuestPreferences(): AccountPreferences {
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(guestStorageKey) ?? 'null',
+    ) as Partial<AccountPreferences> | null
+    const palette = stored?.palette ?? null
+    return {
+      theme:
+        stored?.theme === 'light' || stored?.theme === 'dark'
+          ? stored.theme
+          : 'system',
+      palette: isAppPalette(palette) ? palette : 'purple',
+    }
+  } catch {
+    return defaults
+  }
+}
 export const AccountPreferencesContext = createContext<{
   preferences: AccountPreferences
   setPreferences: (patch: Partial<AccountPreferences>) => void
@@ -23,6 +42,7 @@ export function AccountPreferencesProvider({
   children: ReactNode
 }) {
   const { user } = useAuth()
+  const [guest, setGuest] = useState(readGuestPreferences)
   const [local, setLocal] = useState<{
     id: string
     patch: Partial<AccountPreferences>
@@ -42,9 +62,18 @@ export function AccountPreferencesProvider({
         ...user.preferences,
         ...(local?.id === user.id ? local.patch : {}),
       }
-    : defaults
+    : guest
   function setPreferences(patch: Partial<AccountPreferences>) {
-    if (!user) return
+    if (!user) {
+      const next = { ...guest, ...patch }
+      setGuest(next)
+      try {
+        localStorage.setItem(guestStorageKey, JSON.stringify(next))
+      } catch {
+        // Apply the visitor's choice for this visit if browser storage is blocked.
+      }
+      return
+    }
     const id = user.id
     setLocal((current) => ({
       id,

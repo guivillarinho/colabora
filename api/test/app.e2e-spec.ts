@@ -794,6 +794,8 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       .set('X-CSRF-Token', a.csrf)
       .send({ theme: 'dark', palette: 'green' })
       .expect(200)
+      .expect('Content-Type', /application\/json/)
+      .expect({ theme: 'dark', palette: 'green' })
     const saved = await a.agent.get('/api/auth/me').expect(200)
     expect(saved.body.user.preferences).toEqual({
       theme: 'dark',
@@ -810,6 +812,7 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       .set('X-CSRF-Token', a.csrf)
       .send({ theme: 'light' })
       .expect(200)
+      .expect({ theme: 'light', palette: 'green' })
     expect((await a.agent.get('/api/auth/me')).body.user.preferences).toEqual({
       theme: 'light',
       palette: 'green',

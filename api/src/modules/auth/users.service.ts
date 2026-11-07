@@ -49,7 +49,7 @@ export class UsersService {
     const patch = Object.fromEntries(
       Object.entries(dto).filter(([, value]) => value !== undefined),
     )
-    const rows: Array<{ preferences: AccountPreferences }> =
+    const [rows]: [Array<{ preferences: AccountPreferences }>, number] =
       await this.users.query(
         'UPDATE users SET preferences = preferences || $1::jsonb WHERE id = $2 RETURNING preferences',
         [JSON.stringify(patch), actor],

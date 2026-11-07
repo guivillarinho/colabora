@@ -108,3 +108,38 @@ it('does not show an old account save failure after switching accounts', async (
   expect(document.documentElement).toHaveClass('light')
   expect(document.documentElement).toHaveAttribute('data-palette', 'blue')
 })
+
+it('lets visitors toggle both ways and keeps their selection after a reload without calling the API', async () => {
+  const user = userEvent.setup()
+  const view = render(<Appearance user={null} />)
+  await user.click(
+    await screen.findByRole('button', { name: 'Usar tema escuro' }),
+  )
+  expect(document.documentElement).toHaveClass('dark')
+  await user.click(screen.getByRole('button', { name: 'Usar tema claro' }))
+  expect(document.documentElement).toHaveClass('light')
+  await user.click(screen.getByRole('button', { name: 'Usar tema escuro' }))
+  await user.click(screen.getByRole('radio', { name: 'Vermelho' }))
+  view.unmount()
+  render(<Appearance user={null} />)
+  expect(document.documentElement).toHaveClass('dark')
+  expect(document.documentElement).toHaveAttribute('data-palette', 'red')
+  expect(request).not.toHaveBeenCalled()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
+it('keeps visitor appearance separate from a registered account', async () => {
+  const user = userEvent.setup()
+  const { rerender } = render(<Appearance user={null} />)
+  await user.click(
+    await screen.findByRole('button', { name: 'Usar tema escuro' }),
+  )
+  await user.click(screen.getByRole('radio', { name: 'Vermelho' }))
+  rerender(<Appearance user={b} />)
+  expect(document.documentElement).toHaveClass('light')
+  expect(document.documentElement).toHaveAttribute('data-palette', 'blue')
+  rerender(<Appearance user={null} />)
+  expect(document.documentElement).toHaveClass('dark')
+  expect(document.documentElement).toHaveAttribute('data-palette', 'red')
+  expect(request).not.toHaveBeenCalled()
+})
