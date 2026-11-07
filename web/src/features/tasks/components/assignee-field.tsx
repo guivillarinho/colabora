@@ -13,6 +13,8 @@ type AssigneeFieldProps = {
 }
 export function AssigneeField({ value, onChange }: AssigneeFieldProps) {
   const { user } = useAuth()
+  const selectedPerson =
+    value && value.id === user?.id ? { ...value, avatar: user.avatar } : value
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Person[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -57,14 +59,25 @@ export function AssigneeField({ value, onChange }: AssigneeFieldProps) {
       aria-label="Atribuição da tarefa"
     >
       <Label htmlFor="assignee-search">Responsável</Label>
-      <p className="text-sm">{value?.name ?? 'Sem responsável'}</p>
+      <div className="flex min-w-0 items-center gap-3">
+        {selectedPerson ? (
+          <PersonAvatar
+            key={`${selectedPerson.id}:${selectedPerson.avatar?.kind === 'image' ? selectedPerson.avatar.revision : ''}`}
+            person={selectedPerson}
+          />
+        ) : null}
+        <p className="min-w-0 text-sm wrap-break-word">
+          {selectedPerson?.name ?? 'Sem responsável'}
+        </p>
+      </div>
       <div className="flex gap-2">
         <Button
           type="button"
           size="sm"
           variant="outline"
           onClick={() => {
-            if (user) onChange({ id: user.id, name: user.name })
+            if (user)
+              onChange({ id: user.id, name: user.name, avatar: user.avatar })
           }}
         >
           Para mim
