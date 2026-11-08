@@ -10,7 +10,7 @@ import { TaskAttachmentIndicator } from '@/features/tasks/components/task-attach
 import type { Task } from '@/features/tasks/types/task'
 
 export const taskSummaryClassName =
-  'glass-card colabora-timeline-card relative z-10 grid min-h-60 min-w-0 cursor-pointer select-none grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_auto_minmax(3.5rem,1fr)_auto] gap-2 overflow-hidden rounded-xl border p-3 [overflow-wrap:anywhere] sm:p-4'
+  'glass-card colabora-timeline-card relative z-10 grid min-h-60 min-w-0 cursor-pointer select-none grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_auto_minmax(3.5rem,1fr)_auto_auto] gap-2 overflow-hidden rounded-xl border p-3 [overflow-wrap:anywhere] sm:p-4'
 
 export function TaskSummary({
   task,
@@ -69,12 +69,6 @@ export function TaskSummary({
             )}
           </p>
         ) : null}
-        {task.location?.trim() ? (
-          <p className="mt-1 flex items-start gap-1 text-xs leading-relaxed text-muted-foreground">
-            <MapPin aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
-            <span className="line-clamp-1 min-w-0">{task.location}</span>
-          </p>
-        ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <span
@@ -91,6 +85,12 @@ export function TaskSummary({
           </span>
         )}
       </div>
+      {task.location?.trim() ? (
+        <p className="mt-1 flex items-start gap-1 text-xs leading-relaxed text-muted-foreground">
+          <MapPin aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+          <span className="line-clamp-1 min-w-0">{task.location}</span>
+        </p>
+      ) : null}
     </>
   )
 }
