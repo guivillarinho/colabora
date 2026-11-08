@@ -76,7 +76,7 @@ describe('AgendaPage', () => {
 
     expect(await screen.findByText('Enviar proposta')).toBeVisible()
     const card = screen.getByRole('button', { name: /Enviar proposta/ })
-    expect(card).toHaveClass('h-52', 'colabora-timeline-card')
+    expect(card).toHaveClass('min-h-60', 'colabora-timeline-card')
     expect(
       within(card).getByRole('heading', { name: 'Enviar proposta' }),
     ).toBeVisible()

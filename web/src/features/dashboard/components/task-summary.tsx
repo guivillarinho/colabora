@@ -10,7 +10,7 @@ import { TaskAttachmentIndicator } from '@/features/tasks/components/task-attach
 import type { Task } from '@/features/tasks/types/task'
 
 export const taskSummaryClassName =
-  'glass-card colabora-timeline-card relative z-10 grid h-52 min-w-0 cursor-pointer select-none grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] gap-2 overflow-hidden rounded-xl border p-3 [overflow-wrap:anywhere] sm:p-4'
+  'glass-card colabora-timeline-card relative z-10 grid min-h-60 min-w-0 cursor-pointer select-none grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_auto_minmax(3.5rem,1fr)_auto] gap-2 overflow-hidden rounded-xl border p-3 [overflow-wrap:anywhere] sm:p-4'
 
 export function TaskSummary({
   task,
@@ -38,7 +38,6 @@ export function TaskSummary({
     : 'Sem horário'
   return (
     <>
-      {' '}
       <div className="flex items-center justify-between gap-3">
         <MutedText>{dateLabel}</MutedText>
         <div className="flex shrink-0 items-center gap-1">
@@ -54,12 +53,12 @@ export function TaskSummary({
         <TaskAttachmentIndicator count={task.attachments.length} />
       </div>
       <TaskAssigneeBadge task={task} />
-      <div className="min-h-0 overflow-hidden">
+      <div className="min-h-14">
         {children}
         {task.description ? (
           <p
             className={cn(
-              'text-sm text-muted-foreground',
+              'text-sm leading-5 text-muted-foreground',
               task.location?.trim() ? 'line-clamp-1' : 'line-clamp-2',
             )}
           >

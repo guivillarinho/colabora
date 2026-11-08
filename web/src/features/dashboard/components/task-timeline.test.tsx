@@ -224,7 +224,7 @@ it('keeps editing on the details pencil and off the card', async () => {
   ).toBeVisible()
   expect(screen.queryByText(/Criada por/)).not.toBeInTheDocument()
   expect(screen.queryByText(/Responsável/)).not.toBeInTheDocument()
-  expect(screen.getByRole('article')).toHaveClass('h-52')
+  expect(screen.getByRole('article')).toHaveClass('min-h-60')
   await user.click(screen.getByRole('article'))
   expect(screen.getByText('tarefa agendada')).toBeVisible()
   expect(screen.getByText(/Criada por Guilherme/)).toBeVisible()
@@ -390,8 +390,8 @@ it('gives every card the same height and keeps edit off the card', () => {
   )
   const cards = screen.getAllByRole('article')
   expect(cards).toHaveLength(2)
-  expect(cards[0]).toHaveClass('h-52')
-  expect(cards[1]).toHaveClass('h-52')
+  expect(cards[0]).toHaveClass('min-h-60')
+  expect(cards[1]).toHaveClass('min-h-60')
   expect(
     screen.getAllByRole('img', { name: 'Responsável: Guilherme' }),
   ).toHaveLength(2)
