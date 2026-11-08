@@ -79,6 +79,15 @@ describe('NotificationsService reminders', () => {
       expect(notify).not.toHaveBeenCalled()
     },
   )
+  it('espera entre novas tentativas e desiste depois do limite', async () => {
+    reminders.find.mockResolvedValue([
+      { ...reminder, attempts: 2, updatedAt: dueDate },
+      { ...reminder, id: 'exhausted', attempts: 8, updatedAt: new Date(0) },
+    ])
+    expect(await service.dispatchDueReminders()).toEqual({ delivered: 0 })
+    expect(notify).not.toHaveBeenCalled()
+    expect(reminders.update).toHaveBeenCalledTimes(1)
+  })
   it('não envia quando outro despachador reivindicou o lembrete', async () => {
     reminders.update.mockResolvedValue({ affected: 0 })
     await service.dispatchDueReminders()

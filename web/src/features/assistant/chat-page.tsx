@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useNavigation } from '@/components/layout/navigation'
 import { apiRequest } from '@/lib/http-client'
+import { taskWindow } from '@/features/tasks/task-kind'
 import type { Task } from '@/features/tasks/types/task'
 import { AgendaDetails } from '@/features/dashboard/agenda-page'
 import { useTasks } from '@/features/tasks/tasks-context'
@@ -254,8 +255,7 @@ export function ChatPage() {
           item={{
             ...saved,
             type: 'task',
-            startDate: saved.dueDate,
-            endDate: saved.dueDate,
+            ...taskWindow(saved),
             icon: null,
             task: saved,
           }}

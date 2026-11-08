@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai'
 import { AssistantService } from './assistant.service'
 import { NotFoundException } from '@nestjs/common'
+import { QueryFailedError } from 'typeorm'
 import { validate } from 'class-validator'
 import { plainToInstance } from 'class-transformer'
 import { ChatDto, ConfirmDto } from './assistant.dto'
@@ -85,6 +86,48 @@ it('reuses an existing task without creating a duplicate', async () => {
   ).toEqual({ id: 'saved' })
   expect(tasks.create).not.toHaveBeenCalled()
 })
+it('returns the task created by a concurrent confirmation', async () => {
+  const { service, tasks, source } = setup()
+  tasks.findOne
+    .mockRejectedValueOnce(new NotFoundException())
+    .mockResolvedValueOnce({ id: 'saved' })
+  tasks.create.mockRejectedValueOnce(
+    new QueryFailedError('insert', [], { code: '23505' }),
+  )
+  expect(
+    await service.confirm(
+      {
+        ...proposal,
+        confirmed: true,
+        requestId: '11111111-1111-4111-8111-111111111111',
+      } as never,
+      'actor',
+    ),
+  ).toEqual({ id: 'saved' })
+  expect(source.query).toHaveBeenCalledWith(
+    'UPDATE assistant_receipts SET completed=true WHERE id=$1',
+    [expect.any(String)],
+  )
+})
+
+it('does not treat an ordinary failure as a duplicate task', async () => {
+  const { service, tasks } = setup()
+  tasks.create.mockRejectedValueOnce(
+    Object.assign(new Error('db'), { code: '23505' }),
+  )
+  await expect(
+    service.confirm(
+      {
+        ...proposal,
+        confirmed: true,
+        requestId: '11111111-1111-4111-8111-111111111111',
+      } as never,
+      'actor',
+    ),
+  ).rejects.toThrow('db')
+  expect(tasks.findOne).toHaveBeenCalledTimes(1)
+})
+
 it('does not recreate deleted tasks with completed receipts', async () => {
   const { service, source, tasks } = setup()
   source.query.mockResolvedValue([{ completed: true }] as never)
