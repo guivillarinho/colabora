@@ -72,7 +72,7 @@ export function GoogleSettings() {
   }
   const last = status?.synced.find((item) => item.taskId === selected)
   return (
-    <section className="glass-panel grid min-w-0 gap-3 rounded-2xl border p-4 sm:p-5">
+    <section className="surface-panel grid min-w-0 gap-3 rounded-2xl border p-4 sm:p-5">
       <h2 className="text-lg font-semibold">Integrações Google</h2>
       <p>
         Google Agenda: envio manual para o calendário principal. Nenhuma tarefa

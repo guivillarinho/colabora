@@ -43,7 +43,7 @@ export function ProgressSummary({ total, completed }: ProgressSummaryProps) {
   }, [percent])
 
   return (
-    <section className="glass-panel relative grid gap-3 overflow-hidden rounded-2xl border p-4 text-card-foreground sm:p-5">
+    <section className="surface-panel relative grid gap-3 overflow-hidden rounded-2xl border p-4 text-card-foreground sm:p-5">
       {celebrating ? (
         <div
           aria-hidden="true"

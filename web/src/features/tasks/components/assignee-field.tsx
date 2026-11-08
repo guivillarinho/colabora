@@ -55,7 +55,7 @@ export function AssigneeField({ value, onChange }: AssigneeFieldProps) {
   }, [query])
   return (
     <section
-      className="grid gap-4 rounded-xl border bg-muted/30 p-4"
+      className="grid gap-4 rounded-xl border bg-muted p-4"
       aria-label="Atribuição da tarefa"
     >
       <Label htmlFor="assignee-search">Responsável</Label>

@@ -10,10 +10,7 @@
   --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --motion-fast: 160ms;
   --motion-enter: 280ms;
-  --glass-surface: oklch(1 0 0 / 76%);
-  --glass-highlight: oklch(1 0 0 / 62%);
-  --glass-edge: oklch(1 0 0 / 85%);
-  --glass-shadow: oklch(0.34 0.08 var(--palette-hue) / 7%);
+  --surface-shadow: 0 2px 6px oklch(0 0 0 / 3%);
 }
 
 html[data-palette='purple'] {
@@ -40,26 +37,8 @@ html[data-palette='red'] {
   --palette-hue: 25;
 }
 
-.dark {
-  --glass-surface: oklch(0.23 0.025 var(--palette-hue) / 82%);
-  --glass-highlight: oklch(1 0 0 / 6%);
-  --glass-edge: oklch(1 0 0 / 13%);
-  --glass-shadow: oklch(0 0 0 / 22%);
-}
-
 .colabora-app {
-  background-color: var(--background);
-  background-image:
-    radial-gradient(
-      ellipse at 95% 0%,
-      oklch(0.78 0.13 var(--palette-hue) / 22%),
-      transparent 48rem
-    ),
-    radial-gradient(
-      ellipse at 0% 55%,
-      oklch(0.85 0.09 calc(var(--palette-hue) - 15) / 16%),
-      transparent 45rem
-    );
+  background: var(--background);
 }
 
 .palette-swatch[data-palette='purple'] {
@@ -82,35 +61,28 @@ html[data-palette='red'] {
   background-color: oklch(0.62 0.14 25);
 }
 
-.glass-panel,
-.glass-chrome {
-  background:
-    linear-gradient(135deg, var(--glass-highlight), transparent 65%),
-    var(--glass-surface);
-  border-color: var(--glass-edge);
-  box-shadow:
-    0 8px 32px var(--glass-shadow),
-    inset 0 1px 0 var(--glass-edge);
-  -webkit-backdrop-filter: blur(22px) saturate(145%);
-  backdrop-filter: blur(22px) saturate(145%);
+.surface-panel,
+.surface-chrome {
+  background-color: var(--card);
+  border-color: var(--border);
+}
+
+.surface-panel {
+  box-shadow: var(--surface-shadow);
+}
+
+.surface-chrome {
+  background-color: var(--sidebar);
 }
 
 .colabora-header {
-  background-color: transparent;
+  background-color: var(--background);
   border-color: transparent;
-  -webkit-backdrop-filter: blur(0) saturate(100%);
-  backdrop-filter: blur(0) saturate(100%);
-  transition:
-    background-color var(--motion-fast) var(--motion-ease-out),
-    border-color var(--motion-fast) var(--motion-ease-out),
-    backdrop-filter var(--motion-fast) var(--motion-ease-out);
+  transition: border-color var(--motion-fast) var(--motion-ease-out);
 }
 
 .colabora-header[data-scrolled='true'] {
-  background-color: var(--glass-surface);
-  border-color: var(--glass-edge);
-  -webkit-backdrop-filter: blur(22px) saturate(145%);
-  backdrop-filter: blur(22px) saturate(145%);
+  border-color: var(--border);
 }
 
 /* Layout centers the eye independently of button press/reduced-motion transforms. */
@@ -120,7 +92,7 @@ html[data-palette='red'] {
   scale: 1;
 }
 
-/* The action backdrop must not show through a translucent card at rest. */
+/* Keep swipe actions hidden beneath the solid card at rest. */
 .colabora-timeline-task {
   --timeline-action: var(--pastel-red);
   background-color: var(--background);
@@ -145,45 +117,19 @@ html[data-palette='red'] {
 .colabora-timeline-card {
   background-color: color-mix(
     in srgb,
-    var(--glass-surface),
+    var(--card),
     var(--timeline-action) var(--swipe-tint, 0%)
   );
-  border-color: var(--glass-edge);
+  border-color: var(--border);
 }
 
-.glass-card {
-  background-image: linear-gradient(
-    135deg,
-    var(--glass-highlight),
-    transparent 65%
-  );
-  box-shadow:
-    0 4px 18px var(--glass-shadow),
-    inset 0 1px 0 var(--glass-edge);
-  -webkit-backdrop-filter: blur(12px) saturate(125%);
-  backdrop-filter: blur(12px) saturate(125%);
-}
-
-@supports not (
-  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
-) {
-  .glass-panel,
-  .glass-chrome,
-  .colabora-header[data-scrolled='true'],
-  .colabora-timeline-card {
-    background-color: var(--card);
-  }
-}
-
-[data-slot='button'][data-variant='default'] {
-  background-image: linear-gradient(180deg, oklch(1 0 0 / 13%), transparent);
-  box-shadow:
-    0 3px 10px var(--glass-shadow),
-    inset 0 1px 0 oklch(1 0 0 / 16%);
+.surface-card {
+  border-color: var(--border);
+  box-shadow: none;
 }
 
 [data-slot='button'][data-variant='default']:focus-visible,
-button.glass-card:focus-visible {
+button.surface-card:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
@@ -251,9 +197,7 @@ button.glass-card:focus-visible {
 
 @media (hover: hover) and (pointer: fine) {
   .colabora-task-card:hover {
-    box-shadow:
-      0 8px 24px var(--glass-shadow),
-      inset 0 1px 0 var(--glass-edge);
+    box-shadow: 0 3px 12px oklch(0 0 0 / 5%);
   }
 }
 
@@ -382,20 +326,20 @@ button.glass-card:focus-visible {
   --palette-chroma-dark: 0.14;
   --palette-chroma-ring: 0.16;
   --palette-chroma-soft: 0.05;
-  --background: oklch(0.98 0.008 var(--palette-hue));
+  --background: #f7f7f8;
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.52 var(--palette-chroma) var(--palette-hue));
-  --primary-foreground: oklch(0.985 0.01 var(--palette-hue));
-  --secondary: oklch(0.95 0.035 var(--palette-hue));
-  --secondary-foreground: oklch(0.34 0.12 var(--palette-hue));
-  --muted: oklch(0.95 0.008 155);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.94 var(--palette-chroma-soft) var(--palette-hue));
-  --accent-foreground: oklch(0.3 0.12 var(--palette-hue));
+  --primary: #202124;
+  --primary-foreground: #ffffff;
+  --secondary: #eeeef0;
+  --secondary-foreground: #37383c;
+  --muted: #eeeef0;
+  --muted-foreground: #65666e;
+  --accent: oklch(0.95 0.025 var(--palette-hue));
+  --accent-foreground: #303136;
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
@@ -406,12 +350,12 @@ button.glass-card:focus-visible {
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.99 0.012 var(--palette-hue));
+  --sidebar: #ffffff;
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.52 var(--palette-chroma) var(--palette-hue));
-  --sidebar-primary-foreground: oklch(0.985 0.01 var(--palette-hue));
-  --sidebar-accent: oklch(0.94 var(--palette-chroma-soft) var(--palette-hue));
-  --sidebar-accent-foreground: oklch(0.3 0.12 var(--palette-hue));
+  --sidebar-primary: #202124;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eeeef0;
+  --sidebar-accent-foreground: #202124;
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   --pastel-red: oklch(0.9 0.05 25);
@@ -429,35 +373,35 @@ button.glass-card:focus-visible {
 }
 
 .dark {
-  --background: oklch(0.16 0.025 var(--palette-hue));
+  --background: #17181b;
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  --card: #212226;
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
+  --popover: #212226;
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.76 var(--palette-chroma-dark) var(--palette-hue));
-  --primary-foreground: oklch(0.2 0.06 var(--palette-hue));
+  --primary: #f1f1f2;
+  --primary-foreground: #202124;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.3 0.06 var(--palette-hue));
-  --accent-foreground: oklch(0.95 0.025 var(--palette-hue));
+  --accent: oklch(0.3 0.025 var(--palette-hue));
+  --accent-foreground: #f1f1f2;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --border: #35363c;
+  --input: #44454d;
   --ring: oklch(0.72 var(--palette-chroma-dark) var(--palette-hue));
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
+  --sidebar: #1d1e22;
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.76 var(--palette-chroma-dark) var(--palette-hue));
-  --sidebar-primary-foreground: oklch(0.2 0.06 var(--palette-hue));
-  --sidebar-accent: oklch(0.3 0.06 var(--palette-hue));
-  --sidebar-accent-foreground: oklch(0.95 0.025 var(--palette-hue));
+  --sidebar-primary: #f1f1f2;
+  --sidebar-primary-foreground: #202124;
+  --sidebar-accent: #303136;
+  --sidebar-accent-foreground: #f1f1f2;
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
   --pastel-red: oklch(0.4 0.07 25);
@@ -481,19 +425,6 @@ button.glass-card:focus-visible {
   }
   body {
     @apply bg-background text-foreground;
-    background-image: linear-gradient(
-      135deg,
-      oklch(0.98 0.012 var(--palette-hue)),
-      oklch(0.965 0.025 calc(var(--palette-hue) - 15))
-    );
-    background-attachment: fixed;
-  }
-  .dark body {
-    background-image: linear-gradient(
-      135deg,
-      oklch(0.16 0.025 var(--palette-hue)),
-      oklch(0.19 0.04 calc(var(--palette-hue) - 15))
-    );
   }
   button:not(:disabled),
   [role='button']:not(:disabled) {

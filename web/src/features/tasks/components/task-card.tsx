@@ -51,7 +51,7 @@ export function TaskCard({
   return (
     <article
       className={cn(
-        'colabora-task-card glass-card grid gap-3 rounded-2xl border p-4',
+        'colabora-task-card surface-card grid gap-3 rounded-2xl border p-4',
         swatch.className,
       )}
     >
@@ -60,7 +60,7 @@ export function TaskCard({
           <h2 className="text-xl font-semibold">{task.title}</h2>
           <TaskAttachmentIndicator count={task.attachments.length} />
         </div>
-        <span className="rounded-full bg-background/70 px-2 py-1 text-xs font-medium text-foreground">
+        <span className="rounded-full bg-card px-2 py-1 text-xs font-medium text-foreground">
           {statusLabel[task.status]}
         </span>
       </div>

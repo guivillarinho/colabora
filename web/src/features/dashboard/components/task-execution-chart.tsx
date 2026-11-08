@@ -15,7 +15,7 @@ export function TaskExecutionChart({ tasks }: { tasks: Task[] }) {
 
   return (
     <section
-      className="glass-panel grid min-w-0 gap-4 rounded-2xl border p-5"
+      className="surface-panel grid min-w-0 gap-4 rounded-2xl border p-5"
       aria-label="Tempo de execução das tarefas"
     >
       <div className="flex flex-wrap items-start justify-between gap-2">

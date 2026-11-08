@@ -20,7 +20,7 @@ export function AppNav({ layout, center }: AppNavProps) {
     return (
       <nav
         aria-label="Navegação inferior"
-        className="glass-panel fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 rounded-3xl border md:hidden"
+        className="surface-panel fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 mx-auto max-w-md rounded-2xl border shadow-sm md:hidden"
       >
         <ul className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-2">
           <li>
@@ -71,9 +71,9 @@ export function AppNav({ layout, center }: AppNavProps) {
           'colabora-nav-item flex items-center rounded-lg font-medium',
           isBottom
             ? 'h-14 w-full min-w-0 flex-col justify-center gap-0.5 text-[11px] leading-none'
-            : 'w-fit gap-2.5 px-2.5 py-1.5 text-sm',
+            : 'w-full gap-3 px-3 py-3 text-sm',
           isActive
-            ? 'bg-sidebar-accent/75 text-sidebar-accent-foreground shadow-[inset_0_1px_0_var(--glass-edge)]'
+            ? 'bg-sidebar-accent text-sidebar-accent-foreground'
             : 'text-muted-foreground hover:bg-muted hover:text-foreground',
         )}
         type="button"

@@ -130,7 +130,7 @@ export function ChatPage() {
           messages.map((m, i) => (
             <p
               key={i}
-              className={`whitespace-pre-wrap break-words rounded-xl border p-3 ${m.role === 'user' ? 'ml-6 bg-primary/10' : 'mr-6 glass-panel'}`}
+              className={`whitespace-pre-wrap break-words rounded-xl border p-3 ${m.role === 'user' ? 'ml-6 bg-primary/10' : 'mr-6 surface-panel'}`}
             >
               <strong>{m.role === 'user' ? 'Você' : 'Gemini'}: </strong>
               {m.text}
@@ -161,7 +161,7 @@ export function ChatPage() {
       {error ? <p role="alert">{error}</p> : null}
       {draft ? (
         <form
-          className="glass-panel grid gap-3 rounded-xl border p-4"
+          className="surface-panel grid gap-3 rounded-xl border p-4"
           onSubmit={(e) => {
             e.preventDefault()
             save()

@@ -123,7 +123,7 @@ export function AccountPage() {
     >
       <div className="grid min-w-0 justify-items-center gap-5 px-2 pt-2 text-center sm:pt-4">
         <div className="relative">
-          <div className="rounded-full border border-primary/20 bg-background/60 p-2 shadow-lg shadow-primary/10">
+          <div className="rounded-full border border-border bg-card p-2">
             <UserAvatar size="xl" />
           </div>
           <Button
@@ -147,7 +147,7 @@ export function AccountPage() {
         </div>
         <dl
           aria-label="Resumo das tarefas"
-          className="glass-panel grid w-full grid-cols-3 divide-x rounded-2xl border px-2 py-4 sm:py-5"
+          className="surface-panel grid w-full grid-cols-3 divide-x rounded-2xl border px-2 py-4 sm:py-5"
         >
           {stats.map((stat) => (
             <div
@@ -167,7 +167,7 @@ export function AccountPage() {
 
       <button
         aria-haspopup="dialog"
-        className="glass-panel flex min-w-0 items-center gap-3 rounded-2xl border border-primary/20 bg-primary/10 p-4 text-left transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-5"
+        className="surface-panel flex min-w-0 items-center gap-3 rounded-2xl border border-primary/20 bg-primary/10 p-4 text-left transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-5"
         type="button"
         onClick={(event) => openSettings('productivity', event.currentTarget)}
       >
@@ -190,14 +190,14 @@ export function AccountPage() {
         <h2 className="px-1 text-xs font-medium tracking-wider text-muted-foreground uppercase">
           Preferências
         </h2>
-        <div className="glass-panel divide-y overflow-hidden rounded-2xl border">
+        <div className="surface-panel divide-y overflow-hidden rounded-2xl border">
           {profileOptions.map((item) => {
             const Icon = item.icon
             return (
               <button
                 key={item.id}
                 aria-haspopup="dialog"
-                className="flex w-full min-w-0 items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5"
+                className="flex w-full min-w-0 items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5"
                 type="button"
                 onClick={(event) => openSettings(item.id, event.currentTarget)}
               >
@@ -260,7 +260,7 @@ export function AccountPage() {
               'min-h-0 gap-4',
               selected === 'avatar'
                 ? 'flex min-h-0 flex-1 overflow-hidden px-1 py-1'
-                : 'grid overflow-y-auto -mx-1 px-1 pb-1 [&>section]:border-0 [&>section]:bg-transparent [&>section]:p-0 [&>section]:shadow-none [&>section]:backdrop-blur-none',
+                : 'grid overflow-y-auto -mx-1 px-1 pb-1 [&>section]:border-0 [&>section]:bg-transparent [&>section]:p-0 [&>section]:shadow-none ',
             )}
           >
             {selected === 'avatar' ? (

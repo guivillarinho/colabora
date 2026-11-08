@@ -172,7 +172,7 @@ export function TimerPage() {
 
       <section aria-label="Sessão de foco" className="grid gap-3">
         <SectionTitle>Seu foco agora</SectionTitle>
-        <article className="glass-panel grid justify-items-center gap-5 rounded-2xl border p-5 text-center sm:p-8">
+        <article className="surface-panel grid justify-items-center gap-5 rounded-2xl border p-5 text-center sm:p-8">
           {celebration ? (
             <div
               role="status"
@@ -322,7 +322,7 @@ export function TimerPage() {
         </article>
       </section>
       <article
-        className="glass-panel grid gap-3 rounded-2xl border p-5"
+        className="surface-panel grid gap-3 rounded-2xl border p-5"
         aria-label="Conquistas de foco"
       >
         <div className="flex flex-wrap justify-between gap-2">
@@ -413,7 +413,7 @@ function SessionCard({ session }: { session: FocusSession }) {
 
   return (
     <li>
-      <article className="glass-panel grid min-w-0 gap-2 rounded-2xl border p-4">
+      <article className="surface-panel grid min-w-0 gap-2 rounded-2xl border p-4">
         <h3 className="truncate font-medium" title={session.title}>
           {session.title}
         </h3>

@@ -80,7 +80,7 @@ function ActiveTimerCard({ task, onComplete }: ActiveTimerCardProps) {
   }
 
   return (
-    <article className="glass-card grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-2xl border border-pastel-green bg-pastel-green/30 p-4 [overflow-wrap:anywhere] sm:flex sm:items-center sm:justify-between">
+    <article className="surface-card grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-2xl border border-pastel-green bg-pastel-green/30 p-4 [overflow-wrap:anywhere] sm:flex sm:items-center sm:justify-between">
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 sm:flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="relative flex size-2.5">

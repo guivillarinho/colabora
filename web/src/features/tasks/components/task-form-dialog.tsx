@@ -228,7 +228,7 @@ function TaskFormContent({
         {!editing ? (
           <div
             aria-label="Tipo da nova atividade"
-            className="grid shrink-0 grid-cols-2 gap-1 rounded-xl bg-muted/50 p-1"
+            className="grid shrink-0 grid-cols-2 gap-1 rounded-xl bg-muted p-1"
             role="group"
           >
             <Button
@@ -238,7 +238,7 @@ function TaskFormContent({
               className={cn(
                 'h-auto min-h-8 min-w-0 whitespace-normal rounded-lg px-2 py-1.5 text-xs leading-tight sm:text-sm',
                 creationMode === 'scheduled'
-                  ? 'border-border bg-background/80 text-foreground shadow-xs'
+                  ? 'border-border bg-card text-foreground shadow-xs'
                   : 'text-muted-foreground',
               )}
               type="button"
@@ -257,7 +257,7 @@ function TaskFormContent({
               className={cn(
                 'h-auto min-h-8 min-w-0 whitespace-normal rounded-lg px-2 py-1.5 text-xs leading-tight sm:text-sm',
                 creationMode === 'timer'
-                  ? 'border-border bg-background/80 text-foreground shadow-xs'
+                  ? 'border-border bg-card text-foreground shadow-xs'
                   : 'text-muted-foreground',
               )}
               type="button"

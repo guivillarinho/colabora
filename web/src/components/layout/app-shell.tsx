@@ -47,12 +47,11 @@ export function AppShell() {
   }
 
   return (
-    <div className="colabora-app min-h-svh md:grid md:grid-cols-[16rem_minmax(0,1fr)]">
-      <aside className="glass-chrome sticky top-0 hidden h-svh flex-col border-r text-sidebar-foreground md:flex">
-        <div className="flex items-center gap-3 px-5 py-6">
-          <p className="text-sm font-medium text-muted-foreground">
-            Tarefas no seu ritmo
-          </p>
+    <div className="colabora-app min-h-svh md:grid md:grid-cols-[14rem_minmax(0,1fr)]">
+      <aside className="surface-chrome sticky top-0 hidden h-svh flex-col border-r text-sidebar-foreground md:flex">
+        <div className="grid gap-1 px-6 pt-8 pb-6">
+          <p className="text-xl font-semibold tracking-tight">Colabora</p>
+          <p className="text-xs text-muted-foreground">Tarefas no seu ritmo</p>
         </div>
         <AppNav layout="sidebar" />
       </aside>

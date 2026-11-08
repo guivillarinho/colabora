@@ -263,7 +263,7 @@ export function AgendaPage() {
       {!searchOpen ? (
         <section
           aria-label="Semana"
-          className="glass-panel grid gap-3 rounded-2xl border p-4 sm:p-5"
+          className="surface-panel grid gap-3 rounded-2xl border p-4 sm:p-5"
         >
           <div className="flex items-center justify-between gap-2">
             <SectionTitle>{monthLabel(weekDays[0])}</SectionTitle>
@@ -532,8 +532,8 @@ function AgendaCard({
   return (
     <button
       className={cn(
-        'glass-card grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 rounded-2xl border p-4 text-left transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        status?.card ?? 'bg-card/65 hover:border-primary/40',
+        'surface-card grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 rounded-2xl border p-4 text-left transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        status?.card ?? 'bg-card hover:border-primary/40',
       )}
       onClick={onSelect}
     >
@@ -723,7 +723,7 @@ export function AgendaDetails({
               </p>
             </section>
             {item.startDate ? (
-              <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/60 p-3">
+              <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted p-3">
                 <div>
                   <p className="text-xs text-muted-foreground">Início</p>
                   <p>

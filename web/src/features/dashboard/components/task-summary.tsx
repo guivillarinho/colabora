@@ -10,7 +10,7 @@ import { TaskAttachmentIndicator } from '@/features/tasks/components/task-attach
 import type { Task } from '@/features/tasks/types/task'
 
 export const taskSummaryClassName =
-  'glass-card colabora-timeline-card relative z-10 grid min-h-60 min-w-0 cursor-pointer select-none grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_auto_minmax(3.5rem,1fr)_auto_auto] gap-2 overflow-hidden rounded-xl border p-3 [overflow-wrap:anywhere] sm:p-4'
+  'surface-card colabora-timeline-card relative z-10 grid min-h-60 min-w-0 cursor-pointer select-none grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_auto_minmax(3.5rem,1fr)_auto_auto] gap-2 overflow-hidden rounded-xl border p-3 [overflow-wrap:anywhere] sm:p-4'
 
 export function TaskSummary({
   task,
@@ -41,7 +41,7 @@ export function TaskSummary({
       <div className="flex items-center justify-between gap-3">
         <MutedText>{dateLabel}</MutedText>
         <div className="flex shrink-0 items-center gap-1">
-          <span className="rounded-lg bg-primary px-2.5 py-1.5 text-sm font-semibold tabular-nums text-primary-foreground">
+          <span className="rounded-lg bg-muted px-2.5 py-1.5 text-sm font-semibold tabular-nums text-foreground">
             {timeLabel}
           </span>
         </div>

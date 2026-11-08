@@ -36,10 +36,7 @@ function DialogOverlay({
   return (
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
-      className={cn(
-        'fixed inset-0 isolate z-50 bg-black/15 supports-backdrop-filter:backdrop-blur-sm',
-        className,
-      )}
+      className={cn('fixed inset-0 isolate z-50 bg-black/35', className)}
       {...props}
     />
   )
@@ -59,7 +56,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          'glass-panel fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-3xl border p-4 text-sm text-popover-foreground outline-none sm:max-w-sm',
+          'surface-panel fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-3xl border p-4 text-sm text-popover-foreground outline-none sm:max-w-sm',
           className,
         )}
         {...props}
@@ -104,7 +101,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        '-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end',
+        '-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted p-4 sm:flex-row sm:justify-end',
         className,
       )}
       {...props}

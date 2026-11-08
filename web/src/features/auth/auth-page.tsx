@@ -9,8 +9,7 @@ import { authApi } from './auth-api'
 
 type AuthPageMode = 'login' | 'register' | 'request-reset' | 'reset'
 
-const authInputClassName =
-  'h-11 rounded-xl bg-background/50 px-3 shadow-xs dark:bg-background/35'
+const authInputClassName = 'h-11 rounded-xl bg-card px-3 shadow-xs dark:bg-card'
 
 const passwordRules = [
   {
@@ -258,17 +257,10 @@ export function AuthPage() {
 
   return (
     <main className="colabora-app relative isolate grid min-h-svh place-items-center overflow-hidden px-4 py-8 sm:py-12">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
-      >
-        <div className="absolute left-[calc(50%-18rem)] top-[calc(50%-18rem)] size-72 rounded-full bg-primary/25 blur-3xl" />
-        <div className="absolute left-[calc(50%-1rem)] top-[calc(50%+2rem)] size-64 rounded-full bg-accent blur-3xl" />
-      </div>
       <div className="colabora-page-enter grid w-full max-w-md gap-6">
         <header className="flex items-center justify-between gap-4 px-2">
           <div className="flex items-center gap-3">
-            <div className="glass-card flex size-11 items-center justify-center rounded-2xl border border-primary/15 bg-primary/15 text-primary">
+            <div className="surface-card flex size-11 items-center justify-center rounded-2xl border border-primary/15 bg-primary/15 text-primary">
               <ListTodo aria-hidden="true" className="size-6" />
             </div>
             <div>
@@ -282,7 +274,7 @@ export function AuthPage() {
         </header>
         <section
           aria-labelledby="auth-title"
-          className="glass-panel grid gap-6 rounded-3xl border p-6 sm:p-8"
+          className="surface-panel grid gap-6 rounded-3xl border p-6 sm:p-8"
         >
           <div>
             <h1
