@@ -1,7 +1,6 @@
+import { TaskSummary, taskSummaryClassName } from './task-summary'
 import { TaskAssignment } from '@/features/tasks/components/task-assignment'
-import { TaskAssigneeBadge } from '@/features/tasks/components/task-assignee-badge'
 import { taskWindow } from '@/features/tasks/task-kind'
-import { LinkedText } from '@/components/linked-text'
 import {
   useEffect,
   useRef,
@@ -10,24 +9,15 @@ import {
   type PointerEvent,
 } from 'react'
 import { AgendaDetails } from '../agenda-page'
-import {
-  ArrowLeft,
-  ArrowRight,
-  CircleCheck,
-  MapPin,
-  Trash2,
-} from 'lucide-react'
+import { ArrowLeft, ArrowRight, CircleCheck, Trash2 } from 'lucide-react'
 
-import { pastelSwatches } from '@/components/pastel'
 import { Button } from '@/components/ui/button'
-import { formatDuration } from '@/lib/format-duration'
 import { cn } from 'cn'
 import { MutedText, SectionTitle } from '@/components/typography'
 import { sortTasks } from '@/features/tasks/sort-tasks'
 import type { Task } from '@/features/tasks/types/task'
 
 import { hapticFeedback } from '@/lib/haptics'
-import { TaskAttachmentIndicator } from '../../tasks/components/task-attachment-indicator'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
 
 type TaskTimelineProps = {
@@ -163,19 +153,6 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
   const thresholdAction = useRef(0)
   const dragStartOffset = useRef(0)
   const currentOffset = useRef(0)
-  const swatch =
-    pastelSwatches.find((item) => item.id === task.color) ?? pastelSwatches[1]
-  const schedule = task.dueDate ?? task.startedAt
-  const date = schedule ? new Date(schedule) : null
-  const dateLabel = date
-    ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(date)
-    : 'Sem data'
-  const timeLabel = date
-    ? new Intl.DateTimeFormat('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(date)
-    : 'Sem horário'
   const isCompleted = task.status === 'completed'
   const revealProgress = Math.abs(offset) / 96
   const canDelete = task.permissions.delete
@@ -476,25 +453,11 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
         className={cn(
           task.assignmentStatus === 'pending' &&
             '!h-auto min-h-52 !grid-rows-[auto_auto_auto_minmax(0,1fr)_auto_auto]',
-          'glass-card colabora-timeline-card relative z-10 grid h-52 min-w-0 cursor-pointer select-none grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] gap-2 overflow-hidden rounded-xl border p-3 [overflow-wrap:anywhere] active:cursor-grabbing motion-reduce:!transition-none sm:p-4',
+          taskSummaryClassName,
+          'active:cursor-grabbing motion-reduce:!transition-none',
         )}
       >
-        <div className="flex items-center justify-between gap-3">
-          <MutedText>{dateLabel}</MutedText>
-          <div className="flex shrink-0 items-center gap-1">
-            <span className="rounded-lg bg-primary px-2.5 py-1.5 text-sm font-semibold tabular-nums text-primary-foreground">
-              {timeLabel}
-            </span>
-          </div>
-        </div>
-        <div className="flex min-w-0 items-center gap-2">
-          <h3 className="line-clamp-1 min-w-0 font-semibold leading-snug">
-            {task.title}
-          </h3>
-          <TaskAttachmentIndicator count={task.attachments.length} />
-        </div>
-        <TaskAssigneeBadge task={task} />
-        <div className="min-h-0 overflow-hidden">
+        <TaskSummary task={task}>
           {completing ? (
             <p role="status" className="text-sm text-muted-foreground">
               Concluindo...
@@ -505,36 +468,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
               {completionError}
             </p>
           ) : null}
-          {task.description ? (
-            <p
-              className={cn(
-                'text-sm text-muted-foreground',
-                task.location?.trim() ? 'line-clamp-1' : 'line-clamp-2',
-              )}
-            >
-              <LinkedText>{task.description}</LinkedText>
-            </p>
-          ) : null}
-          {task.location?.trim() ? (
-            <p className="mt-1 flex items-start gap-1 text-xs leading-relaxed text-muted-foreground">
-              <MapPin aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
-              <span className="line-clamp-1 min-w-0">{task.location}</span>
-            </p>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={cn(
-              'min-w-0 max-w-full truncate rounded-full px-2.5 py-1 text-xs font-medium',
-              swatch.className,
-            )}
-          >
-            {task.category}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {formatDuration(task.estimatedTime)} estimados
-          </span>
-        </div>
+        </TaskSummary>
         <TaskAssignment task={task} />
       </article>
       {detailsOpen ? (

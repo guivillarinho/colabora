@@ -1,3 +1,5 @@
+import { TaskAssigneeBadge } from '@/features/tasks/components/task-assignee-badge'
+import { TaskSummary, taskSummaryClassName } from './components/task-summary'
 import { TaskAssignment } from '@/features/tasks/components/task-assignment'
 import { apiBase, apiRequest } from '@/lib/http-client'
 import { useAuth } from '@/features/auth/auth-context'
@@ -55,7 +57,6 @@ import type { Task } from '@/features/tasks/types/task'
 import { TaskExecutionTime } from '@/features/tasks/components/task-execution-time'
 import { TaskFormDialog } from '@/features/tasks/components/task-form-dialog'
 import { TaskPeople } from '@/features/tasks/components/task-people'
-import { TaskAssigneeBadge } from '@/features/tasks/components/task-assignee-badge'
 import { isTimedTask, taskWindow } from '@/features/tasks/task-kind'
 import { LinkedText } from '@/components/linked-text'
 
@@ -381,7 +382,7 @@ export function AgendaPage() {
             Resultados da pesquisa ({matchingItems.length})
           </SectionTitle>
           {matchingItems.length ? (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-3 sm:grid-cols-2">
               {matchingItems.map((item) => (
                 <AgendaCard
                   key={`${item.type}-${item.id}`}
@@ -424,7 +425,7 @@ export function AgendaPage() {
           {loading ? (
             <MutedText>Carregando agenda...</MutedText>
           ) : dayItems.length ? (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-3 sm:grid-cols-2">
               {dayItems.map((item) => (
                 <AgendaCard
                   key={`${item.type}-${item.id}`}
@@ -442,7 +443,7 @@ export function AgendaPage() {
       {!searchOpen && unscheduledItems.length ? (
         <section aria-label="Tarefas sem data" className="grid gap-3">
           <SectionTitle>Sem data</SectionTitle>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-3 sm:grid-cols-2">
             {unscheduledItems.map((item) => (
               <AgendaCard
                 key={`${item.type}-${item.id}`}
@@ -501,6 +502,31 @@ function AgendaCard({
   item: ReturnType<typeof normalizeItem>
   onSelect: () => void
 }) {
+  if (item.type === 'task' && item.task) {
+    return (
+      <button
+        type="button"
+        onClick={onSelect}
+        className={cn(
+          taskSummaryClassName,
+          'text-left transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        )}
+      >
+        <TaskSummary
+          task={item.task}
+          linkDescription={false}
+          footer={
+            <>
+              <AgendaTaskStatus status={item.task.status} />
+              {item.task.status === 'completed' ? (
+                <TaskExecutionTime task={item.task} compact />
+              ) : null}
+            </>
+          }
+        />
+      </button>
+    )
+  }
   const task = item.type === 'task'
   const status = task && item.status ? taskStatusAppearance[item.status] : null
   return (
@@ -545,7 +571,6 @@ function AgendaCard({
           ) : null}
         </div>
       ) : null}
-      {item.task ? <TaskAssigneeBadge task={item.task} /> : null}
       {item.description ? (
         <p className="line-clamp-2 text-sm text-muted-foreground [overflow-wrap:anywhere]">
           {item.description}
