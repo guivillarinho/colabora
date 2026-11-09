@@ -107,7 +107,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(email: string, password: string) {
     generation.current += 1
-    accept(await authApi.login(email, password))
+    const response = await authApi.login(email, password)
+    window.history.replaceState(null, '', '/hoje')
+    accept(response)
     channel.current?.postMessage('changed')
   }
   async function register(name: string, email: string, password: string) {

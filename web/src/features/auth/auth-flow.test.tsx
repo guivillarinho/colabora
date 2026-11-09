@@ -91,7 +91,7 @@ it('validates login fields before sending data', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('e-mail válido')
   expect(api.login).not.toHaveBeenCalled()
 })
-it('signs in and preserves the private destination', async () => {
+it('opens Hoje after signing in from another page', async () => {
   window.history.replaceState(null, '', '/agenda')
   renderApp()
   await signIn()
@@ -100,6 +100,13 @@ it('signs in and preserves the private destination', async () => {
     'alice@example.test',
     'safe-test-password',
   )
+  expect(window.location.pathname).toBe('/hoje')
+})
+it('preserves the current page when restoring an existing session', async () => {
+  window.history.replaceState(null, '', '/agenda')
+  api.me.mockResolvedValue(session())
+  renderApp()
+  expect(await screen.findByRole('heading', { name: 'Alice' })).toBeVisible()
   expect(window.location.pathname).toBe('/agenda')
 })
 it('shows authentication errors without loading private data', async () => {
