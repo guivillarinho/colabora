@@ -1,5 +1,6 @@
 import { MutedText, PageTitle } from '@/components/typography'
 import { useNavigation } from '@/components/layout/navigation'
+import { InstallApp } from '@/features/install/install-app'
 import { useTasks } from '@/features/tasks/tasks-context'
 
 import { ProgressSummary } from './components/progress-summary'
@@ -18,6 +19,7 @@ export function DashboardPage() {
       <div className="grid gap-1">
         <PageTitle>Hoje</PageTitle>
         <MutedText>Seu progresso e o que vem a seguir.</MutedText>
+        <InstallApp />
       </div>
       <ActiveTimer
         tasks={tasks}

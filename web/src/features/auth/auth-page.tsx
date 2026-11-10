@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { InstallApp } from '@/features/install/install-app'
 import { Check, Circle, Eye, EyeOff, ListTodo } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
@@ -423,6 +424,7 @@ export function AuthPage() {
               </Button>
             ) : null}
           </div>
+          {mode === 'login' ? <InstallApp /> : null}
         </section>
       </div>
     </main>
