@@ -1,7 +1,7 @@
 import { TaskAssigneeBadge } from '@/features/tasks/components/task-assignee-badge'
 import { TaskSummary, taskSummaryClassName } from './components/task-summary'
 import { TaskAssignment } from '@/features/tasks/components/task-assignment'
-import { apiBase, apiRequest } from '@/lib/http-client'
+import { apiRequest } from '@/lib/http-client'
 import { useAuth } from '@/features/auth/auth-context'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
 import {
@@ -46,7 +46,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useTasks } from '@/features/tasks/tasks-context'
-import { parseAttachment } from '@/features/tasks/components/attachment-reference'
+import { AgendaAttachments } from './components/agenda-attachments'
 import { LocationField } from '@/features/tasks/components/location-field'
 import {
   AgendaUploadError,
@@ -740,34 +740,22 @@ export function AgendaDetails({
             ) : (
               <MutedText>Sem data agendada.</MutedText>
             )}
-            {item.location ? (
-              <LocationPreview location={item.location} />
+            {item.location?.trim() ? (
+              <section
+                aria-labelledby="agenda-location-heading"
+                className="grid min-w-0 gap-2"
+              >
+                <h3 id="agenda-location-heading" className="font-medium">
+                  Localização
+                </h3>
+                <p className="whitespace-pre-wrap text-muted-foreground">
+                  {item.location}
+                </p>
+                <LocationPreview location={item.location} />
+              </section>
             ) : null}
             {item.attachments.length ? (
-              <div>
-                <p className="mb-1 font-medium">Documentos</p>
-                <ul className="grid gap-1 text-primary">
-                  {item.attachments.map((attachment) => {
-                    const { name, url } = parseAttachment(attachment)
-                    return (
-                      <li key={attachment}>
-                        {url ? (
-                          <a
-                            className="underline"
-                            href={`${apiBase}${url}`}
-                            rel="noreferrer"
-                            target="_blank"
-                          >
-                            {name}
-                          </a>
-                        ) : (
-                          <span>{name}</span>
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
+              <AgendaAttachments attachments={item.attachments} />
             ) : null}
             {task?.permissions.changeStatus &&
             task.status === 'completed' &&

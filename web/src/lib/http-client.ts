@@ -69,6 +69,24 @@ export async function apiRequest<T>(
   init: RequestInit = {},
   authFailure = true,
 ): Promise<T> {
+  const response = await request(path, init, authFailure)
+  if (response.status === 204) return undefined as T
+  return response.json() as Promise<T>
+}
+
+export async function apiBlob(
+  path: string,
+  signal: AbortSignal,
+): Promise<Blob> {
+  const response = await request(path, { signal }, true)
+  return response.blob()
+}
+
+async function request(
+  path: string,
+  init: RequestInit,
+  authFailure: boolean,
+): Promise<Response> {
   const current = epoch
   const headers = new Headers(init.headers)
   if (expectedUserId) headers.set('X-Session-User', expectedUserId)
@@ -84,7 +102,6 @@ export async function apiRequest<T>(
     credentials: 'include',
     cache: 'no-store',
   })
-  if (response.status === 204) return undefined as T
   if (!response.ok) {
     if (response.status === 401 && authFailure && current === epoch) {
       clearHttpSession()
@@ -115,5 +132,5 @@ export async function apiRequest<T>(
               : 'Não foi possível concluir a solicitação.'),
     )
   }
-  return response.json() as Promise<T>
+  return response
 }

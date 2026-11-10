@@ -2,7 +2,7 @@ import { renderAuthenticated as render, taskAccess } from '@/test/auth-fixture'
 import { screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-import { AgendaPage } from './agenda-page'
+import { AgendaDetails, AgendaPage } from './agenda-page'
 import { TasksProvider } from '@/features/tasks/tasks-context'
 import { tasksApi } from '@/features/tasks/api/tasks-api'
 import { acceptHttpSession } from '@/lib/http-client'
@@ -331,6 +331,79 @@ describe('AgendaPage', () => {
       expect(
         dialog.queryByRole('button', { name: 'Concluir tarefa' }),
       ).not.toBeInTheDocument()
+    },
+  )
+
+  it.each(['event', 'project'] as const)(
+    'shows the saved address, inline image and download in %s details',
+    async (type) => {
+      const location = 'Rua das Flores, 100, Joinville'
+      const path = '/uploads/agenda/11111111-1111-4111-8111-111111111111.png'
+      const { createObjectURL, revokeObjectURL } = URL
+      URL.createObjectURL = jest.fn(() => 'blob:attachment')
+      URL.revokeObjectURL = jest.fn()
+      const fetchMock = jest.mocked(globalThis.fetch)
+      acceptHttpSession('test-csrf-token', taskAccess.createdById)
+      fetchMock.mockImplementation(
+        async (input) =>
+          (String(input).endsWith(path)
+            ? {
+                ok: true,
+                blob: async () => new Blob(['image'], { type: 'image/png' }),
+              }
+            : {
+                ok: true,
+                json: async () => ({
+                  features: [{ geometry: { coordinates: [-48.8, -26.3] } }],
+                }),
+              }) as Response,
+      )
+      try {
+        const { unmount } = render(
+          <AgendaDetails
+            item={{
+              id: 'agenda-1',
+              title: 'Planejamento',
+              type,
+              startDate: dueDate,
+              endDate: dueDate,
+              description: null,
+              location,
+              attachments: [`Foto.png||${path}`, 'Arquivo antigo.pdf'],
+              icon: null,
+            }}
+            onClose={jest.fn()}
+            onDelete={jest.fn()}
+          />,
+        )
+        const details = within(
+          screen.getByRole('dialog', { name: 'Planejamento' }),
+        )
+        const place = within(
+          details.getByRole('region', { name: 'Localização' }),
+        )
+        expect(place.getByText(location)).toBeVisible()
+        expect(await place.findByTitle(`Mapa de ${location}`)).toBeVisible()
+        expect(
+          await details.findByAltText('Prévia de Foto.png'),
+        ).toHaveAttribute('src', 'blob:attachment')
+        const download = details.getByRole('link', { name: 'Baixar Foto.png' })
+        expect(download).toHaveAttribute('href', expect.stringContaining(path))
+        expect(download).toHaveAttribute('download', 'Foto.png')
+        expect(details.getByText('Arquivo indisponível.')).toBeVisible()
+        const request = fetchMock.mock.calls.find(([url]) =>
+          String(url).endsWith(path),
+        )
+        expect(request?.[1]?.credentials).toBe('include')
+        expect(new Headers(request?.[1]?.headers).get('X-Session-User')).toBe(
+          taskAccess.createdById,
+        )
+        unmount()
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:attachment')
+      } finally {
+        URL.createObjectURL = createObjectURL
+        URL.revokeObjectURL = revokeObjectURL
+      }
     },
   )
 
