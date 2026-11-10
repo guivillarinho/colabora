@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client'
 
 import { AuthProvider } from '@/features/auth/auth-context'
 import { AuthGate } from '@/features/auth/auth-gate'
-import { InstallAppProvider } from '@/features/install/install-app'
 import { applyPalette, readStoredPalette } from './app/palette'
 import { PaletteProvider } from './app/palette-provider'
 import { AccountPreferencesProvider } from './app/account-preferences'
@@ -32,9 +31,7 @@ createRoot(root).render(
       <AccountPreferencesProvider>
         <ThemeProvider>
           <PaletteProvider>
-            <InstallAppProvider>
-              <AuthGate />
-            </InstallAppProvider>
+            <AuthGate />
           </PaletteProvider>
         </ThemeProvider>
       </AccountPreferencesProvider>

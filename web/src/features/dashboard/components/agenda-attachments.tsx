@@ -19,28 +19,26 @@ export function AgendaAttachments({ attachments }: { attachments: string[] }) {
               key={reference}
               className="grid min-w-0 gap-2 rounded-xl border p-3"
             >
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                <span className="flex min-w-0 items-center gap-2 font-medium">
-                  <FileText
-                    aria-hidden="true"
-                    className="size-4 shrink-0 text-muted-foreground"
-                  />
-                  <span className="wrap-anywhere">{name || 'Arquivo'}</span>
-                </span>
-                {url ? (
+              <div className="flex min-w-0 items-center gap-2 font-medium">
+                <FileText
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-muted-foreground"
+                />
+                <span className="wrap-anywhere">{name || 'Arquivo'}</span>
+              </div>
+              {url ? (
+                <>
+                  <AttachmentPreview name={name} url={url} />
                   <a
                     aria-label={`Baixar ${name}`}
-                    className="inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 text-sm text-primary hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border px-3 text-sm text-primary hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
                     href={`${apiBase}${url}`}
                     download={name}
                   >
                     <Download aria-hidden="true" className="size-4" />
                     Baixar
                   </a>
-                ) : null}
-              </div>
-              {url ? (
-                <AttachmentPreview name={name} url={url} />
+                </>
               ) : (
                 <MutedText>Arquivo indisponível.</MutedText>
               )}

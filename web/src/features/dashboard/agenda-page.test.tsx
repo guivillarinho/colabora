@@ -384,10 +384,11 @@ describe('AgendaPage', () => {
         )
         expect(place.getByText(location)).toBeVisible()
         expect(await place.findByTitle(`Mapa de ${location}`)).toBeVisible()
-        expect(
-          await details.findByAltText('Prévia de Foto.png'),
-        ).toHaveAttribute('src', 'blob:attachment')
+        const preview = await details.findByAltText('Prévia de Foto.png')
+        expect(preview).toHaveAttribute('src', 'blob:attachment')
         const download = details.getByRole('link', { name: 'Baixar Foto.png' })
+        expect(preview.nextElementSibling).toBe(download)
+        expect(download).toHaveClass('w-full', 'justify-center')
         expect(download).toHaveAttribute('href', expect.stringContaining(path))
         expect(download).toHaveAttribute('download', 'Foto.png')
         expect(details.getByText('Arquivo indisponível.')).toBeVisible()
