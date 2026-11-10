@@ -16,6 +16,10 @@ export function listAgendaItems(signal: AbortSignal) {
   return apiRequest<AgendaItem[]>('/agenda-items', { signal })
 }
 
+export function removeAgendaItem(id: string) {
+  return apiRequest<void>(`/agenda-items/${id}`, { method: 'DELETE' })
+}
+
 export function startOfDay(date: Date) {
   const copy = new Date(date)
   copy.setHours(0, 0, 0, 0)

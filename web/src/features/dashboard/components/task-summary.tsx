@@ -10,7 +10,7 @@ import { TaskAttachmentIndicator } from '@/features/tasks/components/task-attach
 import type { Task } from '@/features/tasks/types/task'
 
 export const taskSummaryClassName =
-  'surface-card colabora-timeline-card relative z-10 grid min-h-60 min-w-0 cursor-pointer select-none grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_auto_minmax(3.5rem,1fr)_auto_auto] gap-2 overflow-hidden rounded-xl border p-3 [overflow-wrap:anywhere] sm:p-4'
+  'surface-card colabora-timeline-card relative z-10 grid min-w-0 cursor-pointer select-none grid-cols-[minmax(0,1fr)] gap-2 overflow-hidden rounded-xl border p-3 [overflow-wrap:anywhere] sm:p-4'
 
 export function TaskSummary({
   task,
@@ -25,6 +25,7 @@ export function TaskSummary({
 }) {
   const swatch =
     pastelSwatches.find((item) => item.id === task.color) ?? pastelSwatches[1]
+  const description = task.description?.trim()
   const schedule = task.dueDate ?? task.startedAt
   const date = schedule ? new Date(schedule) : null
   const dateLabel = date
@@ -53,22 +54,19 @@ export function TaskSummary({
         <TaskAttachmentIndicator count={task.attachments.length} />
       </div>
       <TaskAssigneeBadge task={task} />
-      <div className="min-h-14">
+      <div>
         {children}
-        {task.description ? (
-          <p
-            className={cn(
-              'text-sm leading-5 text-muted-foreground',
-              task.location?.trim() ? 'line-clamp-1' : 'line-clamp-2',
-            )}
-          >
+        {description ? (
+          <p className="line-clamp-3 whitespace-pre-line text-sm leading-5 text-muted-foreground">
             {linkDescription ? (
-              <LinkedText>{task.description}</LinkedText>
+              <LinkedText>{description}</LinkedText>
             ) : (
-              task.description
+              description
             )}
           </p>
-        ) : null}
+        ) : (
+          <MutedText>Sem descrição</MutedText>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <span

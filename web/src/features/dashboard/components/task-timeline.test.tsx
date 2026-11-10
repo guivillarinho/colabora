@@ -224,7 +224,6 @@ it('keeps editing on the details pencil and off the card', async () => {
   ).toBeVisible()
   expect(screen.queryByText(/Criada por/)).not.toBeInTheDocument()
   expect(screen.queryByText(/Responsável/)).not.toBeInTheDocument()
-  expect(screen.getByRole('article')).toHaveClass('min-h-60')
   await user.click(screen.getByRole('article'))
   expect(screen.getByText('tarefa agendada')).toBeVisible()
   expect(screen.getByText(/Criada por Guilherme/)).toBeVisible()
@@ -373,7 +372,7 @@ it('cancels native multi-touch without completing a task', () => {
   expect(onComplete).not.toHaveBeenCalled()
 })
 
-it('gives every card the same height and keeps edit off the card', () => {
+it('shows a muted fallback and limits descriptions to three lines even with an address', () => {
   const second: Task = {
     ...task,
     id: 'task-2',
@@ -383,15 +382,18 @@ it('gives every card the same height and keeps edit off the card', () => {
   }
   render(
     <TaskTimeline
-      tasks={[task, second]}
+      tasks={[{ ...task, description: '  ' }, second]}
       onComplete={jest.fn()}
       onDelete={jest.fn()}
     />,
   )
   const cards = screen.getAllByRole('article')
   expect(cards).toHaveLength(2)
-  expect(cards[0]).toHaveClass('min-h-60')
-  expect(cards[1]).toHaveClass('min-h-60')
+  expect(screen.getByText('Sem descrição')).toHaveClass(
+    'text-sm',
+    'text-muted-foreground',
+  )
+  expect(screen.getByText(second.description!)).toHaveClass('line-clamp-3')
   expect(
     screen.getAllByRole('img', { name: 'Responsável: Guilherme' }),
   ).toHaveLength(2)

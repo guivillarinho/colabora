@@ -451,8 +451,6 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           transition: swipeTransition,
         }}
         className={cn(
-          task.assignmentStatus === 'pending' &&
-            '!h-auto min-h-52 !grid-rows-[auto_auto_auto_minmax(0,1fr)_auto_auto]',
           taskSummaryClassName,
           'active:cursor-grabbing motion-reduce:!transition-none',
         )}

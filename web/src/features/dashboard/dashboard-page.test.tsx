@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { listAgendaItems, type AgendaItem } from './agenda-items'
 import { DashboardPage } from './dashboard-page'
 import { TaskExecutionChart } from './components/task-execution-chart'
@@ -104,6 +105,18 @@ it('previews up to three agenda entries overlapping today and opens the agenda',
   expect(screen.queryByText('Evento de amanhã')).not.toBeInTheDocument()
   expect(screen.queryByText('Quarto item de hoje')).not.toBeInTheDocument()
   expect(screen.queryByText('Descrição completa')).not.toBeInTheDocument()
+  const user = userEvent.setup()
+  for (const name of [/Reunião/, /Projeto em andamento/]) {
+    const card = screen.getByRole('button', { name })
+    await user.click(card)
+    const details = screen.getByRole('dialog', { name })
+    expect(within(details).getByText('Descrição completa')).toBeVisible()
+    expect(within(details).getByText('Início')).toBeVisible()
+    expect(within(details).getByText('Final')).toBeVisible()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(card).toHaveFocus()
+  }
   fireEvent.click(
     screen.getByRole('button', { name: 'Ver tudo na agenda de hoje' }),
   )

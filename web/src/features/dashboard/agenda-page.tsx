@@ -64,6 +64,7 @@ import {
   formatTime,
   listAgendaItems,
   overlapsDay,
+  removeAgendaItem,
   startOfDay,
   type AgendaItem,
 } from './agenda-items'
@@ -481,9 +482,7 @@ export function AgendaPage() {
             setDetails(null)
             return
           }
-          await apiRequest<void>(`/agenda-items/${item.id}`, {
-            method: 'DELETE',
-          })
+          await removeAgendaItem(item.id)
           setItems((current) => current.filter((entry) => entry.id !== item.id))
           setDetails(null)
         }}
@@ -634,7 +633,7 @@ export function AgendaDetails({
 }: {
   item: NormalAgendaItem | null
   onClose: () => void
-  onComplete: (task: Task) => Promise<void>
+  onComplete?: (task: Task) => Promise<void>
   onReopen?: (task: Task) => Promise<void>
   onDelete: (item: NormalAgendaItem) => Promise<void>
   returnFocus?: () => void
@@ -796,7 +795,9 @@ export function AgendaDetails({
                 {reopenError}
               </p>
             ) : null}
-            {task?.permissions.changeStatus && task.status !== 'completed' ? (
+            {task?.permissions.changeStatus &&
+            task.status !== 'completed' &&
+            onComplete ? (
               <Button
                 disabled={completing}
                 aria-busy={completing}

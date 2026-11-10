@@ -1,14 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CalendarDays, FolderKanban } from 'lucide-react'
 
 import { MutedText, SectionTitle } from '@/components/typography'
 import { Button } from '@/components/ui/button'
 
+import { AgendaDetails } from '../agenda-page'
 import {
   formatDate,
   formatTime,
   listAgendaItems,
   overlapsDay,
+  removeAgendaItem,
   startOfDay,
   type AgendaItem,
 } from '../agenda-items'
@@ -18,6 +20,8 @@ const previewLimit = 3
 export function TodayAgenda({ onViewAll }: { onViewAll: () => void }) {
   const [items, setItems] = useState<AgendaItem[] | null>(null)
   const [failed, setFailed] = useState(false)
+  const [details, setDetails] = useState<AgendaItem | null>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -67,25 +71,33 @@ export function TodayAgenda({ onViewAll }: { onViewAll: () => void }) {
                 : formatTime(item.startDate)
 
             return (
-              <li
-                key={item.id}
-                className="flex min-w-0 items-center gap-3 rounded-xl border bg-card p-3"
-              >
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-primary">
-                  <Icon aria-hidden="true" className="size-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium wrap-anywhere">
-                    {item.title}
-                  </p>
-                  <MutedText>{isProject ? 'Projeto' : 'Evento'}</MutedText>
-                </div>
-                <time
-                  dateTime={item.startDate}
-                  className="shrink-0 text-xs text-muted-foreground"
+              <li key={item.id} className="min-w-0">
+                <button
+                  type="button"
+                  className="surface-card flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-xl border bg-card p-3 text-left hover:bg-accent"
+                  onClick={(event) => {
+                    trigger.current = event.currentTarget
+                    setDetails(item)
+                  }}
                 >
-                  {when}
-                </time>
+                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-primary">
+                    <Icon aria-hidden="true" className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium wrap-anywhere">
+                      {item.title}
+                    </span>
+                    <span className="block text-sm text-muted-foreground">
+                      {isProject ? 'Projeto' : 'Evento'}
+                    </span>
+                  </span>
+                  <time
+                    dateTime={item.startDate}
+                    className="shrink-0 text-xs text-muted-foreground"
+                  >
+                    {when}
+                  </time>
+                </button>
               </li>
             )
           })}
@@ -101,6 +113,20 @@ export function TodayAgenda({ onViewAll }: { onViewAll: () => void }) {
           </MutedText>
         </div>
       )}
+      {details ? (
+        <AgendaDetails
+          item={details}
+          onClose={() => setDetails(null)}
+          returnFocus={() => trigger.current?.focus()}
+          onDelete={async ({ id }) => {
+            await removeAgendaItem(id)
+            setItems(
+              (current) => current?.filter((item) => item.id !== id) ?? null,
+            )
+            setDetails(null)
+          }}
+        />
+      ) : null}
     </section>
   )
 }
