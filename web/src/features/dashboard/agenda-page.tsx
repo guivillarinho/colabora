@@ -59,19 +59,16 @@ import { TaskFormDialog } from '@/features/tasks/components/task-form-dialog'
 import { TaskPeople } from '@/features/tasks/components/task-people'
 import { isTimedTask, taskWindow } from '@/features/tasks/task-kind'
 import { LinkedText } from '@/components/linked-text'
+import {
+  formatDate,
+  formatTime,
+  listAgendaItems,
+  overlapsDay,
+  startOfDay,
+  type AgendaItem,
+} from './agenda-items'
 
 type AgendaKind = 'event' | 'project' | 'task'
-type AgendaItem = {
-  id: string
-  title: string
-  type: Exclude<AgendaKind, 'task'>
-  description: string | null
-  startDate: string
-  endDate: string
-  location: string | null
-  attachments: string[]
-  icon: string | null
-}
 type NormalAgendaItem = Omit<AgendaItem, 'type' | 'startDate' | 'endDate'> & {
   type: AgendaKind
   startDate: string | null
@@ -129,7 +126,7 @@ export function AgendaPage() {
 
   useEffect(() => {
     const controller = new AbortController()
-    apiRequest<AgendaItem[]>('/agenda-items', { signal: controller.signal })
+    listAgendaItems(controller.signal)
       .then((data) => {
         if (!controller.signal.aborted) setItems(data)
       })
@@ -1247,11 +1244,6 @@ function sortItems(a: NormalAgendaItem, b: NormalAgendaItem, sort: SortMode) {
   if (!b.startDate) return -1
   return new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
 }
-function startOfDay(date: Date) {
-  const copy = new Date(date)
-  copy.setHours(0, 0, 0, 0)
-  return copy
-}
 function shiftDate(date: Date, amount: number) {
   const copy = new Date(date)
   copy.setDate(copy.getDate() + amount)
@@ -1268,24 +1260,6 @@ function sameDay(a: Date, b: Date) {
 }
 function sameCalendarDate(a: string, b: string) {
   return new Date(a).toDateString() === new Date(b).toDateString()
-}
-function overlapsDay(start: string | null, end: string | null, day: Date) {
-  if (!start || !end) return false
-  const lower = startOfDay(day).getTime()
-  const upper = lower + 86400000 - 1
-  return new Date(start).getTime() <= upper && new Date(end).getTime() >= lower
-}
-function formatDate(date: string | Date) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-  }).format(new Date(date))
-}
-function formatTime(date: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(date))
 }
 function monthLabel(date: Date) {
   return new Intl.DateTimeFormat('pt-BR', {
