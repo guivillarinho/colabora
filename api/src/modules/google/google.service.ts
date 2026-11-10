@@ -18,6 +18,7 @@ import { TasksService } from '../tasks/tasks.service'
 import { RateLimitService } from '../auth/rate-limit.service'
 export const calendarScope =
   'https://www.googleapis.com/auth/calendar.events.owned'
+export const googleScopes = `openid email ${calendarScope}`
 export type OAuthPending = {
   state: string
   verifier: string
@@ -129,9 +130,9 @@ export class GoogleService {
       client_id: this.config.getOrThrow('GOOGLE_CLIENT_ID'),
       redirect_uri: this.url('GOOGLE_REDIRECT_URI'),
       response_type: 'code',
-      scope: calendarScope,
+      scope: googleScopes,
       access_type: 'offline',
-      prompt: 'consent',
+      prompt: 'consent select_account',
       state: pending.state,
       code_challenge: createHash('sha256')
         .update(pending.verifier)
@@ -139,6 +140,30 @@ export class GoogleService {
       code_challenge_method: 'S256',
     }).toString()
     return { pending, url: url.toString() }
+  }
+
+  profileUrl(outcome: 'connected' | 'cancelled' | 'error'): string {
+    const url = new URL('/perfil', this.url('PUBLIC_APP_URL'))
+    url.searchParams.set('google', outcome)
+    return url.toString()
+  }
+
+  private credentials(
+    value: string,
+    actor: string,
+  ): {
+    refreshToken: string
+    email?: string
+  } {
+    const decrypted = this.decrypt(value, actor)
+    if (!decrypted.startsWith('{')) return { refreshToken: decrypted }
+    const credentials = JSON.parse(decrypted) as {
+      refreshToken: string
+      email?: string
+    }
+    if (!credentials.refreshToken)
+      throw new ServiceUnavailableException('Reconecte sua conta Google.')
+    return credentials
   }
 
   private async token(params: Record<string, string>) {
@@ -160,6 +185,7 @@ export class GoogleService {
     pending: OAuthPending | undefined,
     state: string,
     code: string,
+    error?: string,
   ) {
     this.enabled()
     if (
@@ -168,12 +194,14 @@ export class GoogleService {
       pending.expires < Date.now() ||
       !state ||
       Buffer.byteLength(state) !== Buffer.byteLength(pending.state) ||
-      !timingSafeEqual(Buffer.from(state), Buffer.from(pending.state)) ||
-      !code
+      !timingSafeEqual(Buffer.from(state), Buffer.from(pending.state))
     )
       throw new BadRequestException(
         'Autorização expirada ou inválida. Tente vincular novamente.',
       )
+    if (error === 'access_denied') return this.profileUrl('cancelled')
+    if (error || !code)
+      throw new BadRequestException('Google não autorizou o vínculo.')
     try {
       const response = await this.token({
         grant_type: 'authorization_code',
@@ -184,22 +212,47 @@ export class GoogleService {
       if (!response.ok) throw new Error('OAuth')
       const value = (await response.json()) as {
         refresh_token?: string
+        access_token?: string
         scope?: string
       }
       if (
         !value.refresh_token ||
+        !value.access_token ||
         !value.scope?.split(' ').includes(calendarScope)
       )
         throw new Error('Permissão incompleta')
+      const identityResponse = await fetch(
+        'https://openidconnect.googleapis.com/v1/userinfo',
+        {
+          headers: { Authorization: `Bearer ${value.access_token}` },
+          redirect: 'error',
+          signal: AbortSignal.timeout(10000),
+        },
+      )
+      if (!identityResponse.ok) throw new Error('Conta indisponível')
+      const identity = (await identityResponse.json()) as {
+        email?: string
+        email_verified?: boolean
+      }
+      if (
+        typeof identity.email !== 'string' ||
+        identity.email.length > 254 ||
+        identity.email_verified !== true
+      )
+        throw new Error('Conta sem e-mail verificado')
+      const credentials = JSON.stringify({
+        refreshToken: value.refresh_token,
+        email: identity.email,
+      })
       await this.source.query(
         'INSERT INTO google_connections("ownerId",version,token,status) VALUES ($1,$2,$3,\'connected\') ON CONFLICT ("ownerId") DO UPDATE SET version=EXCLUDED.version,token=EXCLUDED.token,status=\'connected\'',
-        [actor, randomUUID(), this.encrypt(value.refresh_token, actor)],
+        [actor, randomUUID(), this.encrypt(credentials, actor)],
       )
       await this.source.query(
         'DELETE FROM google_calendar_sync WHERE "ownerId"=$1',
         [actor],
       )
-      return new URL('/perfil', this.url('PUBLIC_APP_URL')).toString()
+      return this.profileUrl('connected')
     } catch {
       throw new ServiceUnavailableException(
         'Não foi possível vincular Google. Tente novamente.',
@@ -219,7 +272,7 @@ export class GoogleService {
 
   async status(actor: string) {
     const rows = await this.source.query(
-      'SELECT status FROM google_connections WHERE "ownerId"=$1',
+      'SELECT status,token FROM google_connections WHERE "ownerId"=$1',
       [actor],
     )
     const synced = await this.source.query(
@@ -228,6 +281,10 @@ export class GoogleService {
     )
     return {
       configured: this.configured(),
+      email:
+        rows[0]?.token && this.config.get('GOOGLE_TOKEN_ENCRYPTION_KEY')
+          ? (this.credentials(rows[0].token, actor).email ?? null)
+          : null,
       status: rows[0]?.status ?? 'disconnected',
       synced,
     }
@@ -247,7 +304,9 @@ export class GoogleService {
         redirect: 'error',
         signal: AbortSignal.timeout(10000),
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ token: this.decrypt(row.token, actor) }),
+        body: new URLSearchParams({
+          token: this.credentials(row.token, actor).refreshToken,
+        }),
       })
       if (!response.ok && response.status !== 400) throw new Error('Revogação')
       await this.source.query(
@@ -271,9 +330,10 @@ export class GoogleService {
     if (row.status !== 'connected')
       throw new ConflictException('Reconecte Google ou finalize a desconexão.')
     try {
+      const credentials = this.credentials(row.token, actor)
       const tokenResponse = await this.token({
         grant_type: 'refresh_token',
-        refresh_token: this.decrypt(row.token, actor),
+        refresh_token: credentials.refreshToken,
       })
       if (!tokenResponse.ok) {
         if (tokenResponse.status === 400 || tokenResponse.status === 401)
@@ -291,7 +351,17 @@ export class GoogleService {
       if (tokens.refresh_token)
         await this.source.query(
           'UPDATE google_connections SET token=$3 WHERE "ownerId"=$1 AND version=$2',
-          [actor, row.version, this.encrypt(tokens.refresh_token, actor)],
+          [
+            actor,
+            row.version,
+            this.encrypt(
+              JSON.stringify({
+                ...credentials,
+                refreshToken: tokens.refresh_token,
+              }),
+              actor,
+            ),
+          ],
         )
       const current = await this.connection(actor)
       if (current.version !== row.version || current.status !== 'connected')

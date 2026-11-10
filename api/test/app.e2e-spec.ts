@@ -234,22 +234,31 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       await b.agent
         .get('/api/google/callback')
         .query({ state, code: 'code' })
-        .expect(400)
+        .expect(302)
+        .expect('Location', `${origin}/perfil?google=error`)
       expect(googleFetch).not.toHaveBeenCalled()
       googleFetch.mockResolvedValueOnce(
-        reply({ refresh_token: 'private-refresh', scope }),
+        reply({
+          refresh_token: 'private-refresh',
+          access_token: 'private-access',
+          scope,
+        }),
+      )
+      googleFetch.mockResolvedValueOnce(
+        reply({ email: 'calendar@example.test', email_verified: true }),
       )
       await a.agent
         .get('/api/google/callback')
         .query({ state, code: 'code' })
         .expect(302)
-        .expect('Location', `${origin}/perfil`)
+        .expect('Location', `${origin}/perfil?google=connected`)
         .expect('Referrer-Policy', 'no-referrer')
       await a.agent
         .get('/api/google/callback')
         .query({ state, code: 'code' })
-        .expect(400)
-      expect(googleFetch).toHaveBeenCalledTimes(1)
+        .expect(302)
+        .expect('Location', `${origin}/perfil?google=error`)
+      expect(googleFetch).toHaveBeenCalledTimes(2)
       const [stored] = await source.query(
         'SELECT token FROM google_connections WHERE "ownerId"=$1',
         [a.user.id],
@@ -257,6 +266,7 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       expect(stored.token).not.toContain('private-refresh')
       const publicStatus = await a.agent.get('/api/google/status').expect(200)
       expect(publicStatus.body.status).toBe('connected')
+      expect(publicStatus.body.email).toBe('calendar@example.test')
       expect(publicStatus.body).not.toHaveProperty('token')
       expect(
         (await b.agent.get('/api/google/status').expect(200)).body.status,

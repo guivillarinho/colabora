@@ -67,7 +67,13 @@ type ProfileOption =
 export function AccountPage() {
   const { user, logout } = useAuth()
   const { tasks } = useTasks()
-  const [selected, setSelected] = useState<ProfileOption | null>(null)
+  const [selected, setSelected] = useState<ProfileOption | null>(() =>
+    ['connected', 'cancelled', 'error'].includes(
+      new URLSearchParams(window.location.search).get('google') ?? '',
+    )
+      ? 'google'
+      : null,
+  )
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)

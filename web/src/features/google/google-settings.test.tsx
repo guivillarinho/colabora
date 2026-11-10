@@ -16,7 +16,7 @@ jest.mock('@/features/tasks/tasks-context', () => ({
   }),
 }))
 beforeEach(() => jest.resetAllMocks())
-it('shows unconfigured Calendar and Chat limitation without pretending to connect', async () => {
+it('shows that Calendar setup is pending', async () => {
   jest.mocked(apiRequest).mockResolvedValue({
     configured: false,
     status: 'disconnected',
@@ -25,13 +25,12 @@ it('shows unconfigured Calendar and Chat limitation without pretending to connec
   render(<GoogleSettings />)
   expect(
     await screen.findByText(
-      'A integração ainda não está configurada no servidor.',
+      'A conexão com o Google Agenda estará disponível assim que a configuração for concluída.',
     ),
   ).toBeVisible()
   expect(
-    screen.queryByRole('button', { name: 'Vincular Google Agenda' }),
-  ).not.toBeInTheDocument()
-  expect(screen.getByText(/Chat é diferente de Gmail/)).toBeVisible()
+    screen.getByRole('button', { name: 'Vincular Google Agenda' }),
+  ).toBeDisabled()
 })
 it('requires selecting an eligible task and explicit confirmation before syncing', async () => {
   const user = userEvent.setup()
@@ -49,15 +48,15 @@ it('requires selecting an eligible task and explicit confirmation before syncing
       synced: [{ taskId: 'task-1', syncedAt: '2026-11-06T12:00:00Z' }],
     })
   render(<GoogleSettings />)
-  const select = await screen.findByRole('combobox')
+  const task = await screen.findByRole('radio', { name: 'Planejar reunião' })
   const button = screen.getByRole('button', {
     name: 'Confirmar envio ao Google Agenda',
   })
   expect(button).toBeDisabled()
   expect(
-    screen.queryByRole('option', { name: 'Sem data' }),
+    screen.queryByRole('radio', { name: 'Sem data' }),
   ).not.toBeInTheDocument()
-  await user.selectOptions(select, 'task-1')
+  await user.click(task)
   expect(apiRequest).toHaveBeenCalledTimes(1)
   await user.click(button)
   expect(
@@ -90,7 +89,7 @@ it('keeps a failed disconnect visible for retry', async () => {
   )
   expect(await screen.findByText('Revogação pendente')).toBeVisible()
   await waitFor(() =>
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument(),
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument(),
   )
   expect(
     screen.getByRole('button', { name: 'Desconectar Google' }),
@@ -105,7 +104,7 @@ it('allows disconnecting an existing account even when new sync is disabled', as
   expect(
     await screen.findByRole('button', { name: 'Desconectar Google' }),
   ).toBeEnabled()
-  expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+  expect(screen.queryByRole('radio')).not.toBeInTheDocument()
 })
 
 it('allows retrying the integration status after a network failure', async () => {
@@ -125,4 +124,20 @@ it('allows retrying the integration status after a network failure', async () =>
   expect(
     await screen.findByRole('button', { name: 'Vincular Google Agenda' }),
   ).toBeVisible()
+})
+
+it('shows the connected Google email and clears the callback from the URL', async () => {
+  window.history.replaceState(null, '', '/perfil?google=connected')
+  jest.mocked(apiRequest).mockResolvedValue({
+    configured: true,
+    status: 'connected',
+    email: 'agenda@example.test',
+    synced: [],
+  })
+  render(<GoogleSettings />)
+  expect(
+    await screen.findByText('Conta vinculada: agenda@example.test'),
+  ).toBeVisible()
+  expect(screen.getByText('Conta Google vinculada com sucesso.')).toBeVisible()
+  expect(window.location.search).toBe('')
 })

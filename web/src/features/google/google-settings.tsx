@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { apiRequest } from '@/lib/http-client'
 import { useTasks } from '@/features/tasks/tasks-context'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 type Status = {
   configured: boolean
   status: string
+  email?: string | null
   synced: Array<{ taskId: string; syncedAt: string }>
 }
 export function GoogleSettings() {
@@ -13,9 +13,26 @@ export function GoogleSettings() {
   const [status, setStatus] = useState<Status | null>(null)
   const [selected, setSelected] = useState('')
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState(() => {
+    const outcome = new URLSearchParams(window.location.search).get('google')
+    if (outcome === 'connected') return 'Conta Google vinculada com sucesso.'
+    if (outcome === 'cancelled')
+      return 'Vinculação cancelada. Você pode tentar novamente.'
+    if (outcome === 'error')
+      return 'Não foi possível vincular a conta Google. Tente novamente.'
+    return ''
+  })
   useEffect(() => {
     let active = true
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('google')) {
+      url.searchParams.delete('google')
+      window.history.replaceState(
+        null,
+        '',
+        url.pathname + url.search + url.hash,
+      )
+    }
     apiRequest<Status>('/google/status')
       .then((value) => {
         if (active) setStatus(value)
@@ -73,11 +90,14 @@ export function GoogleSettings() {
   const last = status?.synced.find((item) => item.taskId === selected)
   return (
     <section className="surface-panel grid min-w-0 gap-3 rounded-2xl border p-4 sm:p-5">
-      <h2 className="text-lg font-semibold">Integrações Google</h2>
-      <p>
-        Google Agenda: envio manual para o calendário principal. Nenhuma tarefa
-        será enviada automaticamente. Google poderá receber título, descrição,
-        data e duração da tarefa selecionada.
+      <h2 className="text-lg font-semibold">Google Agenda</h2>
+      <p className="text-sm text-muted-foreground">
+        Conecte sua conta Google e envie as tarefas que escolher para o seu
+        calendário principal.
+      </p>
+      <p className="text-sm text-muted-foreground">
+        Ao vincular, escolha a conta que deseja usar e autorize o acesso à
+        agenda.
       </p>
       <p role="status">
         {!status
@@ -85,7 +105,9 @@ export function GoogleSettings() {
             ? 'Consulta da integração indisponível.'
             : 'Consultando integração...'
           : status.status === 'connected'
-            ? 'Conta vinculada.'
+            ? status.email
+              ? `Conta vinculada: ${status.email}`
+              : 'Conta vinculada.'
             : status?.status === 'reconnect'
               ? 'Permissão expirada ou revogada. Reconecte sua conta.'
               : status?.status === 'disconnecting'
@@ -98,13 +120,18 @@ export function GoogleSettings() {
         </Button>
       ) : null}
       {status && !status.configured ? (
-        <p>A integração ainda não está configurada no servidor.</p>
+        <p className="text-sm text-muted-foreground">
+          A conexão com o Google Agenda estará disponível assim que a
+          configuração for concluída.
+        </p>
       ) : null}
-      {status && (status.configured || status.status !== 'disconnected') ? (
+      {status ? (
         <div className="flex flex-wrap gap-2">
-          {status.configured &&
-          ['disconnected', 'reconnect'].includes(status.status) ? (
-            <Button disabled={busy} onClick={() => act('connect')}>
+          {['disconnected', 'reconnect'].includes(status.status) ? (
+            <Button
+              disabled={busy || !status.configured}
+              onClick={() => act('connect')}
+            >
               {status.status === 'disconnected'
                 ? 'Vincular Google Agenda'
                 : 'Reconectar Google Agenda'}
@@ -129,26 +156,41 @@ export function GoogleSettings() {
             act('sync')
           }}
         >
-          <Label htmlFor="google-task">
-            Escolha a tarefa com data e horário
-          </Label>
-          <select
-            id="google-task"
-            className="min-w-0 rounded-lg border bg-background p-2"
-            required
-            disabled={busy}
-            value={selected}
-            onChange={(event) => setSelected(event.target.value)}
-          >
-            <option value="">Selecione uma tarefa</option>
-            {tasks
-              .filter((task) => task.dueDate)
-              .map((task) => (
-                <option key={task.id} value={task.id}>
-                  {task.title}
-                </option>
-              ))}
-          </select>
+          <fieldset disabled={busy} className="grid min-w-0 gap-2">
+            <legend className="mb-2 text-sm font-medium">
+              Escolha a tarefa com data e horário
+            </legend>
+            <div className="grid max-h-60 gap-2 overflow-y-auto">
+              {tasks
+                .filter((task) => task.dueDate)
+                .map((task) => (
+                  <label
+                    key={task.id}
+                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm has-checked:border-primary has-checked:bg-secondary"
+                  >
+                    <input
+                      type="radio"
+                      name="google-task"
+                      className="size-4 accent-primary"
+                      checked={selected === task.id}
+                      value={task.id}
+                      onChange={() => setSelected(task.id)}
+                    />
+                    <span className="min-w-0 break-words">{task.title}</span>
+                  </label>
+                ))}
+              {!tasks.some((task) => task.dueDate) && (
+                <p className="text-sm text-muted-foreground">
+                  Crie uma tarefa com data e horário para enviar ao Google
+                  Agenda.
+                </p>
+              )}
+            </div>
+          </fieldset>
+          <p className="text-sm text-muted-foreground">
+            Ao confirmar, título, descrição, data e duração da tarefa serão
+            enviados ao Google Agenda.
+          </p>
           <p>
             Reenvios atualizam o mesmo evento. Alterações e exclusões no
             Colabora ou no Google não são sincronizadas automaticamente.
@@ -170,13 +212,6 @@ export function GoogleSettings() {
           {message}
         </p>
       ) : null}
-      <h3 className="font-semibold">Google Chat</h3>
-      <p>
-        Chat é diferente de Gmail. A integração depende de conta Google
-        Workspace, espaço e permissões do administrador; não há vinculação
-        disponível nesta versão. Use as notificações do Colabora como
-        alternativa. Nenhuma mensagem será enviada ao Google Chat.
-      </p>
     </section>
   )
 }

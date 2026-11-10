@@ -311,7 +311,7 @@ test("build refuses an unsafe Preview before compiling, packaging or migrating",
   assert.ok(!result.stdout.includes("building"));
 });
 
-test("production build refuses Gemini or Google before compiling", () => {
+test("production build keeps Gemini disabled before compiling", () => {
   const result = spawnSync(
     process.execPath,
     [fileURLToPath(new URL("./build-vercel.mjs", import.meta.url))],

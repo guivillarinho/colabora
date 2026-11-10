@@ -50,17 +50,25 @@ export class GoogleController {
     await new Promise<void>((resolve, reject) =>
       request.session.save((error) => (error ? reject(error) : resolve())),
     )
-    const { state, code } = request.query
+    const { state, code, error } = request.query
     if (
       typeof state !== 'string' ||
-      typeof code !== 'string' ||
+      (code !== undefined && typeof code !== 'string') ||
+      (error !== undefined && typeof error !== 'string') ||
       state.length > 128 ||
-      code.length > 4096
+      (typeof code === 'string' && code.length > 4096) ||
+      (typeof error === 'string' && error.length > 128)
     )
       throw new BadRequestException(
         'Google não autorizou o vínculo. Volte ao perfil e tente novamente.',
       )
-    response.redirect(await this.google.callback(user.id, pending, state, code))
+    try {
+      response.redirect(
+        await this.google.callback(user.id, pending, state, code ?? '', error),
+      )
+    } catch {
+      response.redirect(this.google.profileUrl('error'))
+    }
   }
 
   @Post('disconnect') disconnect(@CurrentUser() user: Identity) {

@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config'
-import { GoogleService, calendarScope } from './google.service'
+import { GoogleService, calendarScope, googleScopes } from './google.service'
 const actor = '11111111-1111-4111-8111-111111111111'
 const config: Record<string, string> = {
   GOOGLE_ENABLED: 'true',
@@ -46,7 +46,8 @@ it('creates session-bound, expiring state and S256 PKCE with minimum event scope
   const { pending, url } = await service.start(actor)
   const auth = new URL(url)
   expect(auth.origin).toBe('https://accounts.google.com')
-  expect(auth.searchParams.get('scope')).toBe(calendarScope)
+  expect(auth.searchParams.get('scope')).toBe(googleScopes)
+  expect(auth.searchParams.get('prompt')).toContain('select_account')
   expect(auth.searchParams.get('code_challenge_method')).toBe('S256')
   expect(auth.searchParams.get('code_challenge')).not.toBe(pending.verifier)
   expect(pending.owner).toBe(actor)
@@ -85,11 +86,18 @@ it('requires refresh token and requested scope before saving the connection', as
   const { pending } = await service.start(actor)
   jest
     .mocked(fetch)
-    .mockResolvedValue(
-      response(200, { refresh_token: 'refresh', scope: calendarScope }),
+    .mockResolvedValueOnce(
+      response(200, {
+        refresh_token: 'refresh',
+        access_token: 'access',
+        scope: googleScopes,
+      }),
+    )
+    .mockResolvedValueOnce(
+      response(200, { email: 'calendar@example.test', email_verified: true }),
     )
   expect(await service.callback(actor, pending, pending.state, 'code')).toBe(
-    'http://localhost:5173/perfil',
+    'http://localhost:5173/perfil?google=connected',
   )
   const insert = source.query.mock.calls.find((call) =>
     String(call[0]).startsWith('INSERT'),
@@ -199,4 +207,40 @@ it('allows revocation while the feature flag is off', async () => {
   ])
   jest.mocked(fetch).mockResolvedValueOnce(response(200))
   await expect(service.disconnect(actor)).resolves.toBeUndefined()
+})
+
+it('returns cancellations to the profile only after validating state', async () => {
+  const { service } = setup()
+  const { pending } = await service.start(actor)
+  expect(
+    await service.callback(actor, pending, pending.state, '', 'access_denied'),
+  ).toBe('http://localhost:5173/perfil?google=cancelled')
+  await expect(
+    service.callback(actor, pending, 'wrong', '', 'access_denied'),
+  ).rejects.toThrow('inválida')
+  expect(fetch).not.toHaveBeenCalled()
+})
+
+it('returns the connected email without exposing encrypted credentials', async () => {
+  const { service, source } = setup()
+  source.query
+    .mockResolvedValueOnce([
+      {
+        status: 'connected',
+        token: service.encrypt(
+          JSON.stringify({
+            refreshToken: 'refresh-private',
+            email: 'calendar@example.test',
+          }),
+          actor,
+        ),
+      },
+    ])
+    .mockResolvedValueOnce([])
+  expect(await service.status(actor)).toEqual({
+    configured: true,
+    status: 'connected',
+    email: 'calendar@example.test',
+    synced: [],
+  })
 })

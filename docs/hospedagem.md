@@ -211,3 +211,36 @@ em outro host com um volume persistente e PostgreSQL remoto, caso necessário.
 Consultar o painel da Vercel para verificar o resultado efetivo da publicação.
 A existência destes arquivos e um build local bem-sucedido não confirmam que
 a aplicação já está online.
+
+### Vincular Google Agenda pelo Perfil
+
+Em Perfil → Google Agenda, cada pessoa escolhe a própria conta Google.
+O retorno da autorização reabre essa opção, exibe o e-mail vinculado e permite
+desconectar ou enviar uma tarefa com data e horário ao calendário principal.
+O envio é confirmado pelo usuário. Reenviar atualiza o mesmo evento.
+
+Para ativar em produção, configure uma vez um projeto no Google Cloud.
+
+1. Ative a Google Calendar API.
+2. Configure a tela de consentimento OAuth para usuários externos com os escopos
+   `openid`, `email` e
+   `https://www.googleapis.com/auth/calendar.events.owned`.
+3. Crie um cliente OAuth do tipo Aplicativo da Web e cadastre o URI de retorno
+   `https://colabora-rouge.vercel.app/api/google/callback`.
+4. Cadastre na Vercel, no ambiente Production, `GOOGLE_CLIENT_ID`,
+   `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` e
+   `GOOGLE_TOKEN_ENCRYPTION_KEY`. A chave de criptografia deve ter 32 bytes
+   aleatórios em base64 e ser independente da chave de sessão. O servidor usa
+   essa chave para proteger tokens de atualização e o e-mail conectado.
+5. Confira `PUBLIC_APP_URL=https://colabora-rouge.vercel.app`, defina
+   `GOOGLE_ENABLED=true` e publique novamente. O build valida a configuração.
+   Preserve a chave de criptografia em republicações para manter os vínculos.
+
+Enquanto a tela de consentimento estiver em testes, cadastre cada conta de
+teste no Google Cloud. Para oferecer o vínculo publicamente, conclua os
+requisitos de publicação e verificação indicados pelo Google para os escopos
+solicitados. As credenciais do cliente pertencem ao aplicativo. Os usuários
+conectam suas contas pela autorização do Google.
+
+Preview continua usando apenas credenciais prefixadas e um banco isolado,
+conforme `COLABORA_PREVIEW_DEPLOYMENT.md`.
