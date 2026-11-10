@@ -65,40 +65,20 @@ describe('stripImageMetadata', () => {
     expect(clean?.bytes.includes(Buffer.from([0xff, 0xc0]))).toBe(true)
   })
 
-  it('drops WebP EXIF and rejects animation', () => {
-    const frame = Buffer.alloc(10)
-    frame[0] = 0x04
-    const exif = Buffer.from('SecretGPS')
-    const body = Buffer.concat([
-      Buffer.from('VP8X'),
-      Buffer.from([10, 0, 0, 0]),
-      frame,
-      Buffer.from('EXIF'),
-      Buffer.from([exif.length, 0, 0, 0]),
-      exif,
-      Buffer.from([0]),
-    ])
-    const riff = Buffer.alloc(12)
-    riff.write('RIFF', 0, 4, 'ascii')
-    riff.writeUInt32LE(4 + body.length, 4)
-    riff.write('WEBP', 8, 4, 'ascii')
-    const clean = stripImageMetadata(Buffer.concat([riff, body]))
+  it('keeps a real extended WebP frame and transparency while stripping metadata', () => {
+    const image = Buffer.from(
+      'UklGRkAAAABXRUJQVlA4WAoAAAAYAAAAAQAAAQAAVlA4TBAAAAAvAUAAEAdQmZJFAQMR0f8ARVhJRgkAAABTZWNyZXRHUFMA',
+      'base64',
+    )
+    const clean = stripImageMetadata(image)
     expect(clean?.extension).toBe('webp')
     expect(clean?.bytes.includes(Buffer.from('SecretGPS'))).toBe(false)
-    expect(clean?.bytes.includes(Buffer.from('EXIF'))).toBe(false)
-    frame[0] = 0x10
-    const animatedBody = Buffer.concat([
-      Buffer.from('VP8X'),
-      Buffer.from([10, 0, 0, 0]),
-      frame,
-    ])
-    const animatedRiff = Buffer.alloc(12)
-    animatedRiff.write('RIFF', 0, 4, 'ascii')
-    animatedRiff.writeUInt32LE(4 + animatedBody.length, 4)
-    animatedRiff.write('WEBP', 8, 4, 'ascii')
-    expect(
-      stripImageMetadata(Buffer.concat([animatedRiff, animatedBody])),
-    ).toBeNull()
+    expect(clean?.bytes.includes(Buffer.from('VP8L'))).toBe(true)
+    expect(clean?.bytes[20]).toBe(0x10)
+    expect(stripImageMetadata(clean!.bytes)?.bytes).toEqual(clean?.bytes)
+
+    image[20] |= 0x02
+    expect(stripImageMetadata(image)).toBeNull()
   })
 
   it('rejects files that are not PNG, JPEG or WebP', () => {

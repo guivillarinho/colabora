@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { AuthContext } from './auth-context'
@@ -16,8 +16,8 @@ jest.mock('./upload-avatar', () => ({
 
 const onDone = jest.fn()
 
-function Harness() {
-  const [user, setUser] = useState<AuthUser>({ ...testUser, avatar: null })
+function Harness({ avatar = null }: { avatar?: AuthUser['avatar'] }) {
+  const [user, setUser] = useState<AuthUser>({ ...testUser, avatar })
   return (
     <AuthContext.Provider
       value={{
@@ -39,9 +39,10 @@ function Harness() {
 beforeAll(() => {
   URL.createObjectURL = jest.fn(() => 'blob:photo')
   URL.revokeObjectURL = jest.fn()
-  global.fetch = jest.fn(
-    async () => new Response(new Blob(['png'], { type: 'image/png' })),
-  )
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    blob: async () => new Blob(['png'], { type: 'image/png' }),
+  })
 })
 
 beforeEach(() => {
@@ -67,30 +68,63 @@ it('shows a preset in the header as soon as the profile choice is saved', async 
   )
 })
 
-it('previews an upload and then updates the header without reloading', async () => {
+it('shows upload progress, keeps the current avatar until confirmation, and updates the header', async () => {
   let finish: (user: AuthUser) => void = () => undefined
+  let report: ((percentage: number) => void) | undefined
   jest.mocked(uploadAvatar).mockImplementation(
-    () =>
+    (_file, _userId, onProgress) =>
       new Promise((resolve) => {
         finish = resolve
+        report = onProgress
       }),
   )
-  render(<Harness />)
+  render(<Harness avatar={{ kind: 'preset', id: 'leaf' }} />)
   const file = new File(['image'], 'foto.png', { type: 'image/png' })
   await userEvent.upload(screen.getByLabelText('Arquivo da foto'), file)
-  expect(screen.getByAltText('Prévia da nova foto')).toBeInTheDocument()
+  const progress = screen.getByRole('progressbar', {
+    name: 'Envio da foto de perfil',
+  })
+  expect(progress).not.toHaveAttribute('aria-valuenow')
+  act(() => report?.(43))
+  expect(progress).toHaveAttribute('aria-valuenow', '43')
+  act(() => report?.(100))
+  expect(screen.getByText('Finalizando a foto...')).toBeVisible()
+  expect(
+    screen.getAllByRole('img', { name: 'Avatar Folha de Guilherme' }),
+  ).toHaveLength(2)
   expect(screen.getByRole('button', { name: 'Concluir' })).toBeDisabled()
   finish({
     ...testUser,
     avatar: { kind: 'image', revision: 'abc123abc123abcd' },
   })
   await waitFor(() =>
-    expect(
-      screen.getAllByRole('img', { name: 'Foto de Guilherme' }),
-    ).toHaveLength(2),
+    expect(screen.getAllByAltText('Foto de Guilherme')).toHaveLength(2),
   )
-  expect(screen.queryByAltText('Prévia da nova foto')).not.toBeInTheDocument()
+  expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Concluir' })).toBeEnabled()
+})
+
+it('keeps the avatar on failure, shows the error, and allows retrying the same file', async () => {
+  jest
+    .mocked(uploadAvatar)
+    .mockRejectedValueOnce(new Error('Não foi possível enviar a foto.'))
+    .mockResolvedValueOnce({
+      ...testUser,
+      avatar: { kind: 'image', revision: 'nova' },
+    })
+  render(<Harness avatar={{ kind: 'preset', id: 'leaf' }} />)
+  const input = screen.getByLabelText('Arquivo da foto')
+  const file = new File(['image'], 'foto.png', { type: 'image/png' })
+  await userEvent.upload(input, file)
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Não foi possível enviar a foto.',
+  )
+  expect(
+    screen.getAllByRole('img', { name: 'Avatar Folha de Guilherme' }),
+  ).toHaveLength(2)
+  await userEvent.upload(input, file)
+  expect(await screen.findAllByAltText('Foto de Guilherme')).toHaveLength(2)
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
 it('removes the personal avatar only after confirming, and allows canceling', async () => {

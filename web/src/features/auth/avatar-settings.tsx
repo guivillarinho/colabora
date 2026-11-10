@@ -10,7 +10,9 @@ export function AvatarSettings({ onDone }: { onDone: () => void }) {
   const { user, updateUser } = useAuth()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [preview, setPreview] = useState<string | null>(null)
+  const [upload, setUpload] = useState<{ percentage: number | null } | null>(
+    null,
+  )
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -33,15 +35,15 @@ export function AvatarSettings({ onDone }: { onDone: () => void }) {
   }
 
   async function onFile(file: File | undefined, input: HTMLInputElement) {
-    if (!file || !user) return
-    const local = URL.createObjectURL(file)
-    setPreview(local)
+    input.value = ''
+    if (!file || !user || pending) return
+    setUpload({ percentage: null })
     try {
-      await apply(() => uploadAvatar(file, user.id))
+      await apply(() =>
+        uploadAvatar(file, user.id, (percentage) => setUpload({ percentage })),
+      )
     } finally {
-      URL.revokeObjectURL(local)
-      setPreview(null)
-      input.value = ''
+      setUpload(null)
     }
   }
 
@@ -52,18 +54,10 @@ export function AvatarSettings({ onDone }: { onDone: () => void }) {
     >
       <div className="grid min-h-0 gap-4 overflow-y-auto px-1 py-1">
         <div className="grid justify-items-center gap-3">
-          {preview ? (
-            <img
-              alt="Prévia da nova foto"
-              className="size-28 rounded-full border border-primary/20 object-cover sm:size-32"
-              src={preview}
-            />
-          ) : (
-            <UserAvatar size="xl" />
-          )}
+          <UserAvatar size="xl" />
           <div className="flex items-center justify-center gap-3">
             <Button
-              aria-label={pending ? 'Enviando foto...' : 'Enviar foto'}
+              aria-label={upload ? 'Enviando foto...' : 'Enviar foto'}
               title="Enviar foto"
               className="size-11 rounded-full"
               size="icon"
@@ -105,6 +99,43 @@ export function AvatarSettings({ onDone }: { onDone: () => void }) {
               </Button>
             ) : null}
           </div>
+          {upload ? (
+            <div className="grid w-full gap-2">
+              <p role="status" className="text-sm text-muted-foreground">
+                {upload.percentage === 100
+                  ? 'Finalizando a foto...'
+                  : upload.percentage == null
+                    ? 'Enviando foto...'
+                    : `Enviando foto · ${upload.percentage}%`}
+              </p>
+              <div
+                aria-label="Envio da foto de perfil"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={upload.percentage ?? undefined}
+                className="h-1.5 overflow-hidden rounded-full bg-muted"
+                role="progressbar"
+              >
+                <div
+                  className={
+                    upload.percentage == null
+                      ? 'h-full w-1/3 bg-primary motion-safe:animate-pulse'
+                      : 'h-full bg-primary motion-safe:transition-[width]'
+                  }
+                  style={
+                    upload.percentage == null
+                      ? undefined
+                      : { width: `${upload.percentage}%` }
+                  }
+                />
+              </div>
+            </div>
+          ) : null}
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
         </div>
         <div className="grid justify-items-center gap-3">
           <p className="text-sm text-muted-foreground">ou escolha um avatar</p>
@@ -135,12 +166,7 @@ export function AvatarSettings({ onDone }: { onDone: () => void }) {
             })}
           </div>
         </div>
-        {error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        ) : null}
-        {pending ? (
+        {pending && !upload ? (
           <p role="status" className="text-sm text-muted-foreground">
             Salvando alterações...
           </p>

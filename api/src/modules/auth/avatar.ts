@@ -251,16 +251,33 @@ function stripWebp(input: Buffer): CleanImage | null {
     if (offset > end) return null
   }
   if (offset !== end) return null
-  const frames = chunks.filter((chunk) =>
-    ['VP8 ', 'VP8L', 'VP8X'].includes(chunk.type),
+  const frames = chunks.filter(
+    (chunk) => chunk.type === 'VP8 ' || chunk.type === 'VP8L',
   )
-  if (frames.length !== 1 || frames[0].data.length < 10) return null
-  if (frames[0].type === 'VP8X') {
-    if (frames[0].data[0] & 0x10) return null
-    frames[0].data[0] &= ~0x0c
+  if (frames.length !== 1) return null
+  const [frame] = frames
+  if (frame.data.length < (frame.type === 'VP8L' ? 5 : 10)) return null
+
+  const headers = chunks.filter((chunk) => chunk.type === 'VP8X')
+  if (
+    headers.length > 1 ||
+    chunks.some((chunk) => chunk.type === 'ANIM' || chunk.type === 'ANMF')
+  )
+    return null
+  const extended = headers[0]
+  if (extended) {
+    if (
+      extended !== chunks[0] ||
+      extended.data.length !== 10 ||
+      extended.data[0] & 0x02
+    )
+      return null
+    // Keep transparency and clear the flags for discarded metadata chunks.
+    extended.data[0] &= 0x10
   }
-  const kept = chunks.filter(
-    (chunk) => chunk.type !== 'EXIF' && chunk.type !== 'XMP ',
+
+  const kept = chunks.filter((chunk) =>
+    ['VP8X', 'VP8 ', 'VP8L', 'ALPH'].includes(chunk.type),
   )
   const body: Buffer[] = []
   for (const chunk of kept) {
