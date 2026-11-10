@@ -114,7 +114,7 @@ export function TaskTimeline({
             : 'Nada agendado. As tarefas com data e hora aparecem aqui.'}
         </MutedText>
       ) : (
-        <ol className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
+        <ol className="grid min-w-0 auto-rows-fr grid-cols-[minmax(0,1fr)] gap-3">
           {visibleTasks.map((task) => (
             <TimelineTask
               key={task.id}
@@ -374,7 +374,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           '--swipe-tint': `${revealProgress * 20}%`,
         } as CSSProperties
       }
-      className="colabora-timeline-task relative isolate min-w-0 touch-auto overflow-hidden rounded-xl"
+      className="colabora-timeline-task relative isolate grid min-w-0 touch-auto overflow-hidden rounded-xl"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishPointerDrag}
@@ -452,7 +452,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
         }}
         className={cn(
           taskSummaryClassName,
-          'active:cursor-grabbing motion-reduce:!transition-none',
+          'content-start active:cursor-grabbing motion-reduce:!transition-none',
         )}
       >
         <TaskSummary task={task}>

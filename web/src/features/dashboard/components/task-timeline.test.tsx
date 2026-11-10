@@ -372,7 +372,7 @@ it('cancels native multi-touch without completing a task', () => {
   expect(onComplete).not.toHaveBeenCalled()
 })
 
-it('shows a muted fallback and limits descriptions to three lines even with an address', () => {
+it('shows a muted fallback and keeps equal-height rows and truncates descriptions to one line', () => {
   const second: Task = {
     ...task,
     id: 'task-2',
@@ -389,11 +389,13 @@ it('shows a muted fallback and limits descriptions to three lines even with an a
   )
   const cards = screen.getAllByRole('article')
   expect(cards).toHaveLength(2)
+  expect(screen.getByRole('list')).toHaveClass('auto-rows-fr')
+  for (const card of cards) expect(card.closest('li')).toHaveClass('grid')
   expect(screen.getByText('Sem descrição')).toHaveClass(
     'text-sm',
     'text-muted-foreground',
   )
-  expect(screen.getByText(second.description!)).toHaveClass('line-clamp-3')
+  expect(screen.getByText(second.description!)).toHaveClass('truncate')
   expect(
     screen.getAllByRole('img', { name: 'Responsável: Guilherme' }),
   ).toHaveLength(2)

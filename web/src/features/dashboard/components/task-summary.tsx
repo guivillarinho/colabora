@@ -57,7 +57,7 @@ export function TaskSummary({
       <div>
         {children}
         {description ? (
-          <p className="line-clamp-3 whitespace-pre-line text-sm leading-5 text-muted-foreground">
+          <p className="truncate text-sm leading-5 text-muted-foreground">
             {linkDescription ? (
               <LinkedText>{description}</LinkedText>
             ) : (
