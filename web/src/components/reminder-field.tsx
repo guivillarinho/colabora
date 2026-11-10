@@ -1,7 +1,12 @@
-import { Bell, X } from 'lucide-react'
-import { useEffect, useId, useState } from 'react'
+import { Bell, ChevronDown, X } from 'lucide-react'
+import { useEffect, useId, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
@@ -13,8 +18,6 @@ const units = [
 const presets = [0, 5, 10, 15, 30, 60, 120, 1440, 2880, 10080]
 const maxOffset = 28 * 1440
 const maxReminders = 5
-const selectClass =
-  'min-h-10 min-w-0 rounded-lg border bg-background px-3 text-sm disabled:opacity-60'
 
 export function isFutureReminder(
   start: string,
@@ -42,6 +45,8 @@ export function ReminderField({
 }) {
   const id = useId()
   const [now, setNow] = useState(Date.now)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const [optionsOpen, setOptionsOpen] = useState(false)
   const [custom, setCustom] = useState(false)
   const [amount, setAmount] = useState('10')
   const [unit, setUnit] = useState(1)
@@ -61,6 +66,11 @@ export function ReminderField({
     !value.includes(minutes) &&
     isFutureReminder(start, minutes, clock)
   const customOffset = Number(amount) * unit
+
+  function closeOptions() {
+    setOptionsOpen(false)
+    trigger.current?.focus()
+  }
 
   function add(minutes: number) {
     if (!allowed(minutes, Date.now())) return
@@ -97,71 +107,115 @@ export function ReminderField({
           ))}
         </ul>
       )}
-      <select
-        id={id}
-        className={selectClass}
-        aria-describedby={`${id}-hint`}
-        value={custom && canAdd ? 'custom' : ''}
-        disabled={!canAdd}
-        onChange={(event) => {
-          const option = event.target.value
-          if (option === 'custom') setCustom(true)
-          else if (option) add(Number(option))
-          else setCustom(false)
-        }}
-      >
-        <option value="">Adicionar lembrete</option>
-        {presets.map((minutes) => (
-          <option key={minutes} value={minutes} disabled={!allowed(minutes)}>
-            {describeReminder(minutes)}
-          </option>
-        ))}
-        <option
-          value="custom"
-          disabled={!isFutureReminder(start, 1, currentTime)}
-        >
-          Personalizar…
-        </option>
-      </select>
-      {custom && canAdd && (
-        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
-          <Input
-            aria-label="Quantidade de antecedência"
-            className="min-h-10"
-            type="text"
-            inputMode="numeric"
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
-          />
-          <select
-            aria-label="Unidade de antecedência"
-            className={selectClass}
-            value={unit}
-            onChange={(event) => setUnit(Number(event.target.value))}
-          >
-            {units.map((option) => (
-              <option
-                key={option.minutes}
-                value={option.minutes}
-                disabled={!isFutureReminder(start, option.minutes, currentTime)}
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
+      <Collapsible open={optionsOpen && canAdd} onOpenChange={setOptionsOpen}>
+        <CollapsibleTrigger asChild>
           <Button
+            ref={trigger}
+            id={id}
             type="button"
             variant="outline"
-            className="min-h-10"
-            disabled={
-              !/^\d+$/.test(amount) ||
-              customOffset === 0 ||
-              !allowed(customOffset)
-            }
-            onClick={() => add(customOffset)}
+            className="min-h-11 w-full justify-between px-3"
+            aria-describedby={`${id}-hint`}
+            disabled={!canAdd}
           >
-            Adicionar
+            Adicionar lembrete
+            <ChevronDown
+              aria-hidden="true"
+              className="group-aria-expanded/button:rotate-180"
+            />
           </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-2 grid grid-cols-2 gap-2 rounded-xl border bg-card p-2">
+          {presets.map((minutes) => (
+            <Button
+              key={minutes}
+              type="button"
+              variant="outline"
+              className="h-auto min-h-11 whitespace-normal"
+              disabled={!allowed(minutes)}
+              onClick={() => {
+                add(minutes)
+                closeOptions()
+              }}
+            >
+              {describeReminder(minutes)}
+            </Button>
+          ))}
+          <Button
+            type="button"
+            variant="secondary"
+            className="col-span-2 min-h-11"
+            disabled={!isFutureReminder(start, 1, currentTime)}
+            onClick={() => {
+              setCustom(true)
+              closeOptions()
+            }}
+          >
+            Personalizar…
+          </Button>
+        </CollapsibleContent>
+      </Collapsible>
+      {custom && canAdd && (
+        <div className="grid gap-3 rounded-xl border bg-card p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-medium">Lembrete personalizado</span>
+            <Button
+              aria-label="Fechar lembrete personalizado"
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setCustom(false)
+                trigger.current?.focus()
+              }}
+            >
+              <X aria-hidden="true" />
+            </Button>
+          </div>
+          <fieldset className="grid min-w-0 grid-cols-3 gap-2">
+            <legend className="mb-2 text-sm font-medium">
+              Unidade de antecedência
+            </legend>
+            {units.map((option) => (
+              <Button
+                key={option.minutes}
+                type="button"
+                variant={unit === option.minutes ? 'secondary' : 'outline'}
+                className="min-h-11 min-w-0 px-1"
+                aria-pressed={unit === option.minutes}
+                disabled={!isFutureReminder(start, option.minutes, currentTime)}
+                onClick={() => setUnit(option.minutes)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </fieldset>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+            <Input
+              aria-label="Quantidade de antecedência"
+              className="min-h-11"
+              type="text"
+              inputMode="numeric"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11"
+              disabled={
+                !/^\d+$/.test(amount) ||
+                customOffset === 0 ||
+                !allowed(customOffset)
+              }
+              onClick={() => {
+                add(customOffset)
+                trigger.current?.focus()
+              }}
+            >
+              Adicionar
+            </Button>
+          </div>
         </div>
       )}
       <p id={`${id}-hint`} className="text-sm text-muted-foreground">

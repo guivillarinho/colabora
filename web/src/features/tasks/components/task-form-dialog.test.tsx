@@ -69,16 +69,19 @@ it('blocks reminders in the past and saves a custom reminder', async () => {
   fireEvent.change(screen.getByLabelText('Data e hora'), {
     target: { value: '2026-11-04T08:08' },
   })
+  await user.click(reminders)
+  expect(reminders).toHaveAttribute('aria-expanded', 'true')
   expect(
-    screen.getByRole('option', { name: '10 minutos antes' }),
+    screen.getByRole('button', { name: '10 minutos antes' }),
   ).toBeDisabled()
-  expect(screen.getByRole('option', { name: '1 dia antes' })).toBeDisabled()
-  expect(screen.getByRole('option', { name: '5 minutos antes' })).toBeEnabled()
-  await user.selectOptions(reminders, 'custom')
+  expect(screen.getByRole('button', { name: '1 dia antes' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '5 minutos antes' })).toBeEnabled()
+  await user.click(screen.getByRole('button', { name: 'Personalizar…' }))
+  expect(reminders).toHaveAttribute('aria-expanded', 'false')
   fireEvent.change(screen.getByLabelText('Quantidade de antecedência'), {
     target: { value: '3' },
   })
-  expect(screen.getByRole('option', { name: 'Horas' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Horas' })).toBeDisabled()
   await user.click(screen.getByRole('button', { name: 'Adicionar' }))
   await user.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
   await waitFor(() =>
