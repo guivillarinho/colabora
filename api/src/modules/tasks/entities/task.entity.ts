@@ -55,6 +55,9 @@ export class Task {
   @Column({ type: 'timestamptz', nullable: true })
   dueDate: Date | null
 
+  @Column({ type: 'jsonb', nullable: true })
+  reminderOffsets: number[] | null
+
   @Column({ type: 'varchar', length: 200, nullable: true })
   location: string | null
 

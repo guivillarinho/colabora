@@ -14,13 +14,23 @@ export type ReminderStatus = 'pending' | 'processing' | 'sent'
 @Index('task_reminders_dedupe', ['taskId', 'userId', 'kind', 'scheduledAt'], {
   unique: true,
 })
+@Index(
+  'task_reminders_agenda_dedupe',
+  ['agendaItemId', 'userId', 'kind', 'scheduledAt'],
+  {
+    unique: true,
+  },
+)
 @Index('task_reminders_queue', ['status', 'scheduledAt'])
 export class TaskReminder {
   @PrimaryGeneratedColumn('uuid')
   id: string
 
-  @Column({ type: 'uuid' })
-  taskId: string
+  @Column({ type: 'uuid', nullable: true })
+  taskId: string | null
+
+  @Column({ type: 'uuid', nullable: true })
+  agendaItemId: string | null
 
   @Column({ type: 'uuid' })
   userId: string

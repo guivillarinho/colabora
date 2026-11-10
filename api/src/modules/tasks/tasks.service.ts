@@ -19,7 +19,11 @@ import { UsersService } from '../auth/users.service'
 import { person } from '../auth/entities/user.entity'
 import { presentAvatar, type PublicAvatar } from '../auth/avatar'
 import { AttachmentsService } from '../agenda/attachments.service'
-import { NotificationsService } from '../notifications/notifications.service'
+import { validateReminderTimes } from '../notifications/reminder-options'
+import {
+  NotificationsService,
+  taskReminderOffsets,
+} from '../notifications/notifications.service'
 
 export type TaskView = Omit<Task, 'createdBy' | 'assignedTo'> & {
   createdBy: ReturnType<typeof person>
@@ -77,8 +81,12 @@ export class TasksService {
     }
   }
 
-  private async visible(id: string, actor: string): Promise<Task> {
-    const task = await this.tasksRepository.findOne({
+  private async visible(
+    id: string,
+    actor: string,
+    repository = this.tasksRepository,
+  ): Promise<Task> {
+    const task = await repository.findOne({
       where: this.visibility(actor, id),
       relations: { createdBy: true, assignedTo: true },
     })
@@ -100,6 +108,8 @@ export class TasksService {
       throw new BadRequestException(
         'O responsável precisa aceitar antes de iniciar.',
       )
+    const dueDate = dto.dueDate ? new Date(dto.dueDate) : null
+    validateReminderTimes(dueDate, dto.reminderOffsets)
     const entity = this.tasksRepository.create({
       ...(id ? { id } : {}),
       title: dto.title.trim(),
@@ -107,7 +117,8 @@ export class TasksService {
       category: dto.category.trim(),
       priority: dto.priority ?? TaskPriority.Medium,
       color: dto.color,
-      dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+      dueDate,
+      reminderOffsets: dto.reminderOffsets ?? null,
       location: emptyToNull(dto.location),
       attachments: dto.attachments ?? [],
       estimatedTime: dto.estimatedTime,
@@ -120,10 +131,15 @@ export class TasksService {
       assignedToId,
       assignmentStatus: pending ? 'pending' : 'accepted',
     })
-    const task = id
-      ? (await this.tasksRepository.insert(entity), entity)
-      : await this.tasksRepository.save(entity)
-    await this.notifications.scheduleTaskReminders(task)
+    const task = await this.tasksRepository.manager.transaction(
+      async (manager) => {
+        const repository = manager.getRepository(Task)
+        if (id) await repository.insert(entity)
+        const saved = id ? entity : await repository.save(entity)
+        await this.notifications.scheduleTaskReminders(saved, manager)
+        return saved
+      },
+    )
     await this.notifications.notifyUsers(
       [task.createdById, task.assignedToId],
       'Nova tarefa no Colabora',
@@ -167,6 +183,15 @@ export class TasksService {
     if (dto.color !== undefined) changes.color = dto.color
     if (dto.dueDate !== undefined)
       changes.dueDate = dto.dueDate ? new Date(dto.dueDate) : null
+    if (dto.reminderOffsets !== undefined) {
+      validateReminderTimes(
+        changes.dueDate === undefined ? task.dueDate : changes.dueDate,
+        dto.reminderOffsets,
+        task.dueDate,
+        taskReminderOffsets(task),
+      )
+      changes.reminderOffsets = dto.reminderOffsets
+    }
     if (dto.location !== undefined) changes.location = emptyToNull(dto.location)
     if (dto.attachments !== undefined) changes.attachments = dto.attachments
     if (dto.estimatedTime !== undefined)
@@ -184,9 +209,15 @@ export class TasksService {
         dto.assignedToId && dto.assignedToId !== actor ? 'pending' : 'accepted'
     }
     if (Object.keys(changes).length) {
-      await this.tasksRepository.update({ id, createdById: actor }, changes)
-      const updated = await this.visible(id, actor)
-      await this.notifications.scheduleTaskReminders({ ...task, ...changes })
+      const updated = await this.tasksRepository.manager.transaction(
+        async (manager) => {
+          const repository = manager.getRepository(Task)
+          await repository.update({ id, createdById: actor }, changes)
+          const saved = await this.visible(id, actor, repository)
+          await this.notifications.scheduleTaskReminders(saved, manager)
+          return saved
+        },
+      )
       await this.notifications.notifyUsers(
         [actor, updated.assignedToId],
         'Tarefa atualizada no Colabora',
@@ -226,17 +257,20 @@ export class TasksService {
       throw new ForbiddenException(
         'Somente o responsável convidado pode responder.',
       )
-    const result = await this.tasksRepository.update(
-      { id, assignedToId: actor, assignmentStatus: 'pending' },
-      { assignmentStatus: response },
-    )
-    if (!result.affected)
-      throw new BadRequestException(
-        'Esta solicitação já foi respondida ou alterada.',
+    await this.tasksRepository.manager.transaction(async (manager) => {
+      const repository = manager.getRepository(Task)
+      const result = await repository.update(
+        { id, assignedToId: actor, assignmentStatus: 'pending' },
+        { assignmentStatus: response },
       )
-    await this.notifications.scheduleTaskReminders({
-      ...task,
-      assignmentStatus: response,
+      if (!result.affected)
+        throw new BadRequestException(
+          'Esta solicitação já foi respondida ou alterada.',
+        )
+      await this.notifications.scheduleTaskReminders(
+        await this.visible(id, actor, repository),
+        manager,
+      )
     })
     await this.notifications.notifyUsers(
       [task.createdById],
@@ -285,14 +319,21 @@ export class TasksService {
           }
         : {}),
     }
-    const result = await this.tasksRepository.update(
-      this.visibility(actor, id),
-      changes,
+    const updated = await this.tasksRepository.manager.transaction(
+      async (manager) => {
+        const repository = manager.getRepository(Task)
+        const result = await repository.update(
+          this.visibility(actor, id),
+          changes,
+        )
+        if (!result.affected)
+          throw new NotFoundException('Tarefa não encontrada.')
+        const saved = await this.visible(id, actor, repository)
+        if (reopening)
+          await this.notifications.scheduleTaskReminders(saved, manager)
+        return this.view(saved, actor)
+      },
     )
-    if (!result.affected) throw new NotFoundException('Tarefa não encontrada.')
-    const updated = await this.findOne(id, actor)
-    if (reopening)
-      await this.notifications.scheduleTaskReminders({ ...task, ...changes })
     await this.notifications.notifyUsers(
       [task.createdById, task.assignedToId],
       'Tarefa voltou para pendente',
@@ -326,10 +367,6 @@ export class TasksService {
       },
     )
     if (!result.affected) throw new NotFoundException('Tarefa não encontrada.')
-    await this.notifications.scheduleTaskReminders({
-      ...task,
-      status: TaskStatus.Completed,
-    })
     await this.notifications.notifyUsers(
       [task.createdById, task.assignedToId],
       'Tarefa concluída no Colabora',

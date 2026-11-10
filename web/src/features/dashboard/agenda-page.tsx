@@ -38,6 +38,7 @@ import { MutedText, PageTitle, SectionTitle } from '@/components/typography'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { isFutureReminder, ReminderField } from '@/components/reminder-field'
 import {
   Dialog,
   DialogContent,
@@ -858,6 +859,7 @@ function AgendaCreateDialog({
   const [description, setDescription] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [reminderOffsets, setReminderOffsets] = useState<number[]>([])
   const [location, setLocation] = useState('')
   const [icon, setIcon] = useState('')
   const [files, setFiles] = useState<string[]>([])
@@ -882,6 +884,7 @@ function AgendaCreateDialog({
     setDescription('')
     setStartDate('')
     setEndDate('')
+    setReminderOffsets([])
     setLocation('')
     setIcon('')
     setFiles([])
@@ -918,6 +921,16 @@ function AgendaCreateDialog({
               setError('A data final deve ser posterior à data inicial.')
               return
             }
+            if (
+              reminderOffsets.some(
+                (minutes) => !isFutureReminder(startDate, minutes),
+              )
+            ) {
+              setError(
+                'Um lembrete já passou. Remova-o ou altere a data de início.',
+              )
+              return
+            }
             setSaving(true)
             setError('')
             try {
@@ -927,6 +940,7 @@ function AgendaCreateDialog({
                 description: description.trim() || null,
                 startDate: new Date(startDate).toISOString(),
                 endDate: new Date(endDate).toISOString(),
+                reminderOffsets,
                 location: location || null,
                 attachments: files,
                 icon: icon || null,
@@ -987,7 +1001,13 @@ function AgendaCreateDialog({
                 type="datetime-local"
                 value={startDate}
                 onChange={(event) => {
-                  setStartDate(event.target.value)
+                  const next = event.target.value
+                  setStartDate(next)
+                  setReminderOffsets((offsets) =>
+                    offsets.filter((minutes) =>
+                      isFutureReminder(next, minutes),
+                    ),
+                  )
                   if (!endDate) setEndDate(event.target.value)
                 }}
               />
@@ -1002,6 +1022,11 @@ function AgendaCreateDialog({
               />
             </div>
           </div>
+          <ReminderField
+            start={startDate}
+            value={reminderOffsets}
+            onChange={setReminderOffsets}
+          />
           <div className="grid gap-2">
             <Label htmlFor="agenda-icon">Ícone</Label>
             <select

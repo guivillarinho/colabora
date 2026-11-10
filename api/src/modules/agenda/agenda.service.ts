@@ -9,6 +9,7 @@ import { Repository } from 'typeorm'
 import { CreateAgendaItemDto } from './dto/create-agenda-item.dto'
 import { AttachmentsService } from './attachments.service'
 import { AgendaItem } from './entities/agenda-item.entity'
+import { validateReminderTimes } from '../notifications/reminder-options'
 import { NotificationsService } from '../notifications/notifications.service'
 
 @Injectable()
@@ -51,19 +52,23 @@ export class AgendaService {
       )
     }
 
+    validateReminderTimes(startDate, dto.reminderOffsets)
     await this.attachments.assertOwnReferences(dto.attachments ?? [], actor)
-    const item = await this.items.save(
-      this.items.create({
-        ...dto,
-        ownerId: actor,
-        description: dto.description?.trim() || null,
-        location: dto.location?.trim() || null,
-        icon: dto.icon?.trim() || null,
-        attachments: dto.attachments ?? [],
-        startDate,
-        endDate,
-      }),
-    )
+    const entity = this.items.create({
+      ...dto,
+      ownerId: actor,
+      description: dto.description?.trim() || null,
+      location: dto.location?.trim() || null,
+      icon: dto.icon?.trim() || null,
+      attachments: dto.attachments ?? [],
+      startDate,
+      endDate,
+    })
+    const item = await this.items.manager.transaction(async (manager) => {
+      const saved = await manager.getRepository(AgendaItem).save(entity)
+      await this.notifications.scheduleAgendaReminders(saved, manager)
+      return saved
+    })
     await this.notifications.notifyUsers(
       [actor],
       item.type === 'project'

@@ -114,10 +114,13 @@ cd infra/neon
 neon link --project-id mute-hat-84564929 --branch main --no-env-pull --no-config --yes
 ```
 
-Os lembretes para tarefas são enfileirados 10 minutos antes e no horário marcado;
-editar prazo, reatribuir, concluir ou excluir atualiza/cancela a fila. Tarefas
-existentes com vencimento futuro são incluídas pela migração. Para o serviço
-gratuito continuar verificando os lembretes mesmo com o app fechado, publique
+A fila atende tarefas, eventos e projetos. Tarefas mantêm os avisos padrão
+de 10 minutos antes e no horário marcado enquanto a configuração não for
+personalizada. Para eventos e projetos, os lembretes usam a data de início.
+Antes de publicar esta versão, aplique a migração
+`ConfigurableReminders1794441600000` no banco do ambiente de destino.
+Para o serviço gratuito continuar verificando os lembretes mesmo com o app
+fechado, publique
 `infra/neon/functions/reminders.ts` como uma Neon Function `reminders`, configure
 `COLABORA_API_URL=https://colabora-rouge.vercel.app` e
 `REMINDER_DISPATCH_SECRET` nela e crie um Function Trigger `schedule` com cron

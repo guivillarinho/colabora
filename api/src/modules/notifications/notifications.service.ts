@@ -7,8 +7,14 @@ import { ConfigService } from '@nestjs/config'
 import { InjectRepository } from '@nestjs/typeorm'
 import type { PushSubscription as WebPushSubscription } from 'web-push'
 import webPush from 'web-push'
-import { LessThan, LessThanOrEqual, Repository } from 'typeorm'
+import {
+  LessThan,
+  LessThanOrEqual,
+  Repository,
+  type EntityManager,
+} from 'typeorm'
 
+import { AgendaItem } from '../agenda/entities/agenda-item.entity'
 import { Task } from '../tasks/entities/task.entity'
 import { TaskStatus } from '../tasks/task-status.enum'
 import { PushSubscription } from './entities/push-subscription.entity'
@@ -18,8 +24,12 @@ import {
 } from './entities/task-reminder.entity'
 import type { PushSubscriptionDto } from './notifications.dto'
 
-const TEN_MINUTES = 10 * 60 * 1000
+import { reminderTime } from './reminder-options'
 const MAX_REMINDER_ATTEMPTS = 8
+
+export function taskReminderOffsets(task: Task): number[] {
+  return task.reminderOffsets ?? [10, 0]
+}
 
 @Injectable()
 export class NotificationsService {
@@ -31,6 +41,8 @@ export class NotificationsService {
     @InjectRepository(Task)
     private readonly tasks: Repository<Task>,
     private readonly config: ConfigService,
+    @InjectRepository(AgendaItem)
+    private readonly agenda: Repository<AgendaItem>,
   ) {}
 
   publicKey(): string {
@@ -100,38 +112,69 @@ export class NotificationsService {
     }
   }
 
-  async scheduleTaskReminders(task: Task): Promise<void> {
-    await this.reminders.delete({ taskId: task.id })
+  async scheduleTaskReminders(
+    task: Task,
+    manager: EntityManager,
+  ): Promise<void> {
+    const userId = this.taskRecipient(task)
+    if (!task.dueDate || !userId) return
+    await this.enqueue(
+      { taskId: task.id },
+      userId,
+      task.dueDate,
+      taskReminderOffsets(task),
+      manager,
+    )
+  }
+
+  async scheduleAgendaReminders(
+    item: AgendaItem,
+    manager: EntityManager,
+  ): Promise<void> {
+    if (!item.ownerId || !item.reminderOffsets?.length) return
+    await this.enqueue(
+      { agendaItemId: item.id },
+      item.ownerId,
+      item.startDate,
+      item.reminderOffsets,
+      manager,
+    )
+  }
+
+  private async enqueue(
+    source: { taskId: string } | { agendaItemId: string },
+    userId: string,
+    start: Date,
+    offsets: number[],
+    manager: EntityManager,
+  ): Promise<void> {
+    const now = Date.now()
+    const rows = offsets
+      .map((minutes) => ({
+        ...source,
+        userId,
+        kind: (minutes === 0 ? 'due' : 'before') as ReminderKind,
+        scheduledAt: new Date(reminderTime(start, minutes)),
+      }))
+      .filter((row) => row.scheduledAt.getTime() > now)
+    if (!rows.length) return
+    await manager
+      .getRepository(TaskReminder)
+      .createQueryBuilder()
+      .insert()
+      .values(rows)
+      .orIgnore()
+      .execute()
+  }
+
+  private taskRecipient(task: Task): string | null {
     if (
-      !task.dueDate ||
       task.status === TaskStatus.Completed ||
       task.assignmentStatus === 'pending' ||
       task.assignmentStatus === 'declined'
     )
-      return
-    const userId = task.assignedToId ?? task.createdById
-    if (!userId) return
-
-    const dueAt = new Date(task.dueDate)
-    const now = Date.now()
-    const next: TaskReminder[] = []
-    for (const [kind, scheduledAt] of [
-      ['before', dueAt.getTime() - TEN_MINUTES],
-      ['due', dueAt.getTime()],
-    ] as Array<[ReminderKind, number]>) {
-      if (scheduledAt <= now) continue
-      next.push(
-        this.reminders.create({
-          taskId: task.id,
-          userId,
-          kind,
-          scheduledAt: new Date(scheduledAt),
-          status: 'pending',
-          attempts: 0,
-        }),
-      )
-    }
-    if (next.length) await this.reminders.save(next)
+      return null
+    return task.assignedToId ?? task.createdById
   }
 
   async dispatchDueReminders(): Promise<{ delivered: number }> {
@@ -167,15 +210,12 @@ export class NotificationsService {
       )
       if (claim.affected !== 1) continue
       try {
-        const task = await this.tasks.findOne({
-          where: { id: reminder.taskId },
-        })
-        if (this.isCurrentReminder(task, reminder)) {
-          const before = reminder.kind === 'before'
+        const current = await this.currentReminder(reminder)
+        if (current) {
           const wasDelivered = await this.notifyUsers(
             [reminder.userId],
-            before ? 'Tarefa em 10 minutos' : 'Tarefa no horário marcado',
-            task!.title,
+            current.label,
+            current.title,
           )
           if (!wasDelivered) throw new Error('Push não enviado.')
           delivered += 1
@@ -194,23 +234,49 @@ export class NotificationsService {
     return { delivered }
   }
 
-  private isCurrentReminder(
-    task: Task | null,
-    reminder: TaskReminder,
-  ): task is Task {
+  private async currentReminder(reminder: TaskReminder) {
+    if (reminder.agendaItemId) {
+      const item = await this.agenda.findOneBy({ id: reminder.agendaItemId })
+      if (
+        item?.ownerId === reminder.userId &&
+        this.matchesReminder(
+          reminder,
+          item.startDate,
+          item.reminderOffsets ?? [],
+        )
+      ) {
+        const kind = item.type === 'project' ? 'Projeto' : 'Evento'
+        return { title: item.title, label: `Lembrete de ${kind.toLowerCase()}` }
+      }
+      return null
+    }
+
+    if (!reminder.taskId) return null
+    const task = await this.tasks.findOne({ where: { id: reminder.taskId } })
     if (
-      !task ||
-      !task.dueDate ||
-      task.status === TaskStatus.Completed ||
-      task.assignmentStatus === 'pending' ||
-      task.assignmentStatus === 'declined' ||
-      (task.assignedToId ?? task.createdById) !== reminder.userId
+      !task?.dueDate ||
+      this.taskRecipient(task) !== reminder.userId ||
+      !this.matchesReminder(reminder, task.dueDate, taskReminderOffsets(task))
     )
-      return false
-    const expected =
-      new Date(task.dueDate).getTime() -
-      (reminder.kind === 'before' ? TEN_MINUTES : 0)
-    return expected === new Date(reminder.scheduledAt).getTime()
+      return null
+    return {
+      title: task.title,
+      label:
+        reminder.kind === 'due'
+          ? 'Tarefa no horário marcado'
+          : 'Lembrete de tarefa',
+    }
+  }
+
+  private matchesReminder(
+    reminder: TaskReminder,
+    start: Date,
+    offsets: number[],
+  ): boolean {
+    const scheduledAt = reminder.scheduledAt.getTime()
+    return offsets.some(
+      (minutes) => reminderTime(start, minutes) === scheduledAt,
+    )
   }
 
   private asWebPushSubscription(

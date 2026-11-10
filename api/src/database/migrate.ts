@@ -1,3 +1,4 @@
+import { ConfigurableReminders1794441600000 } from './migrations/1794441600000-configurable-reminders'
 import { AccountPreferences1794355200000 } from './migrations/1794355200000-account-preferences'
 import { TaskAssignment1794268800000 } from './migrations/1794268800000-task-assignment'
 import { TaskCompletion1794182400000 } from './migrations/1794182400000-task-completion'
@@ -50,6 +51,7 @@ async function migrate() {
       TaskCompletion1794182400000,
       TaskAssignment1794268800000,
       AccountPreferences1794355200000,
+      ConfigurableReminders1794441600000,
     ],
     synchronize: false,
     extra: { max: 2 },

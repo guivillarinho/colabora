@@ -18,7 +18,9 @@ import {
 import { TaskColor } from '../task-color.enum'
 import { TaskPriority } from '../task-priority.enum'
 
-export class CreateTaskDto {
+import { ReminderOptionsDto } from '../../notifications/reminder-options'
+
+export class CreateTaskDto extends ReminderOptionsDto {
   @IsOptional()
   @IsUUID()
   assignedToId?: string | null

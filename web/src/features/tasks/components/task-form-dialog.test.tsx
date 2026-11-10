@@ -58,6 +58,36 @@ it('fills the date while typing and saves the recognized local time', async () =
   )
 })
 
+it('blocks reminders in the past and saves a custom reminder', async () => {
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+  await renderForm()
+  const reminders = screen.getByLabelText('Lembretes')
+  expect(reminders).toBeDisabled()
+  fireEvent.change(screen.getByLabelText('Título'), {
+    target: { value: 'Consulta' },
+  })
+  fireEvent.change(screen.getByLabelText('Data e hora'), {
+    target: { value: '2026-11-04T08:08' },
+  })
+  expect(
+    screen.getByRole('option', { name: '10 minutos antes' }),
+  ).toBeDisabled()
+  expect(screen.getByRole('option', { name: '1 dia antes' })).toBeDisabled()
+  expect(screen.getByRole('option', { name: '5 minutos antes' })).toBeEnabled()
+  await user.selectOptions(reminders, 'custom')
+  fireEvent.change(screen.getByLabelText('Quantidade de antecedência'), {
+    target: { value: '3' },
+  })
+  expect(screen.getByRole('option', { name: 'Horas' })).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: 'Adicionar' }))
+  await user.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
+  await waitFor(() =>
+    expect(api.create).toHaveBeenCalledWith(
+      expect.objectContaining({ reminderOffsets: [3, 0] }),
+    ),
+  )
+})
+
 it('updates and removes the automatic schedule as the title changes', async () => {
   await renderForm()
   const title = screen.getByLabelText('Título')

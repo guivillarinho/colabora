@@ -27,7 +27,13 @@ describe('TasksService', () => {
   let service: TasksService
   let notifications: NotificationsService
   const findOne = jest.fn<Promise<Task | null>, []>()
+  const manager = {
+    getRepository: () => repository,
+    transaction: <T>(callback: (manager: unknown) => Promise<T>): Promise<T> =>
+      callback(manager),
+  }
   const repository = {
+    manager,
     create: jest.fn((data: Partial<Task>) => data),
     save: jest.fn(async (task: Partial<Task>) => ({
       id: taskId,
@@ -120,6 +126,7 @@ describe('TasksService', () => {
           dueDate,
           status: TaskStatus.Pending,
         }),
+        manager,
       )
       expect(notifications.notifyUsers).toHaveBeenCalledWith(
         ['owner', 'assignee'],
@@ -346,6 +353,7 @@ describe('TasksService', () => {
     expect(result.dueDate).toBeNull()
     expect(notifications.scheduleTaskReminders).toHaveBeenCalledWith(
       expect.objectContaining({ id: taskId, dueDate: null }),
+      manager,
     )
   })
 

@@ -28,6 +28,9 @@ export class AgendaItem {
   @Column({ type: 'timestamptz' })
   startDate: Date
 
+  @Column({ type: 'jsonb', nullable: true })
+  reminderOffsets: number[] | null
+
   @Column({ type: 'timestamptz' })
   endDate: Date
 

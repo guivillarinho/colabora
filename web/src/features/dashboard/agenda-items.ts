@@ -6,6 +6,7 @@ export type AgendaItem = {
   type: 'event' | 'project'
   description: string | null
   startDate: string
+  reminderOffsets?: number[] | null
   endDate: string
   location: string | null
   attachments: string[]

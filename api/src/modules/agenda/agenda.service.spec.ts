@@ -9,7 +9,13 @@ import { NotificationsService } from '../notifications/notifications.service'
 
 describe('AgendaService', () => {
   let service: AgendaService
+  const manager = {
+    getRepository: () => repository,
+    transaction: <T>(callback: (manager: unknown) => Promise<T>): Promise<T> =>
+      callback(manager),
+  }
   const repository = {
+    manager,
     find: jest.fn(),
     findOneBy: jest.fn(async () => ({ title: 'Revisão', type: 'event' })),
     create: jest.fn((item) => item),
@@ -28,7 +34,10 @@ describe('AgendaService', () => {
         },
         {
           provide: NotificationsService,
-          useValue: { notifyUsers: jest.fn().mockResolvedValue(true) },
+          useValue: {
+            notifyUsers: jest.fn().mockResolvedValue(true),
+            scheduleAgendaReminders: jest.fn(),
+          },
         },
         { provide: getRepositoryToken(AgendaItem), useValue: repository },
       ],
@@ -52,6 +61,28 @@ describe('AgendaService', () => {
     expect(result.attachments).toEqual(['brief.pdf'])
     expect(result.location).toBeNull()
   })
+
+  it.each(['event', 'project'] as const)(
+    'enqueues reminders from the start of a %s and rejects an elapsed reminder',
+    async (type) => {
+      const now = Date.now()
+      const input = {
+        title: 'Revisão',
+        type,
+        startDate: new Date(now + 40 * 60_000).toISOString(),
+        endDate: new Date(now + 60 * 60_000).toISOString(),
+      }
+      await expect(
+        service.create({ ...input, reminderOffsets: [60] }, 'owner'),
+      ).rejects.toThrow('horário de envio no futuro')
+      expect(repository.save).not.toHaveBeenCalled()
+      const item = await service.create(
+        { ...input, reminderOffsets: [30, 5] },
+        'owner',
+      )
+      expect(item.reminderOffsets).toEqual([30, 5])
+    },
+  )
 
   it('rejects an end date earlier than the start date', async () => {
     await expect(

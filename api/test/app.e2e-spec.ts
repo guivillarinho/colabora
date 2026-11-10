@@ -147,6 +147,61 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       .send(body)
   }
 
+  it('persists future reminders for tasks, events and projects in the shared queue', async () => {
+    const owner = await actor()
+    const start = new Date(Date.now() + 30 * 60_000)
+    const scheduled = await task(owner, {
+      dueDate: start.toISOString(),
+      reminderOffsets: [5],
+    })
+    const rows = async (id: string) =>
+      (
+        await admin.query(
+          'SELECT "scheduledAt", "userId" FROM task_reminders WHERE "taskId" = $1 OR "agendaItemId" = $1',
+          [id],
+        )
+      ).rows as { scheduledAt: Date; userId: string }[]
+    expect(await rows(scheduled.id)).toEqual([
+      {
+        scheduledAt: new Date(start.getTime() - 5 * 60_000),
+        userId: owner.user.id,
+      },
+    ])
+    await patch(owner, scheduled.id, { reminderOffsets: [60] }).expect(400)
+    await patch(owner, scheduled.id, { title: 'Revisão' }).expect(200)
+    expect(await rows(scheduled.id)).toHaveLength(1)
+
+    for (const type of ['event', 'project']) {
+      const create = (reminderOffsets: number[]) =>
+        owner.agent
+          .post('/api/agenda-items')
+          .set('Origin', origin)
+          .set('X-CSRF-Token', owner.csrf)
+          .send({
+            title: 'Apresentação',
+            type,
+            startDate: start.toISOString(),
+            endDate: new Date(start.getTime() + 60 * 60_000).toISOString(),
+            reminderOffsets,
+          })
+      await create([60]).expect(400)
+      const created = await create([15]).expect(201)
+      const id = created.body.id as string
+      expect(await rows(id)).toEqual([
+        {
+          scheduledAt: new Date(start.getTime() - 15 * 60_000),
+          userId: owner.user.id,
+        },
+      ])
+      await owner.agent
+        .delete(`/api/agenda-items/${id}`)
+        .set('Origin', origin)
+        .set('X-CSRF-Token', owner.csrf)
+        .expect(204)
+      expect(await rows(id)).toEqual([])
+    }
+  })
+
   it('protects Google OAuth state, encrypts credentials and scopes explicit sync by user', async () => {
     const original = { ...process.env }
     const googleFetch = jest.spyOn(global, 'fetch')

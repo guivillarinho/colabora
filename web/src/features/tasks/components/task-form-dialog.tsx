@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { isFutureReminder, ReminderField } from '@/components/reminder-field'
 import { cn } from 'cn'
 
 import { categoryByName, taskCategories } from '../task-categories'
@@ -102,6 +103,13 @@ function TaskFormContent({
   const [formKey, setFormKey] = useState(0)
   const [title, setTitle] = useState(task?.title ?? '')
   const [dueDate, setDueDate] = useState(toDateTimeLocal(task?.dueDate ?? null))
+  const initialReminders = task?.dueDate
+    ? (task.reminderOffsets ?? [10, 0])
+    : []
+  const [reminders, setReminders] = useState({
+    offsets: initialReminders,
+    custom: Boolean(task),
+  })
   const [scheduleSource, setScheduleSource] = useState<
     'title' | 'manual' | null
   >(task?.dueDate ? 'manual' : null)
@@ -121,6 +129,7 @@ function TaskFormContent({
     setCreationMode('scheduled')
     setTitle(task?.title ?? '')
     setDueDate(toDateTimeLocal(task?.dueDate ?? null))
+    setReminders({ offsets: initialReminders, custom: Boolean(task) })
     setScheduleSource(task?.dueDate ? 'manual' : null)
     setFormKey((current) => current + 1)
   }
@@ -133,10 +142,20 @@ function TaskFormContent({
     onOpenChange?.(next)
   }
 
+  function updateDueDate(next: string) {
+    setDueDate(next)
+    setReminders((current) => ({
+      ...current,
+      offsets: (current.custom ? current.offsets : [10, 0]).filter((minutes) =>
+        isFutureReminder(next, minutes),
+      ),
+    }))
+  }
+
   function updateScheduleFromTitle(nextTitle: string) {
     if (scheduleSource === 'manual') return
     const suggested = suggestTaskDate(nextTitle)
-    setDueDate(toDateTimeLocal(suggested?.toISOString() ?? null))
+    updateDueDate(toDateTimeLocal(suggested?.toISOString() ?? null))
     setScheduleSource(suggested ? 'title' : null)
   }
 
@@ -164,6 +183,27 @@ function TaskFormContent({
     }
 
     const dueDate = String(formData.get('dueDate') ?? '')
+    const sameDate =
+      Boolean(task) && dueDate === toDateTimeLocal(task?.dueDate ?? null)
+    const previousOffsets = sameDate ? initialReminders : []
+    const offsets =
+      dueDate && creationMode !== 'timer'
+        ? reminders.custom
+          ? reminders.offsets
+          : reminders.offsets.filter((minutes) =>
+              isFutureReminder(dueDate, minutes),
+            )
+        : []
+    if (
+      offsets.some(
+        (minutes) =>
+          !previousOffsets.includes(minutes) &&
+          !isFutureReminder(dueDate, minutes),
+      )
+    ) {
+      setFormError('Um lembrete já passou. Remova-o ou altere a data e hora.')
+      return
+    }
     const attachment = persistedAttachment(attachmentReference)
     const input: TaskInput = {
       assignedToId: assignee?.id ?? null,
@@ -173,11 +213,14 @@ function TaskFormContent({
       priority: String(formData.get('priority') ?? 'medium') as TaskPriority,
       color: selectedCategory.color,
       estimatedTime,
+      reminderOffsets: offsets,
       location: location.trim(),
       attachments: attachment ? [attachment] : [],
       ...(!task && creationMode === 'timer' ? { startImmediately: true } : {}),
       ...(dueDate && creationMode !== 'timer'
-        ? { dueDate: new Date(dueDate).toISOString() }
+        ? {
+            dueDate: sameDate ? task?.dueDate : new Date(dueDate).toISOString(),
+          }
         : task
           ? { dueDate: null }
           : {}),
@@ -370,12 +413,7 @@ function TaskFormContent({
                 })}
               </div>
             </fieldset>
-            <div
-              className={cn(
-                'grid min-w-0 gap-2',
-                (editing || creationMode !== 'timer') && 'sm:grid-cols-2',
-              )}
-            >
+            <div className="grid min-w-0 gap-3">
               {editing || creationMode !== 'timer' ? (
                 <div className="grid min-w-0 gap-2">
                   <Label htmlFor={`${fieldPrefix}-due`}>Data e hora</Label>
@@ -385,11 +423,20 @@ function TaskFormContent({
                     name="dueDate"
                     type="datetime-local"
                     onChange={(event) => {
-                      setDueDate(event.target.value)
+                      updateDueDate(event.target.value)
                       setScheduleSource(event.target.value ? 'manual' : null)
                     }}
                   />
                 </div>
+              ) : null}
+              {editing || creationMode !== 'timer' ? (
+                <ReminderField
+                  start={dueDate}
+                  value={reminders.offsets}
+                  onChange={(offsets) =>
+                    setReminders({ offsets, custom: true })
+                  }
+                />
               ) : null}
               <div className="grid min-w-0 gap-2">
                 <Label htmlFor={`${fieldPrefix}-estimate`}>

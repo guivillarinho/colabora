@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config'
 import { Repository } from 'typeorm'
+import { AgendaItem } from '../agenda/entities/agenda-item.entity'
 import { Task } from '../tasks/entities/task.entity'
 import { TaskStatus } from '../tasks/task-status.enum'
 import { PushSubscription } from './entities/push-subscription.entity'
@@ -26,6 +27,7 @@ describe('NotificationsService reminders', () => {
   } as TaskReminder
   const reminders = { find: jest.fn(), update: jest.fn() }
   const tasks = { findOne: jest.fn() }
+  const agenda = { findOneBy: jest.fn() }
   let service: NotificationsService
   let notify: jest.SpyInstance
 
@@ -39,6 +41,7 @@ describe('NotificationsService reminders', () => {
       reminders as unknown as Repository<TaskReminder>,
       tasks as unknown as Repository<Task>,
       new ConfigService(),
+      agenda as unknown as Repository<AgendaItem>,
     )
     notify = jest.spyOn(service, 'notifyUsers').mockResolvedValue(true)
   })
@@ -59,6 +62,38 @@ describe('NotificationsService reminders', () => {
       { status: 'sent', sentAt: dueDate },
     )
   })
+  it.each([
+    ['event', 'Lembrete de evento'],
+    ['project', 'Lembrete de projeto'],
+  ] as const)(
+    'envia o lembrete do tipo %s na antecedência escolhida',
+    async (type, label) => {
+      reminders.find.mockResolvedValue([
+        {
+          ...reminder,
+          taskId: null,
+          agendaItemId: 'agenda',
+          kind: 'before',
+        },
+      ])
+      agenda.findOneBy.mockResolvedValue({
+        title: 'Apresentação',
+        type,
+        ownerId: 'user',
+        startDate: new Date(dueDate.getTime() + 60 * 60_000),
+        reminderOffsets: [60],
+      })
+      expect(await service.dispatchDueReminders()).toEqual({ delivered: 1 })
+      expect(notify).toHaveBeenCalledWith(['user'], label, 'Apresentação')
+    },
+  )
+
+  it('ignora um lembrete de tarefa removido na edição', async () => {
+    tasks.findOne.mockResolvedValue({ ...task, reminderOffsets: [] })
+    expect(await service.dispatchDueReminders()).toEqual({ delivered: 0 })
+    expect(notify).not.toHaveBeenCalled()
+  })
+
   it('tenta novamente após falha de envio', async () => {
     notify.mockResolvedValue(false)
     expect(await service.dispatchDueReminders()).toEqual({ delivered: 0 })

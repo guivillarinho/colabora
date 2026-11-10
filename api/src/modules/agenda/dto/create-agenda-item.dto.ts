@@ -8,7 +8,9 @@ import {
   MaxLength,
 } from 'class-validator'
 
-export class CreateAgendaItemDto {
+import { ReminderOptionsDto } from '../../notifications/reminder-options'
+
+export class CreateAgendaItemDto extends ReminderOptionsDto {
   @IsString()
   @MaxLength(120)
   title: string

@@ -28,6 +28,7 @@ export type Task = {
   priority: TaskPriority
   color: TaskColor
   dueDate: string | null
+  reminderOffsets?: number[] | null
   location: string | null
   attachments: string[]
   estimatedTime: number
@@ -49,6 +50,7 @@ export type TaskInput = {
   priority: TaskPriority
   color: TaskColor
   dueDate?: string | null
+  reminderOffsets?: number[]
   location?: string
   attachments?: string[]
   estimatedTime: number
