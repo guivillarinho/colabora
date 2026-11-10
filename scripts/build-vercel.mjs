@@ -138,6 +138,8 @@ await writeFile(
       },
       { src: "/server", status: 404 },
       { handle: "filesystem" },
+      // Missing build assets must not be served as HTML by the SPA fallback.
+      { src: "/assets/.*", status: 404, headers: { "Cache-Control": "no-store" } },
       { src: "/.*", dest: "/index.html" },
     ],
   }),

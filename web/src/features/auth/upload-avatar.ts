@@ -1,3 +1,5 @@
+import { put } from '@vercel/blob/client'
+
 import { apiRequest } from '@/lib/http-client'
 import type { AuthUser } from './auth-api'
 
@@ -24,7 +26,6 @@ export async function uploadAvatar(
   if (!imageExtension.test(extension))
     throw new Error('Use uma imagem PNG, JPEG ou WebP.')
   if (process.env.VITE_CLOUD_UPLOADS === 'true') {
-    const { put } = await import('@vercel/blob/client')
     const filename = `${crypto.randomUUID()}.${extension === 'jpeg' ? 'jpg' : extension}`
     const pathname = `avatars/${userId}/incoming/${filename}`
     const { clientToken } = await apiRequest<{ clientToken: string }>(

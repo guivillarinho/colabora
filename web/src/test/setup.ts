@@ -13,3 +13,6 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: () => false,
   }),
 })
+
+// Blob uploads are exercised through a mock, without browser-only SDK internals.
+jest.mock('@vercel/blob/client', () => ({ put: jest.fn() }))

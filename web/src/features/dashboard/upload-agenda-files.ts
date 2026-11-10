@@ -1,3 +1,5 @@
+import { put } from '@vercel/blob/client'
+
 import { apiRequest } from '@/lib/http-client'
 declare const process: {
   env: { VITE_CLOUD_UPLOADS?: string; VITE_API_URL?: string }
@@ -172,7 +174,6 @@ async function uploadCloud(
       }),
     },
   )
-  const { put } = await import('@vercel/blob/client')
   await put(pathname, file, {
     access: 'private',
     token: clientToken,
