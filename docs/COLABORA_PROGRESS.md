@@ -8,7 +8,8 @@
 - **Interface:** perfil com estado Conectado / Desconectado / Token expirado, preferências, mapeamento de categorias e lista de vínculos. Formulários de tarefa e agenda avisam a conta ligada e aceitam “Não sincronizar desta vez”.
 - **Testes executados:** unitários de Google, tarefas e agenda; testes web de perfil/Google, formulário de tarefa e agenda. Build da API (`nest build`) passou. Em 2026-11-11 a suíte HTTP rodou no PostgreSQL descartável `colabora_test:55432`: 37 testes, incluindo o push automático para a Tasks API simulada e a rejeição do webhook sem token. Google sempre simulado.
 - **Homologação real pendente:** consentimento com os escopos novos, `GOOGLE_WEBHOOK_URL`, criação/edição/exclusão nos dois lados, conflito, revogação e desconexão. Mocks não substituem essa verificação. `GOOGLE_ENABLED` continua `false` por padrão. Nenhum deploy e nenhuma migração no banco existente.
-- **Próxima ação:** homologar com um projeto Google de teste conforme o roteiro em `docs/GOOGLE_AGENDA_SYNC_PLAN.md`. Isso exige cliente OAuth, tela de consentimento e URL pública do webhook; não há credencial real no repositório.
+- **Produção:** commit `4afc178` publicado na Vercel. A migração aditiva foi aplicada no Neon de produção antes do deploy. `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` ainda não existem nesse ambiente; o perfil continua em configuração pendente até o cliente OAuth Web ser cadastrado com o callback `https://<PUBLIC_APP_URL>/api/google/callback`.
+- **Próxima ação:** criar o cliente OAuth e gravar esses três valores só na Vercel, em Production. Sem isso o vínculo não abre a conta Google.
 
 ## 2026-11-06 — Commits, GitHub e Preview publicados
 
