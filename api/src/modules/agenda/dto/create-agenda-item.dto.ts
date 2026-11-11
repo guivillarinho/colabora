@@ -1,6 +1,7 @@
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsIn,
   IsOptional,
@@ -45,4 +46,8 @@ export class CreateAgendaItemDto extends ReminderOptionsDto {
   @IsString()
   @MaxLength(32)
   icon?: string
+
+  @IsOptional()
+  @IsBoolean()
+  syncOptOut?: boolean
 }

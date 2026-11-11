@@ -55,6 +55,7 @@ export type TaskInput = {
   attachments?: string[]
   estimatedTime: number
   startImmediately?: boolean
+  syncOptOut?: boolean
 }
 
 export type TaskCompletion = {

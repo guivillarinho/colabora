@@ -128,6 +128,7 @@ await writeFile(
   path.join(output, "config.json"),
   JSON.stringify({
     version: 3,
+    crons: [{ path: "/api/google/jobs/tick", schedule: "0 11 * * *" }],
     routes: [
       {
         src: "/.*",

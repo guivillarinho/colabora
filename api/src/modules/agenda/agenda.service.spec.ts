@@ -17,9 +17,22 @@ describe('AgendaService', () => {
   const repository = {
     manager,
     find: jest.fn(),
-    findOneBy: jest.fn(async () => ({ title: 'Revisão', type: 'event' })),
+    findOneBy: jest.fn(async () => ({
+      id: 'item-1',
+      title: 'Revisão',
+      type: 'event',
+      startDate: new Date('2026-10-30T10:00:00.000Z'),
+      endDate: new Date('2026-10-30T11:00:00.000Z'),
+      reminderOffsets: [],
+    })),
+    findOneByOrFail: jest.fn(async () => ({
+      id: 'item-1',
+      title: 'Revisão atualizada',
+      type: 'event',
+    })),
     create: jest.fn((item) => item),
     save: jest.fn(async (item) => item),
+    update: jest.fn(async () => ({ affected: 1 })),
     delete: jest.fn(),
   }
 
@@ -99,6 +112,19 @@ describe('AgendaService', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException)
     expect(repository.save).not.toHaveBeenCalled()
+  })
+
+  it('updates an agenda item and keeps the owner filter', async () => {
+    const result = await service.update(
+      'item-1',
+      { title: 'Revisão atualizada' },
+      'owner',
+    )
+    expect(repository.update).toHaveBeenCalledWith(
+      { id: 'item-1', ownerId: 'owner' },
+      { title: 'Revisão atualizada' },
+    )
+    expect(result.title).toBe('Revisão atualizada')
   })
 
   it('removes an agenda item', async () => {

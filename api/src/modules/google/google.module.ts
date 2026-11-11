@@ -2,26 +2,48 @@ import {
   Body,
   Controller,
   Get,
+  Header,
+  Headers,
+  HttpCode,
   Module,
+  Patch,
   Post,
   Req,
   Res,
+  UnauthorizedException,
   BadRequestException,
-  Header,
+  ConflictException,
+  forwardRef,
 } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { IsUUID, Equals, IsBoolean } from 'class-validator'
+import { timingSafeEqual } from 'node:crypto'
 import type { Request, Response } from 'express'
-import { CurrentUser } from '../auth/auth.decorators'
+import { CurrentUser, MachineRequest, Public } from '../auth/auth.decorators'
 import type { Identity } from '../auth/entities/user.entity'
 import { TasksModule } from '../tasks/tasks.module'
+import { GooglePreferencesDto } from './dto/google-preferences.dto'
+import { GoogleCalendarClient } from './google-calendar.client'
+import { GoogleInboundService } from './google-inbound.service'
+import { googlePreferences } from './google-preferences'
 import { GoogleService } from './google.service'
+import { GoogleSyncOrchestrator } from './google-sync.orchestrator'
+import { GoogleSyncWorker } from './google-sync.worker'
+import { GoogleTasksClient } from './google-tasks.client'
 class SyncDto {
   @IsUUID() taskId: string
   @IsBoolean() @Equals(true) confirmed: boolean
 }
 @Controller('google')
 export class GoogleController {
-  constructor(private readonly google: GoogleService) {}
+  constructor(
+    private readonly google: GoogleService,
+    private readonly outbound: GoogleSyncOrchestrator,
+    private readonly inbound: GoogleInboundService,
+    private readonly worker: GoogleSyncWorker,
+    private readonly config: ConfigService,
+  ) {}
+
   @Get('status') status(@CurrentUser() user: Identity) {
     return this.google.status(user.id)
   }
@@ -78,10 +100,73 @@ export class GoogleController {
   @Post('sync') sync(@CurrentUser() user: Identity, @Body() dto: SyncDto) {
     return this.google.sync(user.id, dto.taskId)
   }
+
+  @Patch('preferences')
+  async preferences(
+    @CurrentUser() user: Identity,
+    @Body() dto: GooglePreferencesDto,
+  ) {
+    const saved = await this.outbound.savePreferences(
+      user.id,
+      googlePreferences(dto),
+    )
+    if (!saved)
+      throw new ConflictException('Vincule sua conta Google primeiro.')
+    return { saved: true }
+  }
+
+  @Get('calendars')
+  calendars(@CurrentUser() user: Identity) {
+    return this.outbound.calendars(user.id)
+  }
+
+  @Get('tasklists')
+  tasklists(@CurrentUser() user: Identity) {
+    return this.outbound.tasklists(user.id)
+  }
+
+  @Post('webhook/calendar')
+  @Public()
+  @MachineRequest()
+  @HttpCode(200)
+  async webhook(@Req() request: Request) {
+    const accepted = await this.inbound.acceptWebhook(request.headers)
+    if (!accepted) throw new UnauthorizedException()
+    await this.worker.tick()
+    return { received: true }
+  }
+
+  @Get('jobs/tick')
+  @Post('jobs/tick')
+  @Public()
+  @MachineRequest()
+  @HttpCode(200)
+  jobs(@Headers('authorization') authorization: string | undefined) {
+    const secret =
+      this.config.get<string>('CRON_SECRET') ||
+      this.config.get<string>('REMINDER_DISPATCH_SECRET')
+    const token = authorization?.replace(/^Bearer\s+/i, '')
+    if (
+      !secret ||
+      !token ||
+      token.length !== secret.length ||
+      !timingSafeEqual(Buffer.from(token), Buffer.from(secret))
+    )
+      throw new UnauthorizedException()
+    return this.worker.tick()
+  }
 }
 @Module({
-  imports: [TasksModule],
+  imports: [forwardRef(() => TasksModule)],
   controllers: [GoogleController],
-  providers: [GoogleService],
+  providers: [
+    GoogleService,
+    GoogleTasksClient,
+    GoogleCalendarClient,
+    GoogleSyncOrchestrator,
+    GoogleInboundService,
+    GoogleSyncWorker,
+  ],
+  exports: [GoogleSyncOrchestrator],
 })
 export class GoogleModule {}

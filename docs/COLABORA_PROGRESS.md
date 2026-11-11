@@ -1,5 +1,15 @@
 # Colabora — progresso
 
+## 2026-11-11 — Google Agenda bidirecional (código local)
+
+- **Etapa:** evolução da E12 documentada em `docs/GOOGLE_AGENDA_SYNC_PLAN.md`. Tarefas com prazo vão para a Google Tasks API; eventos e projetos vão para Calendar Events. O calendário entra por watch/webhook; tarefas voltam por poll, porque a Tasks API não tem push. `autoSync` e `inboundEnabled` nascem desligados. Escopos passam a incluir `calendar.events` e `tasks`; quem vinculou antes precisa reconectar.
+- **Banco:** migração aditiva `1795000000000-google-sync-v2.ts` (`preferences`, `lastError`, `google_sync_links`, `google_watch_channels`, `google_sync_outbox`). Sem rollback automático e sem execução contra o banco existente.
+- **API:** OAuth existente preservado; novos `PATCH /google/preferences`, `GET /google/calendars`, `GET /google/tasklists`, `POST /google/webhook/calendar` e `POST /google/jobs/tick`. `PATCH /agenda-items/:id` cobre edição e a volta do Google. Falha no Google fica na fila e não desfaz a gravação local.
+- **Interface:** perfil com estado Conectado / Desconectado / Token expirado, preferências, mapeamento de categorias e lista de vínculos. Formulários de tarefa e agenda avisam a conta ligada e aceitam “Não sincronizar desta vez”.
+- **Testes executados:** unitários de Google, tarefas e agenda; testes web de perfil/Google, formulário de tarefa e agenda. Build da API (`nest build`) passou. Em 2026-11-11 a suíte HTTP rodou no PostgreSQL descartável `colabora_test:55432`: 37 testes, incluindo o push automático para a Tasks API simulada e a rejeição do webhook sem token. Google sempre simulado.
+- **Homologação real pendente:** consentimento com os escopos novos, `GOOGLE_WEBHOOK_URL`, criação/edição/exclusão nos dois lados, conflito, revogação e desconexão. Mocks não substituem essa verificação. `GOOGLE_ENABLED` continua `false` por padrão. Nenhum deploy e nenhuma migração no banco existente.
+- **Próxima ação:** homologar com um projeto Google de teste conforme o roteiro em `docs/GOOGLE_AGENDA_SYNC_PLAN.md`. Isso exige cliente OAuth, tela de consentimento e URL pública do webhook; não há credencial real no repositório.
+
 ## 2026-11-06 — Commits, GitHub e Preview publicados
 
 - **Commits enviados:** `dc3329f` (API), `fcce428` (perfil/tarefas/interface), `f933263` (configuração isolada de Preview) e `9a7131f` (CSP compatível com o endpoint de upload do SDK). Branch `origin/feat/colabora-evolucao`; `main` e produção preservadas. Este registro e o README são documentados em commit posterior, sem alteração de código do aplicativo.

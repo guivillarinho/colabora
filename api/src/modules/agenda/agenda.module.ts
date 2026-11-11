@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common'
+import { Module, forwardRef } from '@nestjs/common'
+import { GoogleModule } from '../google/google.module'
 import { TypeOrmModule } from '@nestjs/typeorm'
 
 import { AgendaController } from './agenda.controller'
@@ -14,6 +15,7 @@ import { NotificationsModule } from '../notifications/notifications.module'
   imports: [
     TypeOrmModule.forFeature([AgendaItem, Attachment]),
     NotificationsModule,
+    forwardRef(() => GoogleModule),
   ],
   controllers: [AgendaController, AgendaFilesController],
   providers: [AgendaService, AttachmentsService, UploadQuotaGuard],

@@ -87,6 +87,7 @@ function enablePreviewGoogle(env, result) {
   result.GOOGLE_CLIENT_SECRET = clientSecret;
   result.GOOGLE_TOKEN_ENCRYPTION_KEY = encryptionKey;
   result.GOOGLE_REDIRECT_URI = redirect;
+  result.GOOGLE_WEBHOOK_URL = `${result.PUBLIC_APP_URL}/api/google/webhook/calendar`;
 }
 
 export function previewEnvironment(env) {

@@ -35,11 +35,14 @@ test('authenticates with the API and returns the dispatcher result', async () =>
   const response = await invoke()
   assert.equal(response.status, 200)
   assert.deepEqual(await response.json(), { delivered: 1 })
+  assert.equal(fetch.mock.calls.length, 2)
   const [url, options] = fetch.mock.calls[0].arguments as unknown as [
     string,
     RequestInit,
   ]
+  const [googleUrl] = fetch.mock.calls[1].arguments as unknown as [string]
   assert.equal(url, 'https://example.com/api/notifications/dispatch-reminders')
+  assert.equal(googleUrl, 'https://example.com/api/google/jobs/tick')
   assert.equal(options.method, 'POST')
   assert.equal(
     new Headers(options.headers).get('authorization'),

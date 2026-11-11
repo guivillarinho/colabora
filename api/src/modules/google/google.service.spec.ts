@@ -242,5 +242,13 @@ it('returns the connected email without exposing encrypted credentials', async (
     status: 'connected',
     email: 'calendar@example.test',
     synced: [],
+    links: [],
+    preferences: {
+      autoSync: false,
+      inboundEnabled: false,
+      defaultCalendarId: 'primary',
+      categoryTaskListMap: {},
+    },
+    lastError: null,
   })
 })

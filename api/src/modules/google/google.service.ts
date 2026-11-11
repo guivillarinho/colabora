@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   ServiceUnavailableException,
+  forwardRef,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { DataSource } from 'typeorm'
@@ -16,9 +18,13 @@ import {
 } from 'node:crypto'
 import { TasksService } from '../tasks/tasks.service'
 import { RateLimitService } from '../auth/rate-limit.service'
-export const calendarScope =
-  'https://www.googleapis.com/auth/calendar.events.owned'
-export const googleScopes = `openid email ${calendarScope}`
+import {
+  defaultGooglePreferences,
+  googlePreferences,
+} from './google-preferences'
+export const tasksScope = 'https://www.googleapis.com/auth/tasks'
+export const calendarScope = 'https://www.googleapis.com/auth/calendar.events'
+export const googleScopes = `openid email ${calendarScope} ${tasksScope}`
 export type OAuthPending = {
   state: string
   verifier: string
@@ -31,6 +37,7 @@ export class GoogleService {
   constructor(
     private readonly config: ConfigService,
     private readonly source: DataSource,
+    @Inject(forwardRef(() => TasksService))
     private readonly tasks: TasksService,
     private readonly limits: RateLimitService,
   ) {}
@@ -215,10 +222,12 @@ export class GoogleService {
         access_token?: string
         scope?: string
       }
+      const granted = new Set(value.scope?.split(' ') ?? [])
       if (
         !value.refresh_token ||
         !value.access_token ||
-        !value.scope?.split(' ').includes(calendarScope)
+        !granted.has(calendarScope) ||
+        !granted.has(tasksScope)
       )
         throw new Error('Permissão incompleta')
       const identityResponse = await fetch(
@@ -252,6 +261,14 @@ export class GoogleService {
         'DELETE FROM google_calendar_sync WHERE "ownerId"=$1',
         [actor],
       )
+      await this.source.query(
+        'DELETE FROM google_sync_links WHERE "ownerId"=$1',
+        [actor],
+      )
+      await this.source.query(
+        'DELETE FROM google_watch_channels WHERE "ownerId"=$1',
+        [actor],
+      )
       return this.profileUrl('connected')
     } catch {
       throw new ServiceUnavailableException(
@@ -272,11 +289,15 @@ export class GoogleService {
 
   async status(actor: string) {
     const rows = await this.source.query(
-      'SELECT status,token FROM google_connections WHERE "ownerId"=$1',
+      'SELECT status,token,preferences,"lastError" FROM google_connections WHERE "ownerId"=$1',
       [actor],
     )
     const synced = await this.source.query(
       'SELECT "taskId","syncedAt" FROM google_calendar_sync WHERE "ownerId"=$1',
+      [actor],
+    )
+    const links = await this.source.query(
+      'SELECT "entityType","entityId","googleKind","syncState","syncedAt" FROM google_sync_links WHERE "ownerId"=$1 ORDER BY "syncedAt" DESC LIMIT 20',
       [actor],
     )
     return {
@@ -287,6 +308,11 @@ export class GoogleService {
           : null,
       status: rows[0]?.status ?? 'disconnected',
       synced,
+      links,
+      preferences: rows[0]
+        ? googlePreferences(rows[0].preferences)
+        : defaultGooglePreferences,
+      lastError: rows[0]?.lastError ?? null,
     }
   }
 
@@ -310,6 +336,22 @@ export class GoogleService {
       })
       if (!response.ok && response.status !== 400) throw new Error('Revogação')
       await this.source.query(
+        'DELETE FROM google_sync_links WHERE "ownerId"=$1',
+        [actor],
+      )
+      await this.source.query(
+        'DELETE FROM google_watch_channels WHERE "ownerId"=$1',
+        [actor],
+      )
+      await this.source.query(
+        'DELETE FROM google_sync_outbox WHERE "ownerId"=$1',
+        [actor],
+      )
+      await this.source.query(
+        'DELETE FROM google_calendar_sync WHERE "ownerId"=$1',
+        [actor],
+      )
+      await this.source.query(
         'DELETE FROM google_connections WHERE "ownerId"=$1 AND version=$2',
         [actor, row.version],
       )
@@ -318,6 +360,59 @@ export class GoogleService {
         'Revogação pendente. Tente desconectar novamente; você também pode revogar o acesso na conta Google.',
       )
     }
+  }
+
+  async authorized(actor: string) {
+    this.enabled()
+    const row = await this.connection(actor)
+    if (row.status !== 'connected')
+      throw new ConflictException('Reconecte Google ou finalize a desconexão.')
+    const credentials = this.credentials(row.token, actor)
+    const tokenResponse = await this.token({
+      grant_type: 'refresh_token',
+      refresh_token: credentials.refreshToken,
+    })
+    if (!tokenResponse.ok) {
+      if (tokenResponse.status === 400 || tokenResponse.status === 401)
+        await this.source.query(
+          `UPDATE google_connections SET status='reconnect',"lastError"=$3::jsonb WHERE "ownerId"=$1 AND version=$2`,
+          [
+            actor,
+            row.version,
+            JSON.stringify({
+              code: 'token_expired',
+              message: 'Reconecte sua conta Google.',
+              at: new Date().toISOString(),
+            }),
+          ],
+        )
+      throw new ConflictException('Reconecte sua conta Google.')
+    }
+    const tokens = (await tokenResponse.json()) as {
+      access_token?: string
+      refresh_token?: string
+    }
+    if (!tokens.access_token)
+      throw new ConflictException('Reconecte sua conta Google.')
+    if (tokens.refresh_token)
+      await this.source.query(
+        'UPDATE google_connections SET token=$3 WHERE "ownerId"=$1 AND version=$2',
+        [
+          actor,
+          row.version,
+          this.encrypt(
+            JSON.stringify({
+              ...credentials,
+              refreshToken: tokens.refresh_token,
+            }),
+            actor,
+          ),
+        ],
+      )
+    const current = await this.connection(actor)
+    if (current.version !== row.version || current.status !== 'connected')
+      throw new ConflictException('Reconecte sua conta Google.')
+    return tokens.access_token
   }
 
   async sync(actor: string, taskId: string) {

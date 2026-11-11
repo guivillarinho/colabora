@@ -9,6 +9,7 @@ import { DataSource } from 'typeorm'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { readdir, rm } from 'node:fs/promises'
 import { createApplication } from '../src/bootstrap'
+import { googleScopes } from '../src/modules/google/google.service'
 import { InitialSchema1793448000000 } from '../src/database/migrations/1793448000000-initial-schema'
 jest.mock('@google/genai', () => ({ GoogleGenAI: jest.fn() }))
 
@@ -213,7 +214,7 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       PUBLIC_APP_URL: origin,
       GOOGLE_TOKEN_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
     })
-    const scope = 'https://www.googleapis.com/auth/calendar.events.owned'
+    const scope = googleScopes
     const reply = (body: unknown, status = 200) =>
       ({ ok: status === 200, status, json: async () => body }) as Response
     try {
@@ -310,6 +311,93 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
           [a.user.id],
         ),
       ).toEqual([])
+    } finally {
+      googleFetch.mockRestore()
+      for (const key of Object.keys(process.env))
+        if (!(key in original)) delete process.env[key]
+      Object.assign(process.env, original)
+    }
+  })
+
+  it('pushes an automatic task to Google Tasks and accepts a signed calendar webhook', async () => {
+    const original = { ...process.env }
+    const googleFetch = jest.spyOn(global, 'fetch')
+    Object.assign(process.env, {
+      GOOGLE_ENABLED: 'true',
+      GOOGLE_CLIENT_ID: 'test-client',
+      GOOGLE_CLIENT_SECRET: 'test-secret',
+      GOOGLE_REDIRECT_URI: 'http://localhost:3000/api/google/callback',
+      PUBLIC_APP_URL: origin,
+      GOOGLE_TOKEN_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
+      CRON_SECRET: 'cron-secret-test-value',
+    })
+    const reply = (body: unknown, status = 200) =>
+      ({
+        ok: status >= 200 && status < 300,
+        status,
+        json: async () => body,
+      }) as Response
+    try {
+      const owner = await actor('Google')
+      googleFetch
+        .mockResolvedValueOnce(
+          reply({
+            refresh_token: 'refresh-auto',
+            access_token: 'access-auto',
+            scope: googleScopes,
+          }),
+        )
+        .mockResolvedValueOnce(
+          reply({ email: 'tasks@example.test', email_verified: true }),
+        )
+      const connect = await owner.agent
+        .post('/api/google/connect')
+        .set('Origin', origin)
+        .set('X-CSRF-Token', owner.csrf)
+        .expect(201)
+      const state = new URL(connect.body.url).searchParams.get('state')
+      await owner.agent
+        .get('/api/google/callback')
+        .query({ state, code: 'code' })
+        .expect(302)
+      await owner.agent
+        .patch('/api/google/preferences')
+        .set('Origin', origin)
+        .set('X-CSRF-Token', owner.csrf)
+        .send({
+          autoSync: true,
+          inboundEnabled: false,
+          defaultCalendarId: 'primary',
+          categoryTaskListMap: { Pessoal: '@default' },
+        })
+        .expect(200)
+      googleFetch
+        .mockResolvedValueOnce(reply({ access_token: 'access' }))
+        .mockResolvedValueOnce(reply({ id: 'google-task-1', etag: 'etag-1' }))
+      const created = await task(owner, { dueDate: '2026-11-06T12:00:00Z' })
+      const links = await source.query(
+        `SELECT "googleKind","googleResourceId","syncState" FROM google_sync_links WHERE "ownerId"=$1 AND "entityId"=$2`,
+        [owner.user.id, created.id],
+      )
+      expect(links).toEqual([
+        {
+          googleKind: 'task',
+          googleResourceId: 'google-task-1',
+          syncState: 'synced',
+        },
+      ])
+      await request(app.getHttpServer())
+        .post('/api/google/webhook/calendar')
+        .set('X-Goog-Channel-Token', 'nope')
+        .expect(401)
+      await request(app.getHttpServer())
+        .post('/api/google/jobs/tick')
+        .set('Authorization', 'Bearer wrong-secret-value')
+        .expect(401)
+      await request(app.getHttpServer())
+        .post('/api/google/jobs/tick')
+        .set('Authorization', 'Bearer cron-secret-test-value')
+        .expect(200)
     } finally {
       googleFetch.mockRestore()
       for (const key of Object.keys(process.env))

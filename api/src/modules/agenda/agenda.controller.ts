@@ -11,6 +11,7 @@ import {
   HttpCode,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   UploadedFiles,
   Req,
@@ -26,6 +27,7 @@ import { handleUpload, type HandleUploadBody } from '@vercel/blob/client'
 import type { Request } from 'express'
 
 import { CreateAgendaItemDto } from './dto/create-agenda-item.dto'
+import { UpdateAgendaItemDto } from './dto/update-agenda-item.dto'
 import { AgendaService } from './agenda.service'
 import { uploadsDirectory } from '../../uploads-directory'
 import { UploadQuotaGuard } from './upload-quota.guard'
@@ -46,6 +48,15 @@ export class AgendaController {
   @Post()
   create(@Body() dto: CreateAgendaItemDto, @CurrentUser() user: Identity) {
     return this.agenda.create(dto, user.id)
+  }
+
+  @Patch(':id')
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateAgendaItemDto,
+    @CurrentUser() user: Identity,
+  ) {
+    return this.agenda.update(id, dto, user.id)
   }
 
   @Delete(':id')

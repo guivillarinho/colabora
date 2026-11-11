@@ -11,14 +11,17 @@ app.post('/', async (context) => {
   const invocationId = context.req.header('x-neon-trigger-invocation-id')
   if (!invocationId) return context.json({ message: 'Origem inválida.' }, 403)
 
-  const result = await fetch(
-    `${applicationUrl.replace(/\/$/, '')}/api/notifications/dispatch-reminders`,
-    {
+  const base = applicationUrl.replace(/\/$/, '')
+  const call = (path: string) =>
+    fetch(`${base}${path}`, {
       method: 'POST',
       headers: { authorization: `Bearer ${secret}` },
       signal: AbortSignal.timeout(25_000),
-    },
-  ).catch(() => null)
+    }).catch(() => null)
+  const [result] = await Promise.all([
+    call('/api/notifications/dispatch-reminders'),
+    call('/api/google/jobs/tick'),
+  ])
   if (!result) {
     console.error('reminders dispatch failed', {
       invocationId,

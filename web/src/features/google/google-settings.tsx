@@ -1,17 +1,36 @@
 import { useEffect, useState } from 'react'
-import { apiRequest } from '@/lib/http-client'
-import { useTasks } from '@/features/tasks/tasks-context'
+import { taskCategories } from '@/features/tasks/task-categories'
 import { Button } from '@/components/ui/button'
-type Status = {
-  configured: boolean
-  status: string
-  email?: string | null
-  synced: Array<{ taskId: string; syncedAt: string }>
+import {
+  defaultGooglePreferences,
+  googleCalendars,
+  googleConnect,
+  googleDisconnect,
+  googleStatus,
+  googleTasklists,
+  saveGooglePreferences,
+  type GooglePreferences,
+  type GoogleStatus,
+} from './google-api'
+
+const states: Record<string, string> = {
+  synced: 'Sincronizado',
+  pending: 'Pendente',
+  error: 'Erro',
+  conflict: 'Conflito',
 }
+
 export function GoogleSettings() {
-  const { tasks } = useTasks()
-  const [status, setStatus] = useState<Status | null>(null)
-  const [selected, setSelected] = useState('')
+  const [status, setStatus] = useState<GoogleStatus | null>(null)
+  const [preferences, setPreferences] = useState<GooglePreferences>(
+    defaultGooglePreferences,
+  )
+  const [calendars, setCalendars] = useState<
+    Array<{ id: string; summary: string }>
+  >([])
+  const [tasklists, setTasklists] = useState<
+    Array<{ id: string; title: string }>
+  >([])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState(() => {
     const outcome = new URLSearchParams(window.location.search).get('google')
@@ -33,9 +52,11 @@ export function GoogleSettings() {
         url.pathname + url.search + url.hash,
       )
     }
-    apiRequest<Status>('/google/status')
+    googleStatus()
       .then((value) => {
-        if (active) setStatus(value)
+        if (!active) return
+        setStatus(value)
+        setPreferences(value.preferences ?? defaultGooglePreferences)
       })
       .catch(() => {
         if (active)
@@ -45,75 +66,108 @@ export function GoogleSettings() {
       active = false
     }
   }, [])
-  async function act(action: 'connect' | 'disconnect' | 'sync' | 'status') {
+  async function refresh() {
+    const value = await googleStatus()
+    setStatus(value)
+    setPreferences(value.preferences ?? defaultGooglePreferences)
+  }
+  async function connect() {
+    const result = await googleConnect()
+    const url = new URL(result.url)
+    if (url.origin !== 'https://accounts.google.com')
+      throw new Error('URL de autorização inválida.')
+    window.location.assign(url.href)
+  }
+  async function act(
+    action: 'connect' | 'disconnect' | 'status' | 'save' | 'lists',
+  ) {
     if (busy) return
     setBusy(true)
     setMessage('')
     try {
       if (action === 'status') {
-        setStatus(await apiRequest<Status>('/google/status'))
+        await refresh()
         return
       }
       if (action === 'connect') {
-        const result = await apiRequest<{ url: string }>('/google/connect', {
-          method: 'POST',
-        })
-        const url = new URL(result.url)
-        if (url.origin !== 'https://accounts.google.com')
-          throw new Error('URL de autorização inválida.')
-        window.location.assign(url.href)
+        await connect()
         return
       }
-      await apiRequest(`/google/${action}`, {
-        method: 'POST',
-        ...(action === 'sync'
-          ? { body: JSON.stringify({ taskId: selected, confirmed: true }) }
-          : {}),
-      })
+      if (action === 'lists') {
+        const [calendarItems, listItems] = await Promise.all([
+          googleCalendars(),
+          googleTasklists(),
+        ])
+        setCalendars(calendarItems)
+        setTasklists(listItems)
+        setMessage('Calendários e listas carregados.')
+        return
+      }
+      if (action === 'save') {
+        await saveGooglePreferences(preferences)
+        await refresh()
+        setMessage('Preferências de sincronização salvas.')
+        return
+      }
+      await googleDisconnect()
       setMessage(
-        action === 'sync'
-          ? 'Tarefa enviada ao Google Agenda.'
-          : 'Conta Google desconectada. Eventos já enviados permanecem no Google.',
+        'Conta Google desconectada. Eventos e tarefas já enviados permanecem no Google.',
       )
-      setStatus(await apiRequest<Status>('/google/status'))
+      await refresh()
     } catch (cause) {
       setMessage(
         cause instanceof Error ? cause.message : 'Não foi possível concluir.',
       )
-      apiRequest<Status>('/google/status')
+      googleStatus()
         .then(setStatus)
         .catch(() => undefined)
     } finally {
       setBusy(false)
     }
   }
-  const last = status?.synced.find((item) => item.taskId === selected)
+  const connection = !status
+    ? message
+      ? 'Consulta da integração indisponível.'
+      : 'Consultando integração...'
+    : status.status === 'connected'
+      ? status.email
+        ? `Conta vinculada: ${status.email}`
+        : 'Conta vinculada.'
+      : status.status === 'reconnect'
+        ? 'Permissão expirada ou revogada. Reconecte sua conta.'
+        : status.status === 'disconnecting'
+          ? 'Revogação pendente: tente desconectar novamente.'
+          : 'Conta não vinculada.'
   return (
     <section className="surface-panel grid min-w-0 gap-3 rounded-2xl border p-4 sm:p-5">
       <h2 className="text-lg font-semibold">Google Agenda</h2>
       <p className="text-sm text-muted-foreground">
-        Conecte sua conta Google e envie as tarefas que escolher para o seu
-        calendário principal.
+        Vincule sua conta para enviar tarefas com prazo ao Google Tasks e
+        eventos ou projetos ao Google Agenda. A volta do calendário chega por
+        notificação; alterações feitas nas Google Tasks podem levar cerca de
+        dois minutos.
       </p>
-      <p className="text-sm text-muted-foreground">
-        Ao vincular, escolha a conta que deseja usar e autorize o acesso à
-        agenda.
-      </p>
-      <p role="status">
-        {!status
-          ? message
-            ? 'Consulta da integração indisponível.'
-            : 'Consultando integração...'
-          : status.status === 'connected'
-            ? status.email
-              ? `Conta vinculada: ${status.email}`
-              : 'Conta vinculada.'
-            : status?.status === 'reconnect'
-              ? 'Permissão expirada ou revogada. Reconecte sua conta.'
-              : status?.status === 'disconnecting'
-                ? 'Revogação pendente: tente desconectar novamente.'
-                : 'Conta não vinculada.'}
-      </p>
+      <p role="status">{connection}</p>
+      {status?.status === 'connected' ? (
+        <p className="text-sm">
+          Estado: <strong>Conectado</strong>
+        </p>
+      ) : null}
+      {status?.status === 'reconnect' ? (
+        <p className="text-sm">
+          Estado: <strong>Token expirado</strong>
+        </p>
+      ) : null}
+      {status?.status === 'disconnected' ? (
+        <p className="text-sm">
+          Estado: <strong>Desconectado</strong>
+        </p>
+      ) : null}
+      {status?.lastError?.message ? (
+        <p className="text-sm text-destructive" role="alert">
+          {status.lastError.message}
+        </p>
+      ) : null}
       {!status && message ? (
         <Button disabled={busy} onClick={() => act('status')}>
           Tentar novamente
@@ -150,61 +204,122 @@ export function GoogleSettings() {
       ) : null}
       {status?.configured && status.status === 'connected' ? (
         <form
-          className="grid gap-2"
+          className="grid gap-3"
           onSubmit={(event) => {
             event.preventDefault()
-            act('sync')
+            act('save').catch(() => undefined)
           }}
         >
-          <fieldset disabled={busy} className="grid min-w-0 gap-2">
-            <legend className="mb-2 text-sm font-medium">
-              Escolha a tarefa com data e horário
-            </legend>
-            <div className="grid max-h-60 gap-2 overflow-y-auto">
-              {tasks
-                .filter((task) => task.dueDate)
-                .map((task) => (
-                  <label
-                    key={task.id}
-                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm has-checked:border-primary has-checked:bg-secondary"
-                  >
-                    <input
-                      type="radio"
-                      name="google-task"
-                      className="size-4 accent-primary"
-                      checked={selected === task.id}
-                      value={task.id}
-                      onChange={() => setSelected(task.id)}
-                    />
-                    <span className="min-w-0 break-words">{task.title}</span>
-                  </label>
+          <label className="flex min-h-11 items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              className="size-4 accent-primary"
+              checked={preferences.autoSync}
+              onChange={(event) =>
+                setPreferences((current) => ({
+                  ...current,
+                  autoSync: event.target.checked,
+                }))
+              }
+            />
+            Sincronizar automaticamente criações, edições e exclusões
+          </label>
+          <label className="flex min-h-11 items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              className="size-4 accent-primary"
+              checked={preferences.inboundEnabled}
+              onChange={(event) =>
+                setPreferences((current) => ({
+                  ...current,
+                  inboundEnabled: event.target.checked,
+                }))
+              }
+            />
+            Receber alterações feitas no Google
+          </label>
+          <label className="grid gap-1 text-sm">
+            Calendário padrão
+            {calendars.length ? (
+              <select
+                className="h-11 rounded-lg border bg-card px-3"
+                value={preferences.defaultCalendarId}
+                onChange={(event) =>
+                  setPreferences((current) => ({
+                    ...current,
+                    defaultCalendarId: event.target.value,
+                  }))
+                }
+              >
+                {calendars.map((calendar) => (
+                  <option key={calendar.id} value={calendar.id}>
+                    {calendar.summary}
+                  </option>
                 ))}
-              {!tasks.some((task) => task.dueDate) && (
-                <p className="text-sm text-muted-foreground">
-                  Crie uma tarefa com data e horário para enviar ao Google
-                  Agenda.
-                </p>
-              )}
-            </div>
-          </fieldset>
-          <p className="text-sm text-muted-foreground">
-            Ao confirmar, título, descrição, data e duração da tarefa serão
-            enviados ao Google Agenda.
-          </p>
-          <p>
-            Reenvios atualizam o mesmo evento. Alterações e exclusões no
-            Colabora ou no Google não são sincronizadas automaticamente.
-          </p>
-          {last ? (
-            <p>
-              Último envio: {new Date(last.syncedAt).toLocaleString()}. Reenvie
-              após editar a tarefa.
-            </p>
+              </select>
+            ) : (
+              <input
+                className="h-11 rounded-lg border bg-card px-3"
+                value={preferences.defaultCalendarId}
+                onChange={(event) =>
+                  setPreferences((current) => ({
+                    ...current,
+                    defaultCalendarId: event.target.value,
+                  }))
+                }
+              />
+            )}
+          </label>
+          <Button type="button" variant="outline" onClick={() => act('lists')}>
+            Carregar calendários e listas
+          </Button>
+          {tasklists.length ? (
+            <fieldset className="grid gap-2">
+              <legend className="text-sm font-medium">
+                Lista de tarefas por categoria
+              </legend>
+              {taskCategories.map((category) => (
+                <label key={category.name} className="grid gap-1 text-sm">
+                  {category.name}
+                  <select
+                    className="h-11 rounded-lg border bg-card px-3"
+                    value={preferences.categoryTaskListMap[category.name] ?? ''}
+                    onChange={(event) =>
+                      setPreferences((current) => ({
+                        ...current,
+                        categoryTaskListMap: {
+                          ...current.categoryTaskListMap,
+                          [category.name]: event.target.value,
+                        },
+                      }))
+                    }
+                  >
+                    <option value="">Lista padrão</option>
+                    {tasklists.map((list) => (
+                      <option key={list.id} value={list.id}>
+                        {list.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </fieldset>
           ) : null}
-          <Button type="submit" disabled={busy || !selected} aria-busy={busy}>
-            Confirmar envio ao Google Agenda
+          <Button type="submit" disabled={busy}>
+            Salvar sincronização
           </Button>
         </form>
+      ) : null}
+      {status?.links?.length ? (
+        <ul className="grid gap-2">
+          {status.links.map((link) => (
+            <li key={`${link.entityType}-${link.entityId}`} className="text-sm">
+              {link.entityType === 'task' ? 'Tarefa' : 'Agenda'} ·{' '}
+              {states[link.syncState] ?? link.syncState} ·{' '}
+              {new Date(link.syncedAt).toLocaleString()}
+            </li>
+          ))}
+        </ul>
       ) : null}
       {busy ? <p role="status">Processando integração Google...</p> : null}
       {message ? (

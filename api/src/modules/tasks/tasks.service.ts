@@ -1,8 +1,11 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
+  forwardRef,
 } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { FindOptionsWhere, Repository } from 'typeorm'
@@ -24,6 +27,7 @@ import {
   NotificationsService,
   taskReminderOffsets,
 } from '../notifications/notifications.service'
+import { GoogleSyncOrchestrator } from '../google/google-sync.orchestrator'
 
 export type TaskView = Omit<Task, 'createdBy' | 'assignedTo'> & {
   createdBy: ReturnType<typeof person>
@@ -50,7 +54,23 @@ export class TasksService {
     private readonly users: UsersService,
     private readonly attachments: AttachmentsService,
     private readonly notifications: NotificationsService,
+    @Optional()
+    @Inject(forwardRef(() => GoogleSyncOrchestrator))
+    private readonly googleSync?: GoogleSyncOrchestrator,
   ) {}
+
+  private async mirror(
+    ownerId: string | null,
+    operation: string,
+    payload: Record<string, string>,
+  ) {
+    if (!ownerId || !this.googleSync) return
+    try {
+      await this.googleSync.enqueue(ownerId, operation, payload)
+    } catch {
+      // A gravação local já foi confirmada. A fila tenta de novo.
+    }
+  }
 
   private visibility(actor: string, id?: string): FindOptionsWhere<Task>[] {
     return [
@@ -145,6 +165,8 @@ export class TasksService {
       'Nova tarefa no Colabora',
       task.title,
     )
+    if (!dto.syncOptOut)
+      await this.mirror(task.createdById, 'push-task', { taskId: task.id })
     return this.findOne(task.id, actor)
   }
 
@@ -224,6 +246,7 @@ export class TasksService {
         updated.title,
       )
     }
+    if (!dto.syncOptOut) await this.mirror(actor, 'push-task', { taskId: id })
     return this.findOne(id, actor)
   }
 
@@ -231,6 +254,10 @@ export class TasksService {
     const task = await this.visible(id, actor)
     if (task.createdById !== actor)
       throw new ForbiddenException('Somente o criador pode excluir a tarefa.')
+    await this.mirror(task.createdById, 'delete-task', {
+      entityType: 'task',
+      entityId: id,
+    })
     const result = await this.tasksRepository.delete({ id, createdById: actor })
     if (!result.affected) throw new NotFoundException('Tarefa não encontrada.')
     await this.notifications.notifyUsers(
@@ -301,6 +328,7 @@ export class TasksService {
       'Tarefa iniciada no Colabora',
       task.title,
     )
+    await this.mirror(task.createdById, 'push-task', { taskId: id })
     return updated
   }
 
@@ -339,6 +367,7 @@ export class TasksService {
       'Tarefa voltou para pendente',
       task.title,
     )
+    await this.mirror(task.createdById, 'push-task', { taskId: id })
     return updated
   }
 
@@ -373,6 +402,7 @@ export class TasksService {
       task.title,
     )
     const saved = await this.findOne(id, actor)
+    await this.mirror(task.createdById, 'push-task', { taskId: id })
     return {
       task: saved,
       productivityAdvice:

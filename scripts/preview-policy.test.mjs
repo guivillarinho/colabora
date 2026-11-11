@@ -234,6 +234,10 @@ test("enables text Gemini and Calendar only from prefixed Preview secrets", () =
   assert.equal(env.GOOGLE_CLIENT_SECRET, googleSecret);
   assert.equal(env.GOOGLE_TOKEN_ENCRYPTION_KEY, googleKey);
   assert.equal(env.GOOGLE_REDIRECT_URI, previewCallback);
+  assert.equal(
+    env.GOOGLE_WEBHOOK_URL,
+    "https://colabora-test.vercel.app/api/google/webhook/calendar",
+  );
   assert.equal(env.PUBLIC_APP_URL, "https://colabora-test.vercel.app");
   assert.equal(env.BLOB_READ_WRITE_TOKEN, "");
   assert.equal(env.COLABORA_PREVIEW_GEMINI_API_KEY, undefined);

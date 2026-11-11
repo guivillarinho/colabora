@@ -23,6 +23,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { isFutureReminder, ReminderField } from '@/components/reminder-field'
+import { GoogleSyncHint } from '@/features/google/google-sync-hint'
 import { cn } from 'cn'
 
 import { categoryByName, taskCategories } from '../task-categories'
@@ -102,6 +103,7 @@ function TaskFormContent({
   )
   const [formKey, setFormKey] = useState(0)
   const [title, setTitle] = useState(task?.title ?? '')
+  const [syncOptOut, setSyncOptOut] = useState(false)
   const [dueDate, setDueDate] = useState(toDateTimeLocal(task?.dueDate ?? null))
   const initialReminders = task?.dueDate
     ? (task.reminderOffsets ?? [10, 0])
@@ -224,6 +226,7 @@ function TaskFormContent({
         : task
           ? { dueDate: null }
           : {}),
+      ...(syncOptOut ? { syncOptOut: true } : {}),
     }
 
     submitting.current = true
@@ -483,6 +486,7 @@ function TaskFormContent({
                 </Collapsible>
               </div>
             ) : null}
+            <GoogleSyncHint optOut={syncOptOut} onOptOut={setSyncOptOut} />
             {formError ? (
               <p className="text-sm text-destructive" role="alert">
                 {formError}

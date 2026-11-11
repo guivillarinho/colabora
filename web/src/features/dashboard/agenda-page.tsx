@@ -39,6 +39,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { isFutureReminder, ReminderField } from '@/components/reminder-field'
+import { GoogleSyncHint } from '@/features/google/google-sync-hint'
 import {
   Dialog,
   DialogContent,
@@ -198,7 +199,9 @@ export function AgendaPage() {
   const unscheduledItems = allItems.filter((item) => !item.startDate)
 
   async function createItem(
-    input: Omit<AgendaItem, 'id' | 'createdAt' | 'updatedAt'>,
+    input: Omit<AgendaItem, 'id' | 'createdAt' | 'updatedAt'> & {
+      syncOptOut?: boolean
+    },
   ) {
     const saved = await apiRequest<AgendaItem>('/agenda-items', {
       method: 'POST',
@@ -850,7 +853,9 @@ function AgendaCreateDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreate: (
-    input: Omit<AgendaItem, 'id' | 'createdAt' | 'updatedAt'>,
+    input: Omit<AgendaItem, 'id' | 'createdAt' | 'updatedAt'> & {
+      syncOptOut?: boolean
+    },
   ) => Promise<void>
 }) {
   const { user } = useAuth()
@@ -860,6 +865,7 @@ function AgendaCreateDialog({
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [reminderOffsets, setReminderOffsets] = useState<number[]>([])
+  const [syncOptOut, setSyncOptOut] = useState(false)
   const [location, setLocation] = useState('')
   const [icon, setIcon] = useState('')
   const [files, setFiles] = useState<string[]>([])
@@ -944,6 +950,7 @@ function AgendaCreateDialog({
                 location: location || null,
                 attachments: files,
                 icon: icon || null,
+                ...(syncOptOut ? { syncOptOut: true } : {}),
               })
             } catch (cause) {
               setError(messageOf(cause))
@@ -1027,6 +1034,7 @@ function AgendaCreateDialog({
             value={reminderOffsets}
             onChange={setReminderOffsets}
           />
+          <GoogleSyncHint optOut={syncOptOut} onOptOut={setSyncOptOut} />
           <div className="grid gap-2">
             <Label htmlFor="agenda-icon">Ícone</Label>
             <select

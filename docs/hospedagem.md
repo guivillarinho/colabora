@@ -223,8 +223,12 @@ Para ativar em produção, configure uma vez um projeto no Google Cloud.
 
 1. Ative a Google Calendar API.
 2. Configure a tela de consentimento OAuth para usuários externos com os escopos
-   `openid`, `email` e
-   `https://www.googleapis.com/auth/calendar.events.owned`.
+   `openid`, `email`,
+   `https://www.googleapis.com/auth/calendar.events` e
+   `https://www.googleapis.com/auth/tasks`.
+   Ative também a Google Tasks API. O webhook de calendário usa `GOOGLE_WEBHOOK_URL`
+   apontando para `https://<host>/api/google/webhook/calendar`. Sem essa URL o
+   Colabora ainda envia alterações, mas não recebe o push do calendário.
 3. Crie um cliente OAuth do tipo Aplicativo da Web e cadastre o URI de retorno
    `https://colabora-rouge.vercel.app/api/google/callback`.
 4. Cadastre na Vercel, no ambiente Production, `GOOGLE_CLIENT_ID`,

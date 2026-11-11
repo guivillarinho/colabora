@@ -71,4 +71,8 @@ export class CreateTaskDto extends ReminderOptionsDto {
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsBoolean()
   startImmediately?: boolean
+
+  @IsOptional()
+  @IsBoolean()
+  syncOptOut?: boolean
 }
