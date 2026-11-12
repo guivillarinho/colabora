@@ -190,7 +190,7 @@ export class GoogleInboundService {
     for (const item of listBody.items ?? []) {
       if (item.id) lists.add(item.id)
     }
-    for (const id of Object.values(prefs.categoryTaskListMap)) {
+    for (const id of Object.values(prefs?.categoryTaskListMap ?? {})) {
       if (id) lists.add(id)
     }
     const categoryRows = await this.source.query(

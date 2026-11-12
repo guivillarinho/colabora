@@ -248,7 +248,7 @@ export class TaskCategoriesService {
   ) {
     try {
       const { GoogleSyncOrchestrator } = await import(
-        '../google/google-sync.orchestrator'
+        '../google/google-sync.orchestrator.js'
       )
       const googleSync = this.modules.get(GoogleSyncOrchestrator, {
         strict: false,
