@@ -9,7 +9,12 @@ function setup() {
   const source = { query: jest.fn().mockResolvedValue([]) }
   const google = { authorized: jest.fn().mockResolvedValue('access') }
   const inbound = { pullCalendar: jest.fn(), pullTasks: jest.fn() }
-  const tasks = { upsert: jest.fn(), remove: jest.fn(), listLists: jest.fn() }
+  const tasks = {
+    upsert: jest.fn(),
+    remove: jest.fn(),
+    listLists: jest.fn(),
+    createList: jest.fn(),
+  }
   const calendar = {
     upsert: jest.fn(),
     remove: jest.fn(),
@@ -144,4 +149,61 @@ it('keeps a failed push in the outbox', async () => {
       String(call[0]).includes('UPDATE google_sync_outbox'),
     ),
   ).toBe(true)
+})
+
+it('creates a new Google Tasks list when the category does not exist and maps it', async () => {
+  const { service, source, tasks } = setup()
+  tasks.listLists.mockResolvedValue({
+    ok: true,
+    json: async () => ({ items: [{ id: 'list-existing', title: 'Pessoal' }] }),
+  })
+  tasks.createList.mockResolvedValue({
+    ok: true,
+    json: async () => ({ id: 'list-faculdade', title: 'Faculdade' }),
+  })
+  source.query.mockImplementation(async (sql: string) => {
+    if (String(sql).includes('FROM google_sync_outbox'))
+      return [
+        {
+          id: 'outbox-1',
+          ownerId: owner,
+          operation: 'push-task',
+          payload: { taskId },
+          attempts: 0,
+        },
+      ]
+    if (String(sql).includes('SELECT status,preferences'))
+      return [
+        {
+          status: 'connected',
+          preferences: { autoSync: true, categoryTaskListMap: {} },
+        },
+      ]
+    if (String(sql).includes('FROM tasks'))
+      return [
+        {
+          id: taskId,
+          title: 'Trabalho de Redes',
+          category: 'Faculdade',
+          dueDate: '2026-11-06T12:00:00.000Z',
+          status: 'pending',
+          updatedAt: new Date(),
+          createdById: owner,
+        },
+      ]
+    return []
+  })
+  tasks.upsert.mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ id: 'remote-task', etag: 'e1' }),
+  })
+  await service.drain()
+  expect(tasks.createList).toHaveBeenCalledWith('access', 'Faculdade')
+  expect(tasks.upsert).toHaveBeenCalledWith(
+    'access',
+    'list-faculdade',
+    null,
+    expect.objectContaining({ title: 'Trabalho de Redes' }),
+  )
 })

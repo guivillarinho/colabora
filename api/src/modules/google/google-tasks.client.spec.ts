@@ -29,3 +29,19 @@ it('updates an existing Google Task and creates one when the id disappeared', as
     '/lists/%40default/tasks',
   )
 })
+
+it('creates a new Google Task list', async () => {
+  const client = new GoogleTasksClient()
+  jest
+    .mocked(fetch)
+    .mockResolvedValueOnce(response(200, { id: 'list-1', title: 'Faculdade' }))
+  const result = await client.createList('token', 'Faculdade')
+  expect(result.status).toBe(200)
+  expect(jest.mocked(fetch).mock.calls[0][1]?.method).toBe('POST')
+  expect(String(jest.mocked(fetch).mock.calls[0][0])).toBe(
+    'https://tasks.googleapis.com/tasks/v1/users/@me/lists',
+  )
+  expect(jest.mocked(fetch).mock.calls[0][1]?.body).toBe(
+    JSON.stringify({ title: 'Faculdade' }),
+  )
+})

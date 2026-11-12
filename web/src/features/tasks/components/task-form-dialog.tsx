@@ -2,7 +2,13 @@ import { useAuth } from '@/features/auth/auth-context'
 import { AssigneeField } from './assignee-field'
 import { MinutesInput, parseMinutes } from './minutes-input'
 import { CalendarDays, NotebookPen, Plus, Timer } from 'lucide-react'
-import { useRef, useState, type FormEvent, type ReactNode } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react'
 
 import { pastelSwatches } from '@/components/pastel'
 import { Button } from '@/components/ui/button'
@@ -24,9 +30,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { isFutureReminder, ReminderField } from '@/components/reminder-field'
 import { GoogleSyncHint } from '@/features/google/google-sync-hint'
+import { googleStatus, googleTasklists } from '@/features/google/google-api'
+import { showToast } from '@/lib/toast'
 import { cn } from 'cn'
 
-import { categoryByName, taskCategories } from '../task-categories'
+import {
+  categoryByName,
+  taskCategories,
+  type TaskCategory,
+} from '../task-categories'
 import { useTasks } from '../tasks-context'
 import type { Task, TaskInput, TaskPriority } from '../types/task'
 import { AttachmentField, persistedAttachment } from './attachment-field'
@@ -117,10 +129,74 @@ function TaskFormContent({
   >(task?.dueDate ? 'manual' : null)
   const editing = Boolean(task)
   const fieldPrefix = task ? `edit-${task.id}` : 'create'
-  const selectedCategory = categoryByName(categoryName)
+
+  const [categories, setCategories] = useState<TaskCategory[]>(() => {
+    if (
+      task?.category &&
+      !taskCategories.some(
+        (c) => c.name.toLowerCase() === task.category.toLowerCase(),
+      )
+    ) {
+      return [...taskCategories, categoryByName(task.category)]
+    }
+    return taskCategories
+  })
+  const [creatingCategory, setCreatingCategory] = useState(false)
+  const [newCategoryInput, setNewCategoryInput] = useState('')
+
+  useEffect(() => {
+    let active = true
+    if (!open) return
+    googleStatus()
+      .then((status) => {
+        if (!active || !status.configured || status.status !== 'connected')
+          return
+        return googleTasklists().then((lists) => {
+          if (!active || !lists?.length) return
+          setCategories((current) => {
+            const names = new Set(current.map((c) => c.name.toLowerCase()))
+            const extra: TaskCategory[] = []
+            for (const item of lists) {
+              const itemTitle = (item.title || '').trim()
+              if (itemTitle && !names.has(itemTitle.toLowerCase())) {
+                names.add(itemTitle.toLowerCase())
+                extra.push(categoryByName(itemTitle))
+              }
+            }
+            return extra.length ? [...current, ...extra] : current
+          })
+        })
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [open])
+
+  const selectedCategory = categoryByName(categoryName, categories)
+
+  function handleCreateCategory() {
+    const trimmed = newCategoryInput.trim()
+    if (!trimmed) {
+      setCreatingCategory(false)
+      return
+    }
+    const cat = categoryByName(trimmed, categories)
+    setCategories((current) => {
+      if (current.some((c) => c.name.toLowerCase() === trimmed.toLowerCase())) {
+        return current
+      }
+      return [...current, cat]
+    })
+    setCategoryName(cat.name)
+    setCreatingCategory(false)
+    setNewCategoryInput('')
+  }
 
   function resetFields() {
     setFormError(null)
+    setCreatingCategory(false)
+    setNewCategoryInput('')
     setAssignee(
       task ? task.assignedTo : user ? { id: user.id, name: user.name } : null,
     )
@@ -252,6 +328,13 @@ function TaskFormContent({
     resetFields()
     onOpenChange?.(false)
     form.reset()
+    showToast(
+      !syncOptOut && dueDate
+        ? `Tarefa salva e sincronizada com a lista “${selectedCategory.name}” no Google Tasks!`
+        : editing
+          ? 'Tarefa atualizada com sucesso!'
+          : 'Tarefa criada com sucesso!',
+    )
   }
 
   return (
@@ -386,8 +469,8 @@ function TaskFormContent({
             ) : null}
             <fieldset className="grid min-w-0 gap-2">
               <legend className="text-sm font-medium">Categoria</legend>
-              <div className="flex min-w-0 flex-wrap gap-2 p-1.5">
-                {taskCategories.map((category) => {
+              <div className="flex min-w-0 flex-wrap items-center gap-2 p-1.5">
+                {categories.map((category) => {
                   const swatch = pastelSwatches.find(
                     (item) => item.id === category.color,
                   )
@@ -401,7 +484,10 @@ function TaskFormContent({
                       )}
                     >
                       <input
-                        checked={categoryName === category.name}
+                        checked={
+                          categoryName.toLowerCase() ===
+                          category.name.toLowerCase()
+                        }
                         className="absolute inset-0 cursor-pointer opacity-0"
                         name="category"
                         type="radio"
@@ -414,6 +500,53 @@ function TaskFormContent({
                     </label>
                   )
                 })}
+                {creatingCategory ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      autoFocus
+                      type="text"
+                      placeholder="Nome da lista..."
+                      className="h-8 rounded-full border border-input bg-card px-3 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+                      value={newCategoryInput}
+                      onChange={(e) => setNewCategoryInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleCreateCategory()
+                        } else if (e.key === 'Escape') {
+                          setCreatingCategory(false)
+                          setNewCategoryInput('')
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="h-8 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground transition hover:opacity-90"
+                      onClick={handleCreateCategory}
+                    >
+                      Criar
+                    </button>
+                    <button
+                      type="button"
+                      className="h-8 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setCreatingCategory(false)
+                        setNewCategoryInput('')
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="flex h-8 items-center gap-1 rounded-full border border-dashed border-border px-3 text-xs font-medium text-muted-foreground hover:border-foreground hover:text-foreground transition"
+                    onClick={() => setCreatingCategory(true)}
+                  >
+                    <Plus aria-hidden="true" className="size-3.5" />
+                    Nova lista / categoria
+                  </button>
+                )}
               </div>
             </fieldset>
             <div className="grid min-w-0 gap-3">

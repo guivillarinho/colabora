@@ -23,6 +23,17 @@ export class GoogleTasksClient {
     )
   }
 
+  createList(token: string, title: string) {
+    return this.request(
+      token,
+      'https://tasks.googleapis.com/tasks/v1/users/@me/lists',
+      {
+        method: 'POST',
+        body: JSON.stringify({ title }),
+      },
+    )
+  }
+
   listUpdated(token: string, listId: string, updatedMin?: string | null) {
     const url = new URL(
       `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(listId)}/tasks`,

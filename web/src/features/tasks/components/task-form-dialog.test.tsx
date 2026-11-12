@@ -310,3 +310,25 @@ it('shows a notebook and a stopwatch on the creation modes', async () => {
       .querySelector('svg'),
   ).not.toBeNull()
 })
+
+it('allows creating a new custom category on the fly', async () => {
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+  await renderForm()
+  await user.click(
+    screen.getByRole('button', { name: 'Nova lista / categoria' }),
+  )
+  const input = screen.getByPlaceholderText('Nome da lista...')
+  await user.type(input, 'Faculdade')
+  await user.click(screen.getByRole('button', { name: 'Criar' }))
+  expect(screen.getByRole('radio', { name: 'Faculdade' })).toBeChecked()
+  await user.type(screen.getByLabelText('Título'), 'Trabalho de Redes')
+  await user.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
+  await waitFor(() =>
+    expect(api.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Trabalho de Redes',
+        category: 'Faculdade',
+      }),
+    ),
+  )
+})

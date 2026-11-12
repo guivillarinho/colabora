@@ -212,7 +212,12 @@ export class GoogleSyncOrchestrator {
         existing.googleResourceId,
       )
     }
-    const listId = prefs.categoryTaskListMap[task.category] || '@default'
+    const listId = await this.resolveTaskListId(
+      ownerId,
+      task.category,
+      prefs,
+      access,
+    )
     const response = await this.tasks.upsert(
       access,
       listId,
@@ -238,6 +243,52 @@ export class GoogleSyncOrchestrator {
       body.etag ?? null,
       task.updatedAt,
     )
+  }
+
+  private async resolveTaskListId(
+    ownerId: string,
+    category: string | null | undefined,
+    prefs: GooglePreferences,
+    access: string,
+  ): Promise<string> {
+    const trimmed = (category || '').trim()
+    if (!trimmed) return '@default'
+
+    if (prefs.categoryTaskListMap[trimmed]) {
+      return prefs.categoryTaskListMap[trimmed]
+    }
+    for (const [name, id] of Object.entries(prefs.categoryTaskListMap)) {
+      if (name.toLowerCase() === trimmed.toLowerCase()) {
+        return id
+      }
+    }
+
+    try {
+      const lists = await this.tasklists(ownerId)
+      const matched = lists.find(
+        (list) =>
+          (list.title || '').trim().toLowerCase() === trimmed.toLowerCase(),
+      )
+      if (matched) {
+        prefs.categoryTaskListMap[trimmed] = matched.id
+        await this.savePreferences(ownerId, prefs).catch(() => undefined)
+        return matched.id
+      }
+
+      const createResponse = await this.tasks.createList(access, trimmed)
+      if (createResponse.ok) {
+        const body = (await createResponse.json()) as { id?: string }
+        if (body.id) {
+          prefs.categoryTaskListMap[trimmed] = body.id
+          await this.savePreferences(ownerId, prefs).catch(() => undefined)
+          return body.id
+        }
+      }
+    } catch {
+      // Falha ao listar ou criar lista: fallback seguro para lista padrão
+    }
+
+    return '@default'
   }
 
   private async pushAgenda(ownerId: string, agendaId: string) {

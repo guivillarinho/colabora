@@ -22,6 +22,24 @@ export function AppShell() {
   const { user, logout } = useAuth()
   const { advice, clearAdvice, error } = useTasks()
   const [scrolled, setScrolled] = useState(() => window.scrollY > 0)
+  const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ message: string }>).detail
+      if (detail?.message) {
+        setToast(detail.message)
+      }
+    }
+    window.addEventListener('colabora:toast', handler)
+    return () => window.removeEventListener('colabora:toast', handler)
+  }, [])
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = setTimeout(() => setToast(null), 4000)
+    return () => clearTimeout(timer)
+  }, [toast])
 
   useEffect(() => {
     const updateScroll = () => setScrolled(window.scrollY > 0)
@@ -138,6 +156,19 @@ export function AppShell() {
         <AppNav center={<CreateTaskDialog variant="icon" />} layout="bottom" />
       </div>
       <ProductivityAdviceDialog advice={advice} onClose={clearAdvice} />
+      {toast ? (
+        <aside
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-20 left-1/2 z-50 flex max-w-[90vw] -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-popover px-4 py-2.5 text-xs sm:text-sm font-medium text-popover-foreground shadow-lg md:bottom-6"
+        >
+          <span
+            className="size-2 shrink-0 rounded-full bg-primary"
+            aria-hidden="true"
+          />
+          <span className="truncate">{toast}</span>
+        </aside>
+      ) : null}
     </div>
   )
 }

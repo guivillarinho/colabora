@@ -14,9 +14,36 @@ export const taskCategories: TaskCategory[] = [
   { name: 'Compras', color: 'orange' },
 ]
 
-export function categoryByName(name: string | null | undefined): TaskCategory {
-  return (
-    taskCategories.find((category) => category.name === name) ??
-    taskCategories[0]
+const dynamicColors: TaskColor[] = [
+  'blue',
+  'yellow',
+  'purple',
+  'green',
+  'orange',
+  'red',
+]
+
+export function categoryByName(
+  name: string | null | undefined,
+  knownCategories?: TaskCategory[],
+): TaskCategory {
+  const trimmed = name?.trim()
+  if (!trimmed) return taskCategories[0]
+
+  const list = knownCategories?.length ? knownCategories : taskCategories
+  const found = list.find(
+    (category) => category.name.toLowerCase() === trimmed.toLowerCase(),
   )
+  if (found) return found
+
+  const defaultFound = taskCategories.find(
+    (category) => category.name.toLowerCase() === trimmed.toLowerCase(),
+  )
+  if (defaultFound) return defaultFound
+
+  let hash = 0
+  for (let i = 0; i < trimmed.length; i++) {
+    hash = (hash + trimmed.charCodeAt(i)) % dynamicColors.length
+  }
+  return { name: trimmed, color: dynamicColors[hash] }
 }
