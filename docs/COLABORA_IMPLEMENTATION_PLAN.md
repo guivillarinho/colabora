@@ -1,6 +1,6 @@
 # Colabora — plano de implementação
 
-Última entrega: 2026-11-12, branch `main`: Alert de tarefas, Skeleton da agenda, seleção múltipla com exclusão e filtros por agenda Google/local. Detalhes e validações em [COLABORA_PROGRESS.md](COLABORA_PROGRESS.md).
+Última entrega: 2026-11-12, branch `main`: seleção com checkboxes e controle Tudo/lixeira na agenda, Skeletons de cards compartilhados entre Hoje/Agenda e Alert animado com duração de dois segundos. Diagnóstico da sincronização em [AGENDA_SYNC_DIAGNOSTIC_2026-11-12.md](AGENDA_SYNC_DIAGNOSTIC_2026-11-12.md); detalhes e validações em [COLABORA_PROGRESS.md](COLABORA_PROGRESS.md).
 
 A auditoria e as etapas abaixo são registros históricos de 2026-11-05, branch `feat/colabora-evolucao`.
 Auditoria inicial: fase 0, somente análise e planejamento; Git inicialmente limpo.

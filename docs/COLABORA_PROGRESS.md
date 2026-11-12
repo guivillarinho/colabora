@@ -1,5 +1,14 @@
 # Colabora — progresso
 
+## 2026-11-12 — Correção visual da seleção e diagnóstico de itens de hoje
+
+- **Seleção na agenda:** círculos junto ao título, ícone marcado nos selecionados, controle “Tudo” para os itens exibidos e lixeira circular no padrão do perfil acima da lista. Removido o botão superior “Selecionar itens”; toque prolongado e Shift+Espaço iniciam o modo. Confirmação e recuperação de falhas parciais preservadas.
+- **Skeletons:** componente compartilhado com largura total e altura mínima de card para Agenda e Hoje (tarefas/eventos). Cards de eventos em Hoje usam a mesma altura mínima.
+- **Alert de criação:** entrada de cima para baixo respeitando movimento reduzido e remoção automática após 2 segundos; substitui a persistência manual da entrega anterior. Edição mantém seis segundos.
+- **Auditoria:** consulta READ ONLY em produção encontrou 98 tarefas concluídas importadas com conclusão local em hoje. A regra atual resulta em 99 tarefas e 1 evento para o dia, antes dos filtros. Causa e riscos de paginação/histórico detalhados em [AGENDA_SYNC_DIAGNOSTIC_2026-11-12.md](AGENDA_SYNC_DIAGNOSTIC_2026-11-12.md). Nenhum registro foi corrigido/excluído; credenciais temporárias removidas. Comparação com Google não concluída porque o conector exige reautenticação.
+- **Validação local:** 206 testes web passaram; build web aprovado; lint sem erros, com aviso anterior no hook de categorias. Gesto, marcação/desmarcação, “Tudo”, exclusão mista e expiração em 2000 ms cobertos por testes. Vibração física depende do dispositivo.
+- **Entrega:** publicação em produção autorizada pelo usuário após a revisão. Código e diagnóstico enviados em commits separados para `main`, via integração Git da Vercel. Esta entrega publica os ajustes visuais; as correções de sincronização e a reconciliação dos dados continuam pendentes conforme o diagnóstico.
+
 ## 2026-11-12 — Alert de tarefas e seleção múltipla na agenda
 
 - **Tarefas:** confirmação com Alert do shadcn no topo central; título, categoria, prioridade, prazo, duração estimada, descrição, local, responsável, anexo e lembretes conforme preenchidos. Criação permanece visível até fechar; edição mantém expiração de seis segundos. Textos longos têm quebra e rolagem. Removida afirmação de sincronização Google sem confirmação do servidor.
