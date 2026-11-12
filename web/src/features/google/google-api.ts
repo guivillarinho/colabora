@@ -64,3 +64,9 @@ export function googleTasklists() {
 export function googleSyncNow() {
   return apiRequest<{ ok: true }>('/google/sync-now', { method: 'POST' })
 }
+
+export function googleCalendarLinks() {
+  return apiRequest<
+    Array<{ entityType: string; entityId: string; googleCalendarId: string }>
+  >('/google/calendar-links')
+}

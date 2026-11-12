@@ -115,10 +115,7 @@ export class GoogleInboundService {
     }
   }
 
-  async pullTaskLists(
-    ownerId: string,
-    options?: { force?: boolean },
-  ) {
+  async pullTaskLists(ownerId: string, options?: { force?: boolean }) {
     const prefs = await this.preferences(ownerId)
     if (!options?.force && !prefs?.inboundEnabled) return
     const access = await this.google.authorized(ownerId)

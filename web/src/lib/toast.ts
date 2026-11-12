@@ -1,6 +1,7 @@
 export type ToastMessage = {
   title: string
   description: string
+  duration?: number | null
 }
 
 export function showToast(message: ToastMessage): void {

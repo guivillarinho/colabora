@@ -9,10 +9,7 @@ import { uploadAgendaFiles } from '@/features/dashboard/upload-agenda-files'
 import { tasksApi } from '../api/tasks-api'
 import { TasksProvider } from '../tasks-context'
 import type { Task } from '../types/task'
-import {
-  createTaskCategory,
-  fetchTaskCategories,
-} from '../task-categories-api'
+import { createTaskCategory, fetchTaskCategories } from '../task-categories-api'
 import { TaskFormDialog } from './task-form-dialog'
 
 jest.mock('@/features/dashboard/upload-agenda-files', () => ({
@@ -72,6 +69,7 @@ async function renderForm(task?: Task) {
 }
 
 it('fills the date while typing and saves the recognized local time', async () => {
+  const dispatch = jest.spyOn(window, 'dispatchEvent')
   const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
   await renderForm()
   await user.type(screen.getByLabelText('Título'), 'Enviar proposta às 9h30')
@@ -86,6 +84,20 @@ it('fills the date while typing and saves the recognized local time', async () =
       }),
     ),
   )
+  const notification = dispatch.mock.calls
+    .map(([event]) => event as CustomEvent)
+    .find((event) => event.type === 'colabora:toast')
+  expect(notification?.detail).toEqual(
+    expect.objectContaining({
+      title: 'Tarefa criada',
+      duration: null,
+      description: expect.stringContaining('Enviar proposta às 9h30'),
+    }),
+  )
+  expect(notification?.detail.description).toContain('Tempo estimado:')
+  expect(notification?.detail.description).toContain('Lembretes:')
+  expect(notification?.detail.description).not.toContain('Sincronizada')
+  dispatch.mockRestore()
 })
 
 it('blocks reminders in the past and saves a custom reminder', async () => {

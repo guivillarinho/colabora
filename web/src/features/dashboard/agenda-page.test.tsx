@@ -1,5 +1,10 @@
+import {
+  googleStatus,
+  googleCalendars,
+  googleCalendarLinks,
+} from '@/features/google/google-api'
 import { renderAuthenticated as render, taskAccess } from '@/test/auth-fixture'
-import { screen, within, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { AgendaDetails, AgendaPage } from './agenda-page'
@@ -14,6 +19,12 @@ import {
   uploadAgendaFiles,
   type AgendaUploadOptions,
 } from './upload-agenda-files'
+
+jest.mock('@/features/google/google-api', () => ({
+  googleStatus: jest.fn(),
+  googleCalendars: jest.fn(),
+  googleCalendarLinks: jest.fn(),
+}))
 
 jest.mock('./upload-agenda-files', () => {
   const actual = jest.requireActual('./upload-agenda-files')
@@ -41,6 +52,12 @@ const dueDate = new Date().toISOString()
 describe('AgendaPage', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    localStorage.clear()
+    jest.mocked(googleStatus).mockResolvedValue({
+      configured: false,
+      status: 'disconnected',
+      synced: [],
+    })
     acceptHttpSession('test-csrf-token')
     api.list.mockResolvedValue([
       {
@@ -65,6 +82,148 @@ describe('AgendaPage', () => {
     globalThis.fetch = jest
       .fn()
       .mockResolvedValue({ ok: true, json: async () => [] }) as jest.Mock
+  })
+
+  it('shows Skeletons while tasks are still loading', async () => {
+    let resolve!: (tasks: Task[]) => void
+    api.list.mockReturnValue(
+      new Promise((_resolve) => {
+        resolve = _resolve
+      }),
+    )
+    const { container } = render(
+      <TasksProvider>
+        <AgendaPage />
+      </TasksProvider>,
+    )
+    expect(
+      screen.getByRole('status', { name: 'Carregando agenda' }),
+    ).toBeVisible()
+    expect(
+      container.querySelector('[data-slot="skeleton"]'),
+    ).toBeInTheDocument()
+    await act(async () => resolve([]))
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('status', { name: 'Carregando agenda' }),
+      ).not.toBeInTheDocument(),
+    )
+  })
+
+  it('selects a task on hold, vibrates and deletes after confirmation', async () => {
+    const originalPointerEvent = window.PointerEvent
+    window.PointerEvent = MouseEvent as typeof PointerEvent
+    const vibrate = jest.fn()
+    Object.defineProperty(navigator, 'vibrate', {
+      configurable: true,
+      value: vibrate,
+    })
+    const user = userEvent.setup()
+    render(
+      <TasksProvider>
+        <AgendaPage />
+      </TasksProvider>,
+    )
+    const card = await screen.findByRole('button', { name: /Enviar proposta/ })
+    fireEvent.pointerDown(card, { button: 0, clientX: 0, clientY: 0 })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 550))
+    })
+    fireEvent.pointerUp(card)
+    fireEvent.click(card)
+    expect(card).toHaveAttribute('aria-pressed', 'true')
+    expect(vibrate).toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: 'Excluir selecionados' }),
+    )
+    expect(api.remove).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
+    await waitFor(() => expect(api.remove).toHaveBeenCalledWith('task-1'))
+    window.PointerEvent = originalPointerEvent
+  })
+
+  it('deletes a mixed selection and keeps failures selected for retry', async () => {
+    const event = {
+      id: 'event-1',
+      type: 'event',
+      title: 'Reunião de equipe',
+      description: null,
+      startDate: dueDate,
+      endDate: dueDate,
+      attachments: [],
+      location: null,
+      icon: null,
+    }
+    const fetchMock = jest.mocked(fetch)
+    fetchMock.mockImplementation(async (_url, options) => {
+      if (options?.method === 'DELETE')
+        return { ok: true, status: 204 } as Response
+      return { ok: true, json: async () => [event] } as Response
+    })
+    api.remove
+      .mockRejectedValueOnce(new Error('Falha de rede'))
+      .mockResolvedValueOnce(undefined)
+    const user = userEvent.setup()
+    render(
+      <TasksProvider>
+        <AgendaPage />
+      </TasksProvider>,
+    )
+    await screen.findByText('Enviar proposta')
+    await user.click(screen.getByRole('button', { name: 'Selecionar itens' }))
+    await user.click(screen.getByRole('button', { name: /Enviar proposta/ }))
+    await user.click(screen.getByRole('button', { name: /Reunião de equipe/ }))
+    expect(screen.getByText('2 selecionado(s)')).toBeVisible()
+    await user.click(
+      screen.getByRole('button', { name: 'Excluir selecionados' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Não foi possível excluir: Enviar proposta',
+    )
+    expect(
+      screen.queryByRole('button', { name: /Reunião de equipe/ }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('1 selecionado(s)')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    )
+    expect(
+      screen.queryByRole('button', { name: /Enviar proposta/ }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('filters Google calendars and persists visibility separately from local items', async () => {
+    jest
+      .mocked(googleStatus)
+      .mockResolvedValue({ configured: true, status: 'connected', synced: [] })
+    jest
+      .mocked(googleCalendars)
+      .mockResolvedValue([
+        { id: 'work', summary: 'Trabalho Google', primary: true },
+      ])
+    jest
+      .mocked(googleCalendarLinks)
+      .mockResolvedValue([
+        { entityType: 'task', entityId: 'task-1', googleCalendarId: 'work' },
+      ])
+    const user = userEvent.setup()
+    render(
+      <TasksProvider>
+        <AgendaPage />
+      </TasksProvider>,
+    )
+    await screen.findByText('Enviar proposta')
+    await user.click(screen.getByText('Agendas exibidas'))
+    await user.click(
+      await screen.findByRole('checkbox', { name: 'Trabalho Google' }),
+    )
+    expect(screen.queryByText('Enviar proposta')).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Colabora' })).toBeChecked()
+    await user.click(screen.getByRole('checkbox', { name: 'Trabalho Google' }))
+    expect(await screen.findByText('Enviar proposta')).toBeVisible()
   })
 
   it('shows the week and scheduled tasks for the selected day', async () => {

@@ -96,3 +96,28 @@ it('starts with the scrolled appearance when restoring a scroll position', () =>
   render(<AppShell />)
   expect(screen.getByRole('banner')).toHaveAttribute('data-scrolled', 'true')
 })
+
+it('keeps a detailed creation alert visible until explicitly dismissed', () => {
+  jest.useFakeTimers()
+  try {
+    render(<AppShell />)
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('colabora:toast', {
+          detail: {
+            title: 'Tarefa criada',
+            description: 'Título completo\nDescrição completa',
+            duration: null,
+          },
+        }),
+      )
+      jest.advanceTimersByTime(30000)
+    })
+    expect(screen.getByRole('status')).toHaveTextContent('Descrição completa')
+    expect(screen.getByRole('status')).toHaveAttribute('data-slot', 'alert')
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar notificação' }))
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  } finally {
+    jest.useRealTimers()
+  }
+})

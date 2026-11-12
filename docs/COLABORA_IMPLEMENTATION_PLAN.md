@@ -1,6 +1,8 @@
 # Colabora — plano de implementação
 
-Atualizado em 2026-11-05. Branch: `feat/colabora-evolucao`.
+Última entrega: 2026-11-12, branch `main`: Alert de tarefas, Skeleton da agenda, seleção múltipla com exclusão e filtros por agenda Google/local. Detalhes e validações em [COLABORA_PROGRESS.md](COLABORA_PROGRESS.md).
+
+A auditoria e as etapas abaixo são registros históricos de 2026-11-05, branch `feat/colabora-evolucao`.
 Auditoria inicial: fase 0, somente análise e planejamento; Git inicialmente limpo.
 Execução atual: “Validação final” (E14), concluída no escopo local. Alterações anteriores preservadas; corrigida somente formatação e ampliada cobertura de falhas do chat. Nenhum deploy, configuração de produção ou migração no banco existente.
 Versões abaixo são faixas declaradas nos manifests, sem certificação de runtime ou dependências instaladas.

@@ -2,11 +2,16 @@ import { ChatPage } from '@/features/assistant/chat-page'
 import { useAuth } from '@/features/auth/auth-context'
 import { AccountPage } from '@/features/auth/account-page'
 import { useEffect, useState } from 'react'
-import { ArrowLeft, CircleCheck, LogOut, MessageCircle } from 'lucide-react'
+import { ArrowLeft, CircleCheck, LogOut, MessageCircle, X } from 'lucide-react'
 import { UserAvatar } from '@/features/auth/user-avatar'
 
 import { ThemeToggle } from '@/components/theme-toggle'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import type { ToastMessage } from '@/lib/toast'
 import { AgendaPage } from '@/features/dashboard/agenda-page'
@@ -38,8 +43,8 @@ export function AppShell() {
   }, [])
 
   useEffect(() => {
-    if (!toast) return
-    const timer = setTimeout(() => setToast(null), 6000)
+    if (!toast || toast.duration === null) return
+    const timer = setTimeout(() => setToast(null), toast.duration ?? 6000)
     return () => clearTimeout(timer)
   }, [toast])
 
@@ -163,13 +168,23 @@ export function AppShell() {
           <Alert
             role="status"
             aria-live="polite"
-            className="pointer-events-auto w-full max-w-lg shadow-lg"
+            className="pointer-events-auto max-h-[calc(100svh-2rem)] w-full max-w-lg overflow-y-auto shadow-lg"
           >
             <CircleCheck aria-hidden="true" />
             <AlertTitle>{toast.title}</AlertTitle>
-            <AlertDescription className="text-pretty">
+            <AlertDescription className="min-w-0 whitespace-pre-line break-words [overflow-wrap:anywhere]">
               {toast.description}
             </AlertDescription>
+            <AlertAction>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Fechar notificação"
+                onClick={() => setToast(null)}
+              >
+                <X aria-hidden="true" />
+              </Button>
+            </AlertAction>
           </Alert>
         </div>
       ) : null}

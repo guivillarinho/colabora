@@ -1,5 +1,15 @@
 # Colabora — progresso
 
+## 2026-11-12 — Alert de tarefas e seleção múltipla na agenda
+
+- **Tarefas:** confirmação com Alert do shadcn no topo central; título, categoria, prioridade, prazo, duração estimada, descrição, local, responsável, anexo e lembretes conforme preenchidos. Criação permanece visível até fechar; edição mantém expiração de seis segundos. Textos longos têm quebra e rolagem. Removida afirmação de sincronização Google sem confirmação do servidor.
+- **Agenda:** Skeleton do shadcn durante o carregamento real de tarefas/eventos, sem atraso artificial. Pressionar por 500 ms seleciona o item e solicita feedback tátil; movimento acima de 10 px, cancelamento ou saída do ponteiro cancelam o gesto. Botão “Selecionar itens” oferece alternativa por teclado. Itens selecionados têm destaque e estado acessível.
+- **Exclusão:** seleção múltipla de tarefas, eventos e projetos, confirmação explícita e respeito às permissões de exclusão de tarefas. Operações são individuais: sucessos saem da lista, falhas permanecem selecionadas e podem ser reenviadas.
+- **Agendas exibidas:** filtros para agendas Google e itens locais “Colabora”, aplicados à semana, lista diária, itens sem data e pesquisa. Preferência por usuário no localStorage deste navegador; indisponibilidade do Google preserva os itens visíveis e mostra aviso. Endpoint autenticado `GET /api/google/calendar-links` retorna vínculos completos de Calendar somente do usuário atual, sem limite do histórico de sincronização.
+- **Verificação:** 205 testes web e 114 testes unitários API; builds web/API aprovados. Lint web sem erros, com aviso já existente de dependência do hook de categorias; lint API verificado sem correção automática. Regressões cobrem Skeleton, gesto/vibração simulada, seleção mista, falha parcial com nova tentativa, filtro e escopo de proprietário dos vínculos. Corrigidas expectativas antigas nos testes Google/categorias e formatação para a verificação da release.
+- **Limites:** testes com provedores simulados; não certificam importação/sincronização real de contas Google nem vibração física (depende do dispositivo/navegador). Sem migrations ou mudanças de configuração de produção nesta entrega.
+- **Publicação:** release de produção autorizada pelo usuário nesta sessão; o resultado do deployment será verificado após o envio do commit para `main`.
+
 ## 2026-11-12 — Categorias ↔ Google Tasks (catálogo 1:1)
 
 - **Código:** migração `1796000000000-task-categories.ts`, CRUD `/api/task-categories`, sync de listas (`push/update/delete-category-list`, `pull-task-lists`, `move-task-list`), formulário de tarefa e perfil Google atualizados. Plano: `docs/GOOGLE_TASKS_CATEGORIES_PLAN.md`.

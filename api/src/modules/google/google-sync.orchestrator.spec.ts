@@ -216,3 +216,17 @@ it('creates a new Google Tasks list when the category does not exist and maps it
     expect.objectContaining({ title: 'Trabalho de Redes' }),
   )
 })
+
+it('lists all calendar origins only for the authenticated owner', async () => {
+  const { service, source } = setup()
+  const links = [
+    { entityType: 'agenda_item', entityId: taskId, googleCalendarId: 'work' },
+  ]
+  source.query.mockResolvedValueOnce(links)
+  expect(await service.calendarLinks(owner)).toEqual(links)
+  expect(source.query).toHaveBeenCalledWith(
+    expect.stringContaining('"ownerId"=$1'),
+    [owner],
+  )
+  expect(source.query.mock.calls[0][0]).not.toContain('LIMIT')
+})

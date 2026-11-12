@@ -144,6 +144,18 @@ export class GoogleSyncOrchestrator {
     return { ok: true as const }
   }
 
+  calendarLinks(
+    ownerId: string,
+  ): Promise<
+    Array<{ entityType: string; entityId: string; googleCalendarId: string }>
+  > {
+    return this.source.query(
+      `SELECT "entityType","entityId","googleCalendarId" FROM google_sync_links
+       WHERE "ownerId"=$1 AND "googleKind"='event' AND "googleCalendarId" IS NOT NULL`,
+      [ownerId],
+    )
+  }
+
   async calendars(ownerId: string) {
     const access = await this.google.authorized(ownerId)
     const response = await this.calendar.listCalendars(access)

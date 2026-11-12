@@ -54,7 +54,10 @@ describe('TaskCategoriesService', () => {
       { id: '1', name: 'Pessoal', color: TaskColor.Blue },
     ])
     await service.list('owner-1')
-    expect(categories.save).toHaveBeenCalled()
+    expect(source.query).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO task_categories'),
+      ['owner-1', expect.any(String)],
+    )
     expect(categories.find).toHaveBeenCalled()
   })
 })

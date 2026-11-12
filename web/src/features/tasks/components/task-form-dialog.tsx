@@ -366,14 +366,22 @@ function TaskFormContent({
       `“${title}” na categoria ${selectedCategory.name}, prioridade ${priorityLabel}.`,
       schedule,
     ]
-    if (savedDue && !syncOptOut) {
+    description.push(`Tempo estimado: ${estimatedTime} min.`)
+    if (input.description) description.push(`Descrição: ${input.description}`)
+    if (input.location) description.push(`Local: ${input.location}`)
+    if (assignee) description.push(`Responsável: ${assignee.name}.`)
+    if (attachment) description.push(`Anexo: ${attachment.split('||')[0]}.`)
+    if (savedDue) {
       description.push(
-        `Sincronizada com a lista “${selectedCategory.name}” no Google Tasks.`,
+        offsets.length
+          ? `Lembretes: ${offsets.map((minutes) => (minutes === 0 ? 'no horário' : `${minutes} min antes`)).join(', ')}.`
+          : 'Sem lembretes.',
       )
     }
     showToast({
       title: editing ? 'Tarefa atualizada' : 'Tarefa criada',
-      description: description.join(' '),
+      description: description.join('\n'),
+      duration: editing ? 6000 : null,
     })
   }
 
@@ -562,7 +570,7 @@ function TaskFormContent({
                         type="button"
                         className="h-8 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground transition hover:opacity-90"
                         onClick={() => {
-                          void handleCreateCategory()
+                          handleCreateCategory()
                         }}
                       >
                         Criar

@@ -286,7 +286,11 @@ export function GoogleSettings() {
           >
             Histórico de sincronização
           </button>
-          <Button type="submit" className="h-11 w-full" disabled={pending !== null}>
+          <Button
+            type="submit"
+            className="h-11 w-full"
+            disabled={pending !== null}
+          >
             {pending === 'save' ? 'Salvando...' : 'Salvar sincronização'}
           </Button>
           {saved ? (

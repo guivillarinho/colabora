@@ -1,3 +1,10 @@
+import { Skeleton } from '@/components/ui/skeleton'
+import { hapticFeedback } from '@/lib/haptics'
+import {
+  googleStatus,
+  googleCalendars,
+  googleCalendarLinks,
+} from '@/features/google/google-api'
 import { TaskAssigneeBadge } from '@/features/tasks/components/task-assignee-badge'
 import { TaskSummary, taskSummaryClassName } from './components/task-summary'
 import { TaskAssignment } from '@/features/tasks/components/task-assignment'
@@ -116,7 +123,14 @@ const icons = [
 ]
 
 export function AgendaPage() {
-  const { tasks, completeTask, reopenTask, removeTask } = useTasks()
+  const {
+    tasks,
+    loading: tasksLoading,
+    completeTask,
+    reopenTask,
+    removeTask,
+  } = useTasks()
+  const { user } = useAuth()
   const [items, setItems] = useState<AgendaItem[]>([])
   const [selectedDay, setSelectedDay] = useState(startOfDay(new Date()))
   const [query, setQuery] = useState('')
@@ -126,6 +140,80 @@ export function AgendaPage() {
   const [details, setDetails] = useState<NormalAgendaItem | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [calendars, setCalendars] = useState<
+    Awaited<ReturnType<typeof googleCalendars>>
+  >([])
+  const [links, setLinks] = useState<
+    Awaited<ReturnType<typeof googleCalendarLinks>>
+  >([])
+  const [hiddenCalendars, setHiddenCalendars] = useState<string[]>(() => {
+    try {
+      const stored: unknown = JSON.parse(
+        localStorage.getItem(`agenda-hidden:${user?.id}`) ?? '[]',
+      )
+      return Array.isArray(stored)
+        ? stored.filter((id): id is string => typeof id === 'string')
+        : []
+    } catch {
+      return []
+    }
+  })
+  const [calendarError, setCalendarError] = useState<string | null>(null)
+  useEffect(() => {
+    let active = true
+    googleStatus()
+      .then(async (status) => {
+        if (status.status !== 'connected') return
+        const [available, sources] = await Promise.all([
+          googleCalendars(),
+          googleCalendarLinks(),
+        ])
+        if (active) {
+          setCalendars(available)
+          setLinks(sources)
+        }
+      })
+      .catch(() => {
+        if (active)
+          setCalendarError(
+            'Não foi possível carregar as agendas do Google. Os itens continuam visíveis.',
+          )
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+  function cancelSelection() {
+    setSelectionMode(false)
+    setSelected(new Set())
+  }
+  function toggleSelection(item: NormalAgendaItem) {
+    if (item.task && !item.task.permissions.delete) return
+    const key = `${item.type}-${item.id}`
+    setSelected((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+  function cardProps(item: NormalAgendaItem) {
+    return {
+      selectionMode,
+      selected: selected.has(`${item.type}-${item.id}`),
+      onLongPress: () => {
+        setSelectionMode(true)
+        toggleSelection(item)
+        hapticFeedback('threshold')
+      },
+      onSelect: () =>
+        selectionMode ? toggleSelection(item) : setDetails(item),
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -166,10 +254,28 @@ export function AgendaPage() {
     [items, tasks],
   )
 
+  const visibleItems = useMemo(
+    () =>
+      allItems.filter((item) => {
+        const link = links.find(
+          (entry) =>
+            entry.entityId === item.id &&
+            entry.entityType ===
+              (item.type === 'task' ? 'task' : 'agenda_item'),
+        )
+        const source =
+          link?.googleCalendarId === 'primary'
+            ? (calendars.find((calendar) => calendar.primary)?.id ?? 'primary')
+            : (link?.googleCalendarId ?? 'local')
+        return !hiddenCalendars.includes(source)
+      }),
+    [allItems, links, hiddenCalendars, calendars],
+  )
+
   const matchingItems = useMemo(() => {
     const term = query.trim().toLocaleLowerCase('pt-BR')
     if (!term) return []
-    return allItems
+    return visibleItems
       .filter((item) =>
         [
           item.title,
@@ -180,11 +286,11 @@ export function AgendaPage() {
         ].some((field) => field?.toLocaleLowerCase('pt-BR').includes(term)),
       )
       .sort((a, b) => sortItems(a, b, sort))
-  }, [allItems, query, sort])
+  }, [visibleItems, query, sort])
 
   const dayItems = useMemo(
     () =>
-      allItems
+      visibleItems
         .filter((item) =>
           overlapsDay(
             item.startDate,
@@ -193,10 +299,10 @@ export function AgendaPage() {
           ),
         )
         .sort((a, b) => sortItems(a, b, 'date')),
-    [allItems, selectedDay],
+    [visibleItems, selectedDay],
   )
 
-  const unscheduledItems = allItems.filter((item) => !item.startDate)
+  const unscheduledItems = visibleItems.filter((item) => !item.startDate)
 
   async function createItem(
     input: Omit<AgendaItem, 'id' | 'createdAt' | 'updatedAt'> & {
@@ -262,6 +368,109 @@ export function AgendaPage() {
         </div>
       </div>
 
+      <details className="rounded-xl border bg-card p-3">
+        <summary className="cursor-pointer font-medium">
+          Agendas exibidas
+        </summary>
+        <div className="mt-3 flex flex-wrap gap-4">
+          {[{ id: 'local', summary: 'Colabora' }, ...calendars].map(
+            (calendar) => (
+              <label
+                key={calendar.id}
+                className="flex min-h-11 items-center gap-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={!hiddenCalendars.includes(calendar.id)}
+                  onChange={() => {
+                    const next = hiddenCalendars.includes(calendar.id)
+                      ? hiddenCalendars.filter((id) => id !== calendar.id)
+                      : [...hiddenCalendars, calendar.id]
+                    setHiddenCalendars(next)
+                    cancelSelection()
+                    try {
+                      localStorage.setItem(
+                        `agenda-hidden:${user?.id}`,
+                        JSON.stringify(next),
+                      )
+                    } catch {
+                      /* Optional persistence. */
+                    }
+                  }}
+                />
+                {calendar.summary}
+              </label>
+            ),
+          )}
+        </div>
+        {calendarError ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            {calendarError}
+          </p>
+        ) : null}
+      </details>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          onClick={() =>
+            selectionMode ? cancelSelection() : setSelectionMode(true)
+          }
+        >
+          {selectionMode ? 'Cancelar seleção' : 'Selecionar itens'}
+        </Button>
+        {selectionMode ? (
+          <>
+            <span role="status" className="text-sm">
+              {selected.size} selecionado(s)
+            </span>
+            <Button
+              variant="destructive"
+              disabled={!selected.size}
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 aria-hidden="true" />
+              Excluir selecionados
+            </Button>
+          </>
+        ) : null}
+      </div>
+      <DeleteConfirmationDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        entity="itens selecionados"
+        name={`${selected.size} itens`}
+        description={`Excluir ${selected.size} item(ns)? Essa ação não pode ser desfeita.`}
+        onConfirm={async () => {
+          const failures: string[] = []
+          for (const item of allItems.filter((entry) =>
+            selected.has(`${entry.type}-${entry.id}`),
+          )) {
+            try {
+              if (item.task && !item.task.permissions.delete)
+                throw new Error('Sem permissão')
+              if (item.type === 'task') await removeTask(item.id)
+              else {
+                await removeAgendaItem(item.id)
+                setItems((current) =>
+                  current.filter((entry) => entry.id !== item.id),
+                )
+              }
+              setSelected((current) => {
+                const next = new Set(current)
+                next.delete(`${item.type}-${item.id}`)
+                return next
+              })
+            } catch {
+              failures.push(item.title)
+            }
+          }
+          if (failures.length)
+            throw new Error(
+              `Não foi possível excluir: ${failures.join(', ')}. Os demais itens foram excluídos.`,
+            )
+          cancelSelection()
+        }}
+      />
       {!searchOpen ? (
         <section
           aria-label="Semana"
@@ -300,7 +509,7 @@ export function AgendaPage() {
           <div className="grid grid-cols-7 gap-1 sm:gap-2">
             {weekDays.map((day) => {
               const selected = sameDay(day, selectedDay)
-              const count = allItems.filter((item) =>
+              const count = visibleItems.filter((item) =>
                 overlapsDay(item.startDate, item.endDate, day),
               ).length
               return (
@@ -378,7 +587,9 @@ export function AgendaPage() {
         </p>
       ) : null}
 
-      {searchOpen && query.trim() ? (
+      {loading || tasksLoading ? (
+        <AgendaSkeleton />
+      ) : searchOpen && query.trim() ? (
         <section className="grid gap-3" aria-live="polite">
           <SectionTitle>
             Resultados da pesquisa ({matchingItems.length})
@@ -389,7 +600,7 @@ export function AgendaPage() {
                 <AgendaCard
                   key={`${item.type}-${item.id}`}
                   item={item}
-                  onSelect={() => setDetails(item)}
+                  {...cardProps(item)}
                 />
               ))}
             </div>
@@ -424,15 +635,13 @@ export function AgendaPage() {
               </MutedText>
             </div>
           </div>
-          {loading ? (
-            <MutedText>Carregando agenda...</MutedText>
-          ) : dayItems.length ? (
+          {dayItems.length ? (
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-3 sm:grid-cols-2">
               {dayItems.map((item) => (
                 <AgendaCard
                   key={`${item.type}-${item.id}`}
                   item={item}
-                  onSelect={() => setDetails(item)}
+                  {...cardProps(item)}
                 />
               ))}
             </div>
@@ -442,7 +651,7 @@ export function AgendaPage() {
         </section>
       )}
 
-      {!searchOpen && unscheduledItems.length ? (
+      {!loading && !tasksLoading && !searchOpen && unscheduledItems.length ? (
         <section aria-label="Tarefas sem data" className="grid gap-3">
           <SectionTitle>Sem data</SectionTitle>
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-3 sm:grid-cols-2">
@@ -450,7 +659,7 @@ export function AgendaPage() {
               <AgendaCard
                 key={`${item.type}-${item.id}`}
                 item={item}
-                onSelect={() => setDetails(item)}
+                {...cardProps(item)}
               />
             ))}
           </div>
@@ -495,20 +704,102 @@ export function AgendaPage() {
   )
 }
 
+function AgendaSkeleton() {
+  return (
+    <section
+      role="status"
+      aria-label="Carregando agenda"
+      className="grid gap-3"
+    >
+      <span className="sr-only">Carregando agenda...</span>
+      <div aria-hidden="true" className="grid gap-3 sm:grid-cols-2">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div
+            key={index}
+            className="grid gap-3 rounded-2xl border bg-card p-4"
+          >
+            <Skeleton className="h-5 w-3/4" />
+            <Skeleton className="h-4 w-1/3" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function AgendaCard({
   item,
   onSelect,
+  onLongPress,
+  selectionMode,
+  selected,
 }: {
+  onLongPress: () => void
+  selectionMode: boolean
+  selected: boolean
   item: ReturnType<typeof normalizeItem>
   onSelect: () => void
 }) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const origin = useRef({ x: 0, y: 0 })
+  const held = useRef(false)
+  const canSelect = !item.task || item.task.permissions.delete
+  const cancelHold = () => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = null
+  }
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current)
+    },
+    [],
+  )
+  const interactions = {
+    'aria-pressed': selectionMode ? selected : undefined,
+    disabled: selectionMode && !canSelect,
+    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (event.button !== 0 || !canSelect) return
+      held.current = false
+      origin.current = { x: event.clientX, y: event.clientY }
+      cancelHold()
+      timer.current = setTimeout(() => {
+        held.current = true
+        onLongPress()
+      }, 500)
+    },
+    onPointerMove: (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (
+        Math.hypot(
+          event.clientX - origin.current.x,
+          event.clientY - origin.current.y,
+        ) > 10
+      )
+        cancelHold()
+    },
+    onPointerUp: cancelHold,
+    onPointerCancel: cancelHold,
+    onPointerLeave: cancelHold,
+    onContextMenu: (event: React.MouseEvent) => event.preventDefault(),
+    onClick: () => {
+      if (held.current) {
+        held.current = false
+        return
+      }
+      onSelect()
+    },
+  }
+  const selectionClass = selected ? 'ring-2 ring-primary' : ''
   if (item.type === 'task' && item.task) {
     return (
       <button
         type="button"
-        onClick={onSelect}
+        {...interactions}
         className={cn(
           taskSummaryClassName,
+          selectionClass,
+          'select-none',
           'text-left transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         )}
       >
@@ -534,8 +825,10 @@ function AgendaCard({
       className={cn(
         'surface-card grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 rounded-2xl border p-4 text-left transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         status?.card ?? 'bg-card hover:border-primary/40',
+        selectionClass,
+        'select-none',
       )}
-      onClick={onSelect}
+      {...interactions}
     >
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
         <div className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)] items-center gap-2">

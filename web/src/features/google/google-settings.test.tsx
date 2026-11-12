@@ -66,7 +66,7 @@ it('saves automatic sync preferences and lists recent link states', async () => 
   await user.click(
     await screen.findByRole('button', { name: 'Histórico de sincronização' }),
   )
-  expect(await screen.findByText('Pendente')).toBeVisible()
+  expect(await screen.findByText(/^Pendente(?:\s|$)/)).toBeVisible()
   expect(screen.getByText('Tarefa')).toBeVisible()
   await user.click(screen.getByRole('button', { name: 'Voltar' }))
   await user.click(

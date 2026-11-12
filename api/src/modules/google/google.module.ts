@@ -136,6 +136,11 @@ export class GoogleController {
     return this.outbound.calendars(user.id)
   }
 
+  @Get('calendar-links')
+  calendarLinks(@CurrentUser() user: Identity) {
+    return this.outbound.calendarLinks(user.id)
+  }
+
   @Get('tasklists')
   tasklists(@CurrentUser() user: Identity) {
     return this.outbound.tasklists(user.id)
