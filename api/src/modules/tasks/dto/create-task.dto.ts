@@ -35,10 +35,15 @@ export class CreateTaskDto extends ReminderOptionsDto {
   @MaxLength(2000)
   description?: string
 
+  @ValidateIf((dto: CreateTaskDto) => !dto.categoryId)
   @IsString()
   @IsNotEmpty()
   @MaxLength(40)
-  category: string
+  category?: string
+
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string
 
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsEnum(TaskPriority)

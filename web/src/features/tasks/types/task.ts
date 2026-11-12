@@ -25,6 +25,7 @@ export type Task = {
   title: string
   description: string | null
   category: string
+  categoryId?: string | null
   priority: TaskPriority
   color: TaskColor
   dueDate: string | null
@@ -47,6 +48,7 @@ export type TaskInput = {
   title: string
   description?: string
   category: string
+  categoryId?: string
   priority: TaskPriority
   color: TaskColor
   dueDate?: string | null

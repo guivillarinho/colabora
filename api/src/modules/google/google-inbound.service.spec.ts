@@ -6,7 +6,13 @@ const entity = '22222222-2222-4222-8222-222222222222'
 function setup() {
   const source = { query: jest.fn().mockResolvedValue([]) }
   const google = { authorized: jest.fn().mockResolvedValue('access') }
-  const tasks = { listUpdated: jest.fn() }
+  const tasks = {
+    listUpdated: jest.fn(),
+    listLists: jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [{ id: '@default', title: 'Padrão' }] }),
+    }),
+  }
   const calendar = { listEvents: jest.fn() }
   const service = new GoogleInboundService(
     source as never,

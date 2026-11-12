@@ -19,6 +19,8 @@ import { TaskPriority } from './task-priority.enum'
 import { TaskStatus } from './task-status.enum'
 import { CreateTaskDto } from './dto/create-task.dto'
 import { UpdateTaskDto } from './dto/update-task.dto'
+import { GoogleSyncOrchestrator } from '../google/google-sync.orchestrator'
+import { TaskCategoriesService } from './task-categories.service'
 import { TasksService } from './tasks.service'
 
 const taskId = '7d7f0a4e-6c2b-4f1a-9d3e-1b2c3d4e5f60'
@@ -73,10 +75,33 @@ describe('TasksService', () => {
           useValue: repository,
         },
         {
+          provide: TaskCategoriesService,
+          useValue: {
+            resolveForTask: jest
+              .fn()
+              .mockImplementation(
+                async (
+                  _owner: string,
+                  _categoryId: string | undefined,
+                  category?: string,
+                  color?: string,
+                ) => ({
+                  categoryId: 'cat-1',
+                  name: category?.trim() || 'Pessoal',
+                  color: color || 'blue',
+                }),
+              ),
+          },
+        },
+        {
           provide: ConfigService,
           useValue: {
             get: jest.fn().mockReturnValue('20'),
           },
+        },
+        {
+          provide: GoogleSyncOrchestrator,
+          useValue: { enqueue: jest.fn() },
         },
       ],
     }).compile()

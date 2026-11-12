@@ -1,5 +1,12 @@
 # Colabora — progresso
 
+## 2026-11-12 — Categorias ↔ Google Tasks (catálogo 1:1)
+
+- **Código:** migração `1796000000000-task-categories.ts`, CRUD `/api/task-categories`, sync de listas (`push/update/delete-category-list`, `pull-task-lists`, `move-task-list`), formulário de tarefa e perfil Google atualizados. Plano: `docs/GOOGLE_TASKS_CATEGORIES_PLAN.md`.
+- **Testes:** unitários de categorias, client Tasks e suítes existentes; e2e com Google mockado após `docker compose -f docker-compose.test.yml up`.
+- **Produção (Fase 0):** ainda faltam `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `GOOGLE_ENABLED=true` na Vercel Production — ver checklist em `docs/GOOGLE_TASKS_CATEGORIES_PLAN.md` § Fase 0.
+- **Homologação real (Fase 5):** automatizada com mocks; roteiro manual de listas/tarefas nos dois lados aguarda OAuth em produção.
+
 ## 2026-11-11 — Google Agenda bidirecional (código local)
 
 - **Etapa:** evolução da E12 documentada em `docs/GOOGLE_AGENDA_SYNC_PLAN.md`. Tarefas com prazo vão para a Google Tasks API; eventos e projetos vão para Calendar Events. O calendário entra por watch/webhook; tarefas voltam por poll, porque a Tasks API não tem push. `autoSync` e `inboundEnabled` nascem desligados. Escopos passam a incluir `calendar.events` e `tasks`; quem vinculou antes precisa reconectar.

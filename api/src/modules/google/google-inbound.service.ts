@@ -84,14 +84,106 @@ export class GoogleInboundService {
     }
   }
 
+  async pullTaskLists(ownerId: string) {
+    const prefs = await this.preferences(ownerId)
+    if (!prefs?.inboundEnabled) return
+    const access = await this.google.authorized(ownerId)
+    const response = await this.tasks.listLists(access)
+    if (!response.ok) throw new Error('Tasks')
+    const body = (await response.json()) as {
+      items?: Array<{ id?: string; title?: string; etag?: string }>
+    }
+    const remote = body.items ?? []
+    const local = (await this.source.query(
+      `SELECT id,name,"googleListId","googleEtag","syncState","updatedAt" FROM task_categories
+       WHERE "ownerId"=$1 AND "deletedAt" IS NULL`,
+      [ownerId],
+    )) as Array<{
+      id: string
+      name: string
+      googleListId: string | null
+      googleEtag: string | null
+      syncState: string
+      updatedAt: Date
+    }>
+    const byListId = new Map(
+      local
+        .filter((row) => row.googleListId)
+        .map((row) => [row.googleListId as string, row]),
+    )
+    const byName = new Map(
+      local.map((row) => [row.name.trim().toLowerCase(), row]),
+    )
+    for (const list of remote) {
+      if (!list.id) continue
+      const title = (list.title || '').trim().slice(0, 40)
+      if (!title) continue
+      const existing = byListId.get(list.id) ?? byName.get(title.toLowerCase())
+      if (!existing) {
+        await this.source.query(
+          `INSERT INTO task_categories (id,"ownerId",name,color,"googleListId","googleEtag","syncState")
+           VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,'synced')`,
+          [ownerId, title, colorFromName(title), list.id, list.etag ?? null],
+        )
+        continue
+      }
+      if (
+        existing.googleListId === list.id &&
+        existing.name !== title &&
+        existing.syncState !== 'conflict'
+      ) {
+        await this.source.query(
+          `UPDATE task_categories SET name=$3,"googleEtag"=$4,"syncState"='synced',"updatedAt"=now()
+           WHERE id=$1 AND "ownerId"=$2`,
+          [existing.id, ownerId, title, list.etag ?? null],
+        )
+        await this.source.query(
+          `UPDATE tasks SET category=$3 WHERE "createdById"=$1 AND "categoryId"=$2`,
+          [ownerId, existing.id, title],
+        )
+      } else if (!existing.googleListId) {
+        await this.source.query(
+          `UPDATE task_categories SET "googleListId"=$3,"googleEtag"=$4,"syncState"='synced',"updatedAt"=now()
+           WHERE id=$1 AND "ownerId"=$2`,
+          [existing.id, ownerId, list.id, list.etag ?? null],
+        )
+      }
+    }
+    for (const row of local) {
+      if (!row.googleListId) continue
+      if (!remote.some((item) => item.id === row.googleListId)) {
+        await this.source.query(
+          `UPDATE task_categories SET "deletedAt"=now(),"syncState"='synced' WHERE id=$1 AND "ownerId"=$2`,
+          [row.id, ownerId],
+        )
+      }
+    }
+  }
+
   async pullTasks(ownerId: string) {
     const prefs = await this.preferences(ownerId)
     if (!prefs?.inboundEnabled) return
     const access = await this.google.authorized(ownerId)
-    const lists = new Set([
-      '@default',
-      ...Object.values(prefs.categoryTaskListMap),
-    ])
+    const listResponse = await this.tasks.listLists(access)
+    const listBody = listResponse.ok
+      ? ((await listResponse.json()) as {
+          items?: Array<{ id?: string }>
+        })
+      : { items: [] }
+    const lists = new Set<string>(['@default'])
+    for (const item of listBody.items ?? []) {
+      if (item.id) lists.add(item.id)
+    }
+    for (const id of Object.values(prefs.categoryTaskListMap)) {
+      if (id) lists.add(id)
+    }
+    const categoryRows = await this.source.query(
+      `SELECT "googleListId" FROM task_categories WHERE "ownerId"=$1 AND "deletedAt" IS NULL AND "googleListId" IS NOT NULL`,
+      [ownerId],
+    )
+    for (const row of categoryRows) {
+      if (row.googleListId) lists.add(row.googleListId)
+    }
     const cursor = await this.source.query(
       'SELECT "tasksPolledAt" FROM google_connections WHERE "ownerId"=$1',
       [ownerId],
@@ -203,8 +295,15 @@ export class GoogleInboundService {
     }
     const revision = new Date()
     const completed = item.status === 'completed'
+    const categoryRows = await this.source.query(
+      `SELECT id,name,color FROM task_categories WHERE "ownerId"=$1 AND "googleListId"=$2 AND "deletedAt" IS NULL`,
+      [ownerId, listId],
+    )
+    const category = categoryRows[0] as
+      { id: string; name: string; color: string } | undefined
     await this.source.query(
-      `UPDATE tasks SET title=$3, description=$4, "dueDate"=$5, status=$6, "completedAt"=$7, "updatedAt"=$8
+      `UPDATE tasks SET title=$3, description=$4, "dueDate"=$5, status=$6, "completedAt"=$7, "updatedAt"=$8,
+       "categoryId"=COALESCE($9,"categoryId"), category=COALESCE($10,category), color=COALESCE($11,color)
        WHERE id=$1 AND "createdById"=$2`,
       [
         entityId,
@@ -215,6 +314,9 @@ export class GoogleInboundService {
         completed ? TaskStatus.Completed : TaskStatus.Pending,
         completed ? revision : null,
         revision,
+        category?.id ?? null,
+        category?.name ?? null,
+        category?.color ?? null,
       ],
     )
     await this.saveLink({
@@ -376,4 +478,14 @@ function textOrNull(value: unknown) {
 
 function stringOrNull(value: unknown) {
   return typeof value === 'string' ? value : null
+}
+
+const palette = ['blue', 'yellow', 'purple', 'green', 'orange', 'red'] as const
+
+function colorFromName(name: string) {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash + name.charCodeAt(i)) % palette.length
+  }
+  return palette[hash]
 }

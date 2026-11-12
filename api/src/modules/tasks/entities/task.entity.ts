@@ -46,6 +46,9 @@ export class Task {
   @Column({ type: 'varchar', length: 40 })
   category: string
 
+  @Column({ type: 'uuid', nullable: true })
+  categoryId: string | null
+
   @Column({ type: 'varchar', length: 20, default: TaskPriority.Medium })
   priority: TaskPriority
 

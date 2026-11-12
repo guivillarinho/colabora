@@ -28,6 +28,7 @@ import {
   taskReminderOffsets,
 } from '../notifications/notifications.service'
 import { GoogleSyncOrchestrator } from '../google/google-sync.orchestrator'
+import { TaskCategoriesService } from './task-categories.service'
 
 export type TaskView = Omit<Task, 'createdBy' | 'assignedTo'> & {
   createdBy: ReturnType<typeof person>
@@ -54,6 +55,7 @@ export class TasksService {
     private readonly users: UsersService,
     private readonly attachments: AttachmentsService,
     private readonly notifications: NotificationsService,
+    private readonly taskCategories: TaskCategoriesService,
     @Optional()
     @Inject(forwardRef(() => GoogleSyncOrchestrator))
     private readonly googleSync?: GoogleSyncOrchestrator,
@@ -130,13 +132,20 @@ export class TasksService {
       )
     const dueDate = dto.dueDate ? new Date(dto.dueDate) : null
     validateReminderTimes(dueDate, dto.reminderOffsets)
+    const resolved = await this.taskCategories.resolveForTask(
+      actor,
+      dto.categoryId,
+      dto.category,
+      dto.color,
+    )
     const entity = this.tasksRepository.create({
       ...(id ? { id } : {}),
       title: dto.title.trim(),
       description: emptyToNull(dto.description),
-      category: dto.category.trim(),
+      category: resolved.name,
+      categoryId: resolved.categoryId,
       priority: dto.priority ?? TaskPriority.Medium,
-      color: dto.color,
+      color: resolved.color,
       dueDate,
       reminderOffsets: dto.reminderOffsets ?? null,
       location: emptyToNull(dto.location),
@@ -200,9 +209,22 @@ export class TasksService {
     if (dto.title !== undefined) changes.title = dto.title.trim()
     if (dto.description !== undefined)
       changes.description = emptyToNull(dto.description)
-    if (dto.category !== undefined) changes.category = dto.category.trim()
+    let categoryChanged = false
+    if (dto.categoryId !== undefined || dto.category !== undefined) {
+      const resolved = await this.taskCategories.resolveForTask(
+        actor,
+        dto.categoryId,
+        dto.category ?? task.category,
+        dto.color ?? task.color,
+      )
+      changes.category = resolved.name
+      changes.categoryId = resolved.categoryId
+      changes.color = resolved.color
+      categoryChanged = resolved.categoryId !== task.categoryId
+    } else if (dto.color !== undefined) {
+      changes.color = dto.color
+    }
     if (dto.priority !== undefined) changes.priority = dto.priority
-    if (dto.color !== undefined) changes.color = dto.color
     if (dto.dueDate !== undefined)
       changes.dueDate = dto.dueDate ? new Date(dto.dueDate) : null
     if (dto.reminderOffsets !== undefined) {
@@ -246,7 +268,11 @@ export class TasksService {
         updated.title,
       )
     }
-    if (!dto.syncOptOut) await this.mirror(actor, 'push-task', { taskId: id })
+    if (!dto.syncOptOut) {
+      if (categoryChanged)
+        await this.mirror(actor, 'move-task-list', { taskId: id })
+      else await this.mirror(actor, 'push-task', { taskId: id })
+    }
     return this.findOne(id, actor)
   }
 

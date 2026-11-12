@@ -179,12 +179,21 @@ it('creates a new Google Tasks list when the category does not exist and maps it
           preferences: { autoSync: true, categoryTaskListMap: {} },
         },
       ]
+    if (String(sql).includes('FROM task_categories'))
+      return [
+        {
+          googleListId: null,
+          name: 'Faculdade',
+          syncState: 'pending',
+        },
+      ]
     if (String(sql).includes('FROM tasks'))
       return [
         {
           id: taskId,
           title: 'Trabalho de Redes',
           category: 'Faculdade',
+          categoryId: 'cat-faculdade',
           dueDate: '2026-11-06T12:00:00.000Z',
           status: 'pending',
           updatedAt: new Date(),

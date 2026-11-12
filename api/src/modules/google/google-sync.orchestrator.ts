@@ -51,7 +51,11 @@ export class GoogleSyncOrchestrator {
     if (!prefs) return
     if (operation.startsWith('pull') && !prefs.inboundEnabled) return
     if (operation === 'ensure-watch' && !prefs.inboundEnabled) return
-    if (operation.startsWith('push') && !prefs.autoSync) return
+    const needsAutoSync =
+      operation.startsWith('push') ||
+      operation === 'move-task-list' ||
+      operation.endsWith('-category-list')
+    if (needsAutoSync && !prefs.autoSync) return
     if (operation.startsWith('delete')) {
       const link = await this.link(
         ownerId,
@@ -173,6 +177,7 @@ export class GoogleSyncOrchestrator {
     for (const row of rows) {
       if (!googlePreferences(row.preferences).inboundEnabled) continue
       await this.enqueue(row.ownerId, 'pull-tasks', {})
+      await this.enqueue(row.ownerId, 'pull-task-lists', {})
     }
   }
 
@@ -194,6 +199,16 @@ export class GoogleSyncOrchestrator {
       )
     else if (row.operation === 'pull-tasks')
       await this.inbound.pullTasks(row.ownerId)
+    else if (row.operation === 'pull-task-lists')
+      await this.inbound.pullTaskLists(row.ownerId)
+    else if (row.operation === 'push-category-list')
+      await this.pushCategoryList(row.ownerId, payload.categoryId)
+    else if (row.operation === 'update-category-list')
+      await this.updateCategoryList(row.ownerId, payload.categoryId)
+    else if (row.operation === 'delete-category-list')
+      await this.deleteCategoryList(row.ownerId, payload.categoryId)
+    else if (row.operation === 'move-task-list')
+      await this.moveTaskList(row.ownerId, payload.taskId)
     else if (row.operation === 'ensure-watch')
       await this.ensureWatch(row.ownerId)
   }
@@ -212,8 +227,9 @@ export class GoogleSyncOrchestrator {
         existing.googleResourceId,
       )
     }
-    const listId = await this.resolveTaskListId(
+    const listId = await this.resolveListIdForCategory(
       ownerId,
+      task.categoryId,
       task.category,
       prefs,
       access,
@@ -245,50 +261,160 @@ export class GoogleSyncOrchestrator {
     )
   }
 
-  private async resolveTaskListId(
+  private async resolveListIdForCategory(
     ownerId: string,
-    category: string | null | undefined,
+    categoryId: string | null | undefined,
+    categoryName: string | null | undefined,
     prefs: GooglePreferences,
     access: string,
   ): Promise<string> {
-    const trimmed = (category || '').trim()
-    if (!trimmed) return '@default'
-
-    if (prefs.categoryTaskListMap[trimmed]) {
-      return prefs.categoryTaskListMap[trimmed]
-    }
-    for (const [name, id] of Object.entries(prefs.categoryTaskListMap)) {
-      if (name.toLowerCase() === trimmed.toLowerCase()) {
-        return id
-      }
-    }
-
-    try {
-      const lists = await this.tasklists(ownerId)
-      const matched = lists.find(
-        (list) =>
-          (list.title || '').trim().toLowerCase() === trimmed.toLowerCase(),
+    if (categoryId) {
+      const rows = await this.source.query(
+        `SELECT "googleListId",name,"syncState" FROM task_categories
+         WHERE id=$1 AND "ownerId"=$2 AND "deletedAt" IS NULL`,
+        [categoryId, ownerId],
       )
-      if (matched) {
-        prefs.categoryTaskListMap[trimmed] = matched.id
-        await this.savePreferences(ownerId, prefs).catch(() => undefined)
-        return matched.id
-      }
-
-      const createResponse = await this.tasks.createList(access, trimmed)
-      if (createResponse.ok) {
-        const body = (await createResponse.json()) as { id?: string }
-        if (body.id) {
-          prefs.categoryTaskListMap[trimmed] = body.id
-          await this.savePreferences(ownerId, prefs).catch(() => undefined)
-          return body.id
+      const row = rows[0] as
+        { googleListId?: string; name?: string; syncState?: string } | undefined
+      if (row?.googleListId) return row.googleListId
+      if (row?.name) {
+        const created = await this.tasks.createList(access, row.name)
+        if (created.ok) {
+          const body = (await created.json()) as { id?: string; etag?: string }
+          if (body.id) {
+            await this.source.query(
+              `UPDATE task_categories SET "googleListId"=$3,"googleEtag"=$4,"syncState"='synced',"updatedAt"=now()
+               WHERE id=$1 AND "ownerId"=$2`,
+              [categoryId, ownerId, body.id, body.etag ?? null],
+            )
+            return body.id
+          }
         }
       }
-    } catch {
-      // Falha ao listar ou criar lista: fallback seguro para lista padrão
     }
 
+    const trimmed = (categoryName || '').trim()
+    if (!trimmed) return '@default'
+
+    if (prefs.categoryTaskListMap[trimmed])
+      return prefs.categoryTaskListMap[trimmed]
+    for (const [name, id] of Object.entries(prefs.categoryTaskListMap)) {
+      if (name.toLowerCase() === trimmed.toLowerCase()) return id
+    }
+
+    const lists = await this.tasklists(ownerId)
+    const matched = lists.find(
+      (list) =>
+        (list.title || '').trim().toLowerCase() === trimmed.toLowerCase(),
+    )
+    if (matched?.id) return matched.id
+
     return '@default'
+  }
+
+  private async pushCategoryList(ownerId: string, categoryId: string) {
+    const rows = await this.source.query(
+      `SELECT name,"googleListId" FROM task_categories WHERE id=$1 AND "ownerId"=$2 AND "deletedAt" IS NULL`,
+      [categoryId, ownerId],
+    )
+    const row = rows[0] as { name?: string; googleListId?: string } | undefined
+    if (!row?.name) return
+    if (row.googleListId) return
+    const access = await this.google.authorized(ownerId)
+    const response = await this.tasks.createList(access, row.name)
+    if (!response.ok) throw new Error('Tasks')
+    const body = (await response.json()) as { id?: string; etag?: string }
+    if (!body.id) throw new Error('Tasks')
+    await this.source.query(
+      `UPDATE task_categories SET "googleListId"=$3,"googleEtag"=$4,"syncState"='synced',"updatedAt"=now()
+       WHERE id=$1 AND "ownerId"=$2`,
+      [categoryId, ownerId, body.id, body.etag ?? null],
+    )
+  }
+
+  private async updateCategoryList(ownerId: string, categoryId: string) {
+    const rows = await this.source.query(
+      `SELECT name,"googleListId" FROM task_categories WHERE id=$1 AND "ownerId"=$2 AND "deletedAt" IS NULL`,
+      [categoryId, ownerId],
+    )
+    const row = rows[0] as { name?: string; googleListId?: string } | undefined
+    if (!row?.name) return
+    const access = await this.google.authorized(ownerId)
+    let listId = row.googleListId ?? null
+    if (!listId) {
+      await this.pushCategoryList(ownerId, categoryId)
+      const again = await this.source.query(
+        `SELECT "googleListId" FROM task_categories WHERE id=$1 AND "ownerId"=$2`,
+        [categoryId, ownerId],
+      )
+      listId = again[0]?.googleListId ?? null
+    }
+    if (!listId) return
+    const response = await this.tasks.patchList(access, listId, row.name)
+    if (!response.ok) throw new Error('Tasks')
+    const body = (await response.json()) as { etag?: string }
+    await this.source.query(
+      `UPDATE task_categories SET "googleEtag"=$3,"syncState"='synced',"updatedAt"=now() WHERE id=$1 AND "ownerId"=$2`,
+      [categoryId, ownerId, body.etag ?? null],
+    )
+  }
+
+  private async deleteCategoryList(ownerId: string, categoryId: string) {
+    const rows = await this.source.query(
+      `SELECT "googleListId" FROM task_categories WHERE id=$1 AND "ownerId"=$2`,
+      [categoryId, ownerId],
+    )
+    const listId = rows[0]?.googleListId as string | undefined
+    if (!listId) return
+    const access = await this.google.authorized(ownerId)
+    const response = await this.tasks.deleteList(access, listId)
+    if (!response.ok && response.status !== 404) throw new Error('Tasks')
+  }
+
+  private async moveTaskList(ownerId: string, taskId: string) {
+    const task = await this.task(taskId, ownerId)
+    if (!task?.dueDate || !task.categoryId) {
+      await this.pushTask(ownerId, taskId)
+      return
+    }
+    const prefs = await this.preferences(ownerId)
+    if (!prefs) return
+    const access = await this.google.authorized(ownerId)
+    const link = await this.link(ownerId, 'task', taskId)
+    if (!link || link.googleKind !== 'task') {
+      await this.pushTask(ownerId, taskId)
+      return
+    }
+    const fromList = link.googleCalendarId || '@default'
+    const toList = await this.resolveListIdForCategory(
+      ownerId,
+      task.categoryId,
+      task.category,
+      prefs,
+      access,
+    )
+    if (fromList === toList) {
+      await this.pushTask(ownerId, taskId)
+      return
+    }
+    const response = await this.tasks.move(
+      access,
+      fromList,
+      link.googleResourceId,
+      toList,
+    )
+    if (!response.ok) throw new Error('Tasks')
+    const body = (await response.json()) as { etag?: string }
+    await this.saveLink(
+      ownerId,
+      'task',
+      task.id,
+      'task',
+      link.googleResourceId,
+      toList,
+      body.etag ?? null,
+      task.updatedAt,
+    )
   }
 
   private async pushAgenda(ownerId: string, agendaId: string) {

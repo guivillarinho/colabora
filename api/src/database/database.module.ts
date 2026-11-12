@@ -1,3 +1,4 @@
+import { TaskCategories1796000000000 } from './migrations/1796000000000-task-categories'
 import { GoogleSyncV21795000000000 } from './migrations/1795000000000-google-sync-v2'
 import { ConfigurableReminders1794441600000 } from './migrations/1794441600000-configurable-reminders'
 import { AccountPreferences1794355200000 } from './migrations/1794355200000-account-preferences'
@@ -55,6 +56,7 @@ import { databaseSchema } from './schema'
           AccountPreferences1794355200000,
           ConfigurableReminders1794441600000,
           GoogleSyncV21795000000000,
+          TaskCategories1796000000000,
         ],
         migrationsRun: !process.env.VERCEL,
       }),

@@ -30,6 +30,20 @@ it('updates an existing Google Task and creates one when the id disappeared', as
   )
 })
 
+it('patches and deletes a Google Task list', async () => {
+  const client = new GoogleTasksClient()
+  jest
+    .mocked(fetch)
+    .mockResolvedValueOnce(response(200, { id: 'list-1', etag: '1' }))
+    .mockResolvedValueOnce(response(204))
+  const patch = await client.patchList('token', 'list-1', 'Renomeada')
+  const remove = await client.deleteList('token', 'list-1')
+  expect(patch.status).toBe(200)
+  expect(remove.status).toBe(204)
+  expect(jest.mocked(fetch).mock.calls[0][1]?.method).toBe('PATCH')
+  expect(jest.mocked(fetch).mock.calls[1][1]?.method).toBe('DELETE')
+})
+
 it('creates a new Google Task list', async () => {
   const client = new GoogleTasksClient()
   jest

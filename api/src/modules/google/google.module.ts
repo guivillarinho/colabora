@@ -137,11 +137,22 @@ export class GoogleController {
   }
 
   @Get('jobs/tick')
+  @Public()
+  @MachineRequest()
+  @HttpCode(200)
+  jobsGet(@Headers('authorization') authorization: string | undefined) {
+    return this.jobs(authorization)
+  }
+
   @Post('jobs/tick')
   @Public()
   @MachineRequest()
   @HttpCode(200)
-  jobs(@Headers('authorization') authorization: string | undefined) {
+  jobsPost(@Headers('authorization') authorization: string | undefined) {
+    return this.jobs(authorization)
+  }
+
+  private jobs(authorization: string | undefined) {
     const secret =
       this.config.get<string>('CRON_SECRET') ||
       this.config.get<string>('REMINDER_DISPATCH_SECRET')

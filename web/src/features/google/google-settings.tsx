@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
-import { taskCategories } from '@/features/tasks/task-categories'
+import {
+  fetchTaskCategories,
+  type ApiTaskCategory,
+} from '@/features/tasks/task-categories-api'
 import { Button } from '@/components/ui/button'
 import {
   defaultGooglePreferences,
@@ -7,7 +10,6 @@ import {
   googleConnect,
   googleDisconnect,
   googleStatus,
-  googleTasklists,
   saveGooglePreferences,
   type GooglePreferences,
   type GoogleStatus,
@@ -28,9 +30,7 @@ export function GoogleSettings() {
   const [calendars, setCalendars] = useState<
     Array<{ id: string; summary: string }>
   >([])
-  const [tasklists, setTasklists] = useState<
-    Array<{ id: string; title: string }>
-  >([])
+  const [catalog, setCatalog] = useState<ApiTaskCategory[]>([])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState(() => {
     const outcome = new URLSearchParams(window.location.search).get('google')
@@ -57,6 +57,13 @@ export function GoogleSettings() {
         if (!active) return
         setStatus(value)
         setPreferences(value.preferences ?? defaultGooglePreferences)
+        if (value.configured && value.status === 'connected') {
+          fetchTaskCategories()
+            .then((items) => {
+              if (active) setCatalog(items)
+            })
+            .catch(() => undefined)
+        }
       })
       .catch(() => {
         if (active)
@@ -94,13 +101,13 @@ export function GoogleSettings() {
         return
       }
       if (action === 'lists') {
-        const [calendarItems, listItems] = await Promise.all([
+        const [calendarItems, categoryItems] = await Promise.all([
           googleCalendars(),
-          googleTasklists(),
+          fetchTaskCategories(),
         ])
         setCalendars(calendarItems)
-        setTasklists(listItems)
-        setMessage('Calendários e listas carregados.')
+        setCatalog(categoryItems)
+        setMessage('Calendários e categorias carregados.')
         return
       }
       if (action === 'save') {
@@ -271,39 +278,19 @@ export function GoogleSettings() {
             )}
           </label>
           <Button type="button" variant="outline" onClick={() => act('lists')}>
-            Carregar calendários e listas
+            Carregar calendários e categorias
           </Button>
-          {tasklists.length ? (
-            <fieldset className="grid gap-2">
-              <legend className="text-sm font-medium">
-                Lista de tarefas por categoria
-              </legend>
-              {taskCategories.map((category) => (
-                <label key={category.name} className="grid gap-1 text-sm">
-                  {category.name}
-                  <select
-                    className="h-11 rounded-lg border bg-card px-3"
-                    value={preferences.categoryTaskListMap[category.name] ?? ''}
-                    onChange={(event) =>
-                      setPreferences((current) => ({
-                        ...current,
-                        categoryTaskListMap: {
-                          ...current.categoryTaskListMap,
-                          [category.name]: event.target.value,
-                        },
-                      }))
-                    }
-                  >
-                    <option value="">Lista padrão</option>
-                    {tasklists.map((list) => (
-                      <option key={list.id} value={list.id}>
-                        {list.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ))}
-            </fieldset>
+          {catalog.length ? (
+            <p className="text-sm text-muted-foreground">
+              {catalog.filter((item) => item.googleListId).length} de{' '}
+              {catalog.length} categorias com lista no Google Tasks. Estados:{' '}
+              {catalog.filter((item) => item.syncState === 'synced').length}{' '}
+              sincronizadas,{' '}
+              {catalog.filter((item) => item.syncState === 'pending').length}{' '}
+              pendentes,{' '}
+              {catalog.filter((item) => item.syncState === 'conflict').length}{' '}
+              em conflito.
+            </p>
           ) : null}
           <Button type="submit" disabled={busy}>
             Salvar sincronização

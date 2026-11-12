@@ -34,6 +34,38 @@ export class GoogleTasksClient {
     )
   }
 
+  patchList(token: string, listId: string, title: string) {
+    return this.request(
+      token,
+      `https://tasks.googleapis.com/tasks/v1/users/@me/lists/${encodeURIComponent(listId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ title }),
+      },
+    )
+  }
+
+  deleteList(token: string, listId: string) {
+    return this.request(
+      token,
+      `https://tasks.googleapis.com/tasks/v1/users/@me/lists/${encodeURIComponent(listId)}`,
+      { method: 'DELETE' },
+    )
+  }
+
+  move(
+    token: string,
+    fromListId: string,
+    taskId: string,
+    destinationListId: string,
+  ) {
+    const url = new URL(
+      `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(fromListId)}/tasks/${encodeURIComponent(taskId)}/move`,
+    )
+    url.searchParams.set('destinationTasklist', destinationListId)
+    return this.request(token, url.toString(), { method: 'POST' })
+  }
+
   listUpdated(token: string, listId: string, updatedMin?: string | null) {
     const url = new URL(
       `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(listId)}/tasks`,

@@ -138,20 +138,27 @@ export class AssistantService {
       task = await this.tasks.create(input, actor, id)
     } catch (error) {
       if (!isUniqueViolation(error)) throw error
-      try {
-        task = await this.tasks.findOne(id, actor)
-      } catch (lookup) {
-        if (!(lookup instanceof NotFoundException)) throw lookup
-        throw new ConflictException(
-          'A confirmação já está em andamento. Tente novamente.',
-        )
-      }
+      task = await this.waitForTask(id, actor)
     }
     await this.source.query(
       'UPDATE assistant_receipts SET completed=true WHERE id=$1',
       [id],
     )
     return task
+  }
+
+  private async waitForTask(id: string, actor: string) {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      try {
+        return await this.tasks.findOne(id, actor)
+      } catch (lookup) {
+        if (!(lookup instanceof NotFoundException)) throw lookup
+        await new Promise((resolve) => setTimeout(resolve, 40))
+      }
+    }
+    throw new ConflictException(
+      'A confirmação já está em andamento. Tente novamente.',
+    )
   }
 }
 

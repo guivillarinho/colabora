@@ -9,6 +9,10 @@ import { uploadAgendaFiles } from '@/features/dashboard/upload-agenda-files'
 import { tasksApi } from '../api/tasks-api'
 import { TasksProvider } from '../tasks-context'
 import type { Task } from '../types/task'
+import {
+  createTaskCategory,
+  fetchTaskCategories,
+} from '../task-categories-api'
 import { TaskFormDialog } from './task-form-dialog'
 
 jest.mock('@/features/dashboard/upload-agenda-files', () => ({
@@ -18,13 +22,39 @@ jest.mock('@/features/dashboard/upload-agenda-files', () => ({
 jest.mock('../api/tasks-api', () => ({
   tasksApi: { list: jest.fn(), create: jest.fn(), update: jest.fn() },
 }))
+jest.mock('../task-categories-api')
 const api = tasksApi as jest.Mocked<typeof tasksApi>
+
+const defaultCategories = [
+  {
+    id: 'cat-pessoal',
+    name: 'Pessoal',
+    color: 'blue' as const,
+    googleListId: null,
+    syncState: 'pending' as const,
+  },
+  {
+    id: 'cat-trabalho',
+    name: 'Trabalho',
+    color: 'red' as const,
+    googleListId: null,
+    syncState: 'pending' as const,
+  },
+]
 
 beforeEach(() => {
   jest.resetAllMocks()
   jest.useFakeTimers({ now: new Date(2026, 10, 4, 8) })
   api.list.mockResolvedValue([])
   api.create.mockResolvedValue({ ...taskAccess, id: 'new-task' } as Task)
+  jest.mocked(fetchTaskCategories).mockResolvedValue(defaultCategories)
+  jest.mocked(createTaskCategory).mockResolvedValue({
+    id: 'cat-faculdade',
+    name: 'Faculdade',
+    color: 'yellow',
+    googleListId: null,
+    syncState: 'pending',
+  })
 })
 
 afterEach(() => jest.useRealTimers())
@@ -35,9 +65,9 @@ async function renderForm(task?: Task) {
       <TaskFormDialog open task={task} onOpenChange={() => undefined} />
     </TasksProvider>,
   )
-  await act(async () => {
-    await Promise.resolve()
-  })
+  await waitFor(() =>
+    expect(screen.getByRole('radio', { name: 'Pessoal' })).toBeInTheDocument(),
+  )
   return view
 }
 
@@ -320,7 +350,9 @@ it('allows creating a new custom category on the fly', async () => {
   const input = screen.getByPlaceholderText('Nome da lista...')
   await user.type(input, 'Faculdade')
   await user.click(screen.getByRole('button', { name: 'Criar' }))
-  expect(screen.getByRole('radio', { name: 'Faculdade' })).toBeChecked()
+  await waitFor(() =>
+    expect(screen.getByRole('radio', { name: 'Faculdade' })).toBeChecked(),
+  )
   await user.type(screen.getByLabelText('Título'), 'Trabalho de Redes')
   await user.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
   await waitFor(() =>

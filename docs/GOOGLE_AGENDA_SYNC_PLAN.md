@@ -69,7 +69,7 @@ Depois do commit, `TasksService` e `AgendaService` pedem um item na fila. O work
 | descrição | `notes`, com marca `[colabora:id]` |
 | `dueDate` | `due` |
 | concluída | `status=completed` |
-| categoria | lista em `categoryTaskListMap`, senão `@default` |
+| categoria | lista via `task_categories.googleListId` (1:1); legado `categoryTaskListMap` só migração |
 
 Eventos e projetos viram eventos com início, fim, local, descrição e `extendedProperties.private.colaboraEntityId` / `colaboraEntityType`. O id do evento é o SHA-256 de `colabora:{usuário}:{id}`, o mesmo critério estável da E12. A cor pastel vira um `colorId` do Google quando existe correspondência.
 

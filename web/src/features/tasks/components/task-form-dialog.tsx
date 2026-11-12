@@ -30,15 +30,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { isFutureReminder, ReminderField } from '@/components/reminder-field'
 import { GoogleSyncHint } from '@/features/google/google-sync-hint'
-import { googleStatus, googleTasklists } from '@/features/google/google-api'
+import {
+  createTaskCategory,
+  fetchTaskCategories,
+  type ApiTaskCategory,
+} from '../task-categories-api'
 import { showToast } from '@/lib/toast'
 import { cn } from 'cn'
 
-import {
-  categoryByName,
-  taskCategories,
-  type TaskCategory,
-} from '../task-categories'
+import { categoryByName, taskCategories } from '../task-categories'
 import { useTasks } from '../tasks-context'
 import type { Task, TaskInput, TaskPriority } from '../types/task'
 import { AttachmentField, persistedAttachment } from './attachment-field'
@@ -102,8 +102,8 @@ function TaskFormContent({
   const [saving, setSaving] = useState(false)
   const submitting = useRef(false)
   const [formError, setFormError] = useState<string | null>(null)
-  const [categoryName, setCategoryName] = useState(
-    categoryByName(task?.category).name,
+  const [categoryId, setCategoryId] = useState<string | null>(
+    task?.categoryId ?? null,
   )
   const [location, setLocation] = useState(task?.location ?? '')
   const [attachmentReference, setAttachmentReference] = useState<string | null>(
@@ -130,65 +130,76 @@ function TaskFormContent({
   const editing = Boolean(task)
   const fieldPrefix = task ? `edit-${task.id}` : 'create'
 
-  const [categories, setCategories] = useState<TaskCategory[]>(() => {
-    if (
-      task?.category &&
-      !taskCategories.some(
-        (c) => c.name.toLowerCase() === task.category.toLowerCase(),
-      )
-    ) {
-      return [...taskCategories, categoryByName(task.category)]
-    }
-    return taskCategories
-  })
+  const [categories, setCategories] = useState<ApiTaskCategory[]>([])
   const [creatingCategory, setCreatingCategory] = useState(false)
   const [newCategoryInput, setNewCategoryInput] = useState('')
 
   useEffect(() => {
     let active = true
     if (!open) return
-    googleStatus()
-      .then((status) => {
-        if (!active || !status.configured || status.status !== 'connected')
-          return
-        return googleTasklists().then((lists) => {
-          if (!active || !lists?.length) return
-          setCategories((current) => {
-            const names = new Set(current.map((c) => c.name.toLowerCase()))
-            const extra: TaskCategory[] = []
-            for (const item of lists) {
-              const itemTitle = (item.title || '').trim()
-              if (itemTitle && !names.has(itemTitle.toLowerCase())) {
-                names.add(itemTitle.toLowerCase())
-                extra.push(categoryByName(itemTitle))
-              }
-            }
-            return extra.length ? [...current, ...extra] : current
-          })
-        })
+    fetchTaskCategories()
+      .then((items) => {
+        if (!active) return
+        setCategories(items)
+        if (!categoryId && items[0]) setCategoryId(items[0].id)
+        if (task?.categoryId) setCategoryId(task.categoryId)
+        else if (task?.category) {
+          const match = items.find(
+            (item) => item.name.toLowerCase() === task.category.toLowerCase(),
+          )
+          if (match) setCategoryId(match.id)
+        }
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (!active) return
+        const fallback = taskCategories.map((item) => ({
+          id: item.name,
+          name: item.name,
+          color: item.color,
+          googleListId: null,
+          syncState: 'pending' as const,
+        }))
+        setCategories(fallback)
+        if (!categoryId && fallback[0]) setCategoryId(fallback[0].id)
+      })
     return () => {
       active = false
     }
-  }, [open])
+  }, [open, task?.category, task?.categoryId])
 
-  const selectedCategory = categoryByName(categoryName, categories)
+  const selectedCategory = categories.find((item) => item.id === categoryId) ?? {
+    id: '',
+    name: task?.category ?? taskCategories[0].name,
+    color: categoryByName(task?.category).color,
+    googleListId: null,
+    syncState: 'pending' as const,
+  }
 
-  function handleCreateCategory() {
+  async function handleCreateCategory() {
     const trimmed = newCategoryInput.trim()
     if (!trimmed) {
       setCreatingCategory(false)
       return
     }
-    const cat = categoryByName(trimmed, categories)
-    setCategories((current) => {
-      if (current.some((c) => c.name.toLowerCase() === trimmed.toLowerCase())) {
-        return current
-      }
-      return [...current, cat]
-    })
-    setCategoryName(cat.name)
+  const color = categoryByName(trimmed).color
+    try {
+      const created = await createTaskCategory({ name: trimmed, color })
+      setCategories((current) => [...current, created])
+      setCategoryId(created.id)
+    } catch {
+      const fallback = categoryByName(trimmed, categories)
+      setCategories((current) => [
+        ...current,
+        {
+          id: fallback.name,
+          name: fallback.name,
+          color: fallback.color,
+          googleListId: null,
+          syncState: 'pending',
+        },
+      ])
+      setCategoryId(fallback.name)
+    }
     setCreatingCategory(false)
     setNewCategoryInput('')
   }
@@ -200,7 +211,7 @@ function TaskFormContent({
     setAssignee(
       task ? task.assignedTo : user ? { id: user.id, name: user.name } : null,
     )
-    setCategoryName(categoryByName(task?.category).name)
+    setCategoryId(task?.categoryId ?? null)
     setLocation(task?.location ?? '')
     setAttachmentReference(persistedAttachment(task?.attachments[0]))
     setAttachmentPending(false)
@@ -288,6 +299,9 @@ function TaskFormContent({
       title,
       description: String(formData.get('description') ?? '').trim(),
       category: selectedCategory.name,
+      ...(uuidLike(selectedCategory.id)
+        ? { categoryId: selectedCategory.id }
+        : {}),
       priority: String(formData.get('priority') ?? 'medium') as TaskPriority,
       color: selectedCategory.color,
       estimatedTime,
@@ -477,23 +491,20 @@ function TaskFormContent({
 
                   return (
                     <label
-                      key={category.name}
+                      key={category.id}
                       className={cn(
                         'relative cursor-pointer rounded-full px-3 py-1 text-sm font-medium opacity-45 ring-2 ring-transparent ring-offset-2 ring-offset-popover transition has-[:checked]:opacity-100 has-[:checked]:ring-foreground',
                         swatch?.className,
                       )}
                     >
                       <input
-                        checked={
-                          categoryName.toLowerCase() ===
-                          category.name.toLowerCase()
-                        }
+                        checked={categoryId === category.id}
                         className="absolute inset-0 cursor-pointer opacity-0"
                         name="category"
                         type="radio"
-                        value={category.name}
+                        value={category.id}
                         onChange={() => {
-                          setCategoryName(category.name)
+                          setCategoryId(category.id)
                         }}
                       />
                       {category.name}
@@ -522,7 +533,9 @@ function TaskFormContent({
                     <button
                       type="button"
                       className="h-8 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground transition hover:opacity-90"
-                      onClick={handleCreateCategory}
+                      onClick={() => {
+                        void handleCreateCategory()
+                      }}
                     >
                       Criar
                     </button>
@@ -639,6 +652,10 @@ function TaskFormContent({
       </DialogContent>
     </Dialog>
   )
+}
+
+function uuidLike(value: string) {
+  return /^[0-9a-f-]{36}$/i.test(value)
 }
 
 function toDateTimeLocal(iso: string | null): string {

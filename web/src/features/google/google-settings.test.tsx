@@ -47,6 +47,15 @@ it('saves automatic sync preferences and lists recent link states', async () => 
   jest
     .mocked(apiRequest)
     .mockResolvedValueOnce(status)
+    .mockResolvedValueOnce([
+      {
+        id: 'cat-1',
+        name: 'Pessoal',
+        color: 'blue',
+        googleListId: 'list-1',
+        syncState: 'synced',
+      },
+    ])
     .mockResolvedValueOnce({ saved: true })
     .mockResolvedValueOnce({
       ...status,
@@ -97,6 +106,7 @@ it('keeps a failed disconnect visible for retry', async () => {
       status: 'connected',
       synced: [],
     })
+    .mockResolvedValueOnce([])
     .mockRejectedValueOnce(new Error('Revogação pendente'))
     .mockResolvedValueOnce({
       configured: true,
