@@ -12,6 +12,7 @@ import { AgendaDetails } from '../agenda-page'
 import { ArrowLeft, ArrowRight, CircleCheck, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from 'cn'
 import { MutedText, SectionTitle } from '@/components/typography'
 import { sortTasks } from '@/features/tasks/sort-tasks'
@@ -24,6 +25,7 @@ type TaskTimelineProps = {
   tasks: Task[]
   onComplete: (taskId: string, actualTime?: number) => Promise<void>
   onDelete: (taskId: string) => Promise<void>
+  loading?: boolean
   preview?: boolean
   onViewAll?: () => void
 }
@@ -32,12 +34,40 @@ const interactiveTarget = 'button, input, textarea, select, a, [role="dialog"]'
 const dragThreshold = 8
 const actionThreshold = 48
 const previewLimit = 3
+const taskSkeletonWidths = ['w-3/5', 'w-2/5', 'w-1/2'] as const
+
+function TaskSkeletons() {
+  return (
+    <div aria-label="Carregando tarefas" role="status">
+      <ol aria-hidden="true" className="grid min-w-0 gap-3">
+        {taskSkeletonWidths.map((width) => (
+          <li
+            key={width}
+            className="surface-card grid gap-2 rounded-xl border bg-card p-3 sm:p-4"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-8 w-16 rounded-lg" />
+            </div>
+            <Skeleton className={cn('h-5', width)} />
+            <Skeleton className="h-4 w-full" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-6 w-20 rounded-full" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
 const swipeTutorialKey = 'colabora:swipe-tutorial'
 
 export function TaskTimeline({
   tasks,
   onComplete,
   onDelete,
+  loading = false,
   preview = false,
   onViewAll,
 }: TaskTimelineProps) {
@@ -107,7 +137,9 @@ export function TaskTimeline({
           </Button>
         </aside>
       ) : null}
-      {ordered.length === 0 ? (
+      {loading ? (
+        <TaskSkeletons />
+      ) : ordered.length === 0 ? (
         <MutedText>
           {tasks.some((task) => task.status === 'completed')
             ? 'Nenhuma tarefa pendente.'

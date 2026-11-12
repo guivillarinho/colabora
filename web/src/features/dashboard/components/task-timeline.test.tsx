@@ -64,6 +64,29 @@ beforeEach(() => {
   sessionStorage.setItem('colabora:swipe-tutorial', 'seen')
 })
 
+it('shows skeleton cards while tasks are loading', () => {
+  render(
+    <TaskTimeline
+      tasks={[]}
+      loading
+      preview
+      onComplete={jest.fn()}
+      onDelete={jest.fn()}
+    />,
+  )
+  const status = screen.getByRole('status', { name: 'Carregando tarefas' })
+  expect(status.querySelectorAll('li')).toHaveLength(3)
+  expect(
+    status.querySelectorAll('[data-slot="skeleton"]').length,
+  ).toBeGreaterThan(0)
+  expect(
+    screen.queryByText(
+      'Nada agendado. As tarefas com data e hora aparecem aqui.',
+    ),
+  ).not.toBeInTheDocument()
+  expect(screen.queryByText('Arraste o card para agir')).not.toBeInTheDocument()
+})
+
 it('opens the existing details on click and restores focus when closed', async () => {
   const user = userEvent.setup()
   const { onComplete, onDelete } = setup()

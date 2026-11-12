@@ -3,6 +3,8 @@ import { CalendarDays, FolderKanban } from 'lucide-react'
 
 import { MutedText, SectionTitle } from '@/components/typography'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from 'cn'
 
 import { AgendaDetails } from '../agenda-page'
 import {
@@ -16,6 +18,29 @@ import {
 } from '../agenda-items'
 
 const previewLimit = 3
+const eventSkeletonWidths = ['w-2/5', 'w-1/2', 'w-1/3'] as const
+
+function EventSkeletons() {
+  return (
+    <div aria-label="Carregando eventos e projetos" role="status">
+      <ul aria-hidden="true" className="grid min-w-0 gap-2">
+        {eventSkeletonWidths.map((width) => (
+          <li
+            key={width}
+            className="surface-card flex min-w-0 items-center gap-3 rounded-xl border bg-card p-3"
+          >
+            <Skeleton className="size-9 shrink-0 rounded-lg" />
+            <span className="grid min-w-0 flex-1 gap-2">
+              <Skeleton className={cn('h-4', width)} />
+              <Skeleton className="h-3.5 w-16" />
+            </span>
+            <Skeleton className="h-3 w-12 shrink-0" />
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 export function TodayAgenda({ onViewAll }: { onViewAll: () => void }) {
   const [items, setItems] = useState<AgendaItem[] | null>(null)
@@ -67,7 +92,17 @@ export function TodayAgenda({ onViewAll }: { onViewAll: () => void }) {
           </Button>
         ) : null}
       </div>
-      {todayItems?.length ? (
+      {todayItems === undefined ? (
+        failed ? (
+          <div role="status">
+            <MutedText>
+              Não foi possível carregar os eventos e projetos.
+            </MutedText>
+          </div>
+        ) : (
+          <EventSkeletons />
+        )
+      ) : todayItems.length ? (
         <ul className="grid min-w-0 gap-2">
           {todayItems.map((item) => {
             const isProject = item.type === 'project'
@@ -111,13 +146,7 @@ export function TodayAgenda({ onViewAll }: { onViewAll: () => void }) {
         </ul>
       ) : (
         <div role="status">
-          <MutedText>
-            {failed
-              ? 'Não foi possível carregar os eventos e projetos.'
-              : items
-                ? 'Nenhum evento ou projeto agendado para hoje.'
-                : 'Carregando eventos e projetos...'}
-          </MutedText>
+          <MutedText>Nenhum evento ou projeto agendado para hoje.</MutedText>
         </div>
       )}
       {details ? (

@@ -12,12 +12,14 @@ jest.mock('@/features/google/google-api', () => ({
   }),
   googleSyncNow: jest.fn(),
 }))
+const mockTasksState = {
+  tasks: [] as Task[],
+  loading: false,
+  completeTask: jest.fn(),
+  removeTask: jest.fn(),
+}
 jest.mock('@/features/tasks/tasks-context', () => ({
-  useTasks: () => ({
-    tasks: [],
-    completeTask: jest.fn(),
-    removeTask: jest.fn(),
-  }),
+  useTasks: () => mockTasksState,
 }))
 const mockGoTo = jest.fn()
 jest.mock('@/components/layout/navigation', () => ({
@@ -31,13 +33,41 @@ const listItems = jest.mocked(listAgendaItems)
 
 beforeEach(() => {
   mockGoTo.mockClear()
+  mockTasksState.loading = false
+  mockTasksState.tasks = []
   listItems.mockResolvedValue([])
 })
 jest.mock('./components/active-timer', () => ({ ActiveTimer: () => null }))
-jest.mock('./components/task-timeline', () => ({ TaskTimeline: () => null }))
+jest.mock('./components/task-timeline', () => ({
+  TaskTimeline: ({ loading }: { loading?: boolean }) =>
+    loading ? (
+      <p aria-label="Carregando tarefas" role="status">
+        Carregando tarefas
+      </p>
+    ) : null,
+}))
 jest.mock('@/features/timer/focus-sessions-api', () => ({
   focusSessionsApi: { list: jest.fn() },
 }))
+
+it('shows event and task placeholders while Hoje is loading', () => {
+  mockTasksState.loading = true
+  listItems.mockReturnValue(new Promise(() => undefined))
+  render(<DashboardPage />)
+  const events = screen.getByRole('status', {
+    name: 'Carregando eventos e projetos',
+  })
+  expect(events.querySelectorAll('li')).toHaveLength(3)
+  expect(
+    events.querySelectorAll('[data-slot="skeleton"]').length,
+  ).toBeGreaterThan(0)
+  expect(
+    screen.getByRole('status', { name: 'Carregando tarefas' }),
+  ).toBeVisible()
+  expect(
+    screen.queryByText('Nenhum evento ou projeto agendado para hoje.'),
+  ).not.toBeInTheDocument()
+})
 
 it('keeps focus sessions and achievements out of Hoje', async () => {
   render(<DashboardPage />)

@@ -35,6 +35,7 @@ import {
   fetchTaskCategories,
   type ApiTaskCategory,
 } from '../task-categories-api'
+import { formatDueDate } from '@/lib/format-duration'
 import { showToast } from '@/lib/toast'
 import { cn } from 'cn'
 
@@ -296,6 +297,9 @@ function TaskFormContent({
       return
     }
     const attachment = persistedAttachment(attachmentReference)
+    const priority = String(
+      formData.get('priority') ?? 'medium',
+    ) as TaskPriority
     const input: TaskInput = {
       assignedToId: assignee?.id ?? null,
       title,
@@ -304,7 +308,7 @@ function TaskFormContent({
       ...(uuidLike(selectedCategory.id)
         ? { categoryId: selectedCategory.id }
         : {}),
-      priority: String(formData.get('priority') ?? 'medium') as TaskPriority,
+      priority,
       color: selectedCategory.color,
       estimatedTime,
       reminderOffsets: offsets,
@@ -344,13 +348,33 @@ function TaskFormContent({
     resetFields()
     onOpenChange?.(false)
     form.reset()
-    showToast(
-      !syncOptOut && dueDate
-        ? `Tarefa salva e sincronizada com a lista “${selectedCategory.name}” no Google Tasks!`
-        : editing
-          ? 'Tarefa atualizada com sucesso!'
-          : 'Tarefa criada com sucesso!',
-    )
+    const savedDue =
+      dueDate && creationMode !== 'timer'
+        ? sameDate
+          ? (task?.dueDate ?? new Date(dueDate).toISOString())
+          : new Date(dueDate).toISOString()
+        : null
+    const priorityLabel = { low: 'Baixa', medium: 'Média', high: 'Alta' }[
+      priority
+    ]
+    const schedule = savedDue
+      ? `Prazo ${formatDueDate(savedDue)}.`
+      : !editing && creationMode === 'timer'
+        ? 'O timer começa agora.'
+        : 'Sem prazo.'
+    const description = [
+      `“${title}” na categoria ${selectedCategory.name}, prioridade ${priorityLabel}.`,
+      schedule,
+    ]
+    if (savedDue && !syncOptOut) {
+      description.push(
+        `Sincronizada com a lista “${selectedCategory.name}” no Google Tasks.`,
+      )
+    }
+    showToast({
+      title: editing ? 'Tarefa atualizada' : 'Tarefa criada',
+      description: description.join(' '),
+    })
   }
 
   return (

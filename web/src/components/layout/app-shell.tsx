@@ -2,11 +2,13 @@ import { ChatPage } from '@/features/assistant/chat-page'
 import { useAuth } from '@/features/auth/auth-context'
 import { AccountPage } from '@/features/auth/account-page'
 import { useEffect, useState } from 'react'
-import { ArrowLeft, LogOut, MessageCircle } from 'lucide-react'
+import { ArrowLeft, CircleCheck, LogOut, MessageCircle } from 'lucide-react'
 import { UserAvatar } from '@/features/auth/user-avatar'
 
 import { ThemeToggle } from '@/components/theme-toggle'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import type { ToastMessage } from '@/lib/toast'
 import { AgendaPage } from '@/features/dashboard/agenda-page'
 import { DashboardPage } from '@/features/dashboard/dashboard-page'
 import { ProductivityAdviceDialog } from '@/features/tasks/components/productivity-advice-dialog'
@@ -22,13 +24,13 @@ export function AppShell() {
   const { user, logout } = useAuth()
   const { advice, clearAdvice, error } = useTasks()
   const [scrolled, setScrolled] = useState(() => window.scrollY > 0)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastMessage | null>(null)
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ message: string }>).detail
-      if (detail?.message) {
-        setToast(detail.message)
+      const detail = (e as CustomEvent<ToastMessage>).detail
+      if (detail?.title && detail.description) {
+        setToast(detail)
       }
     }
     window.addEventListener('colabora:toast', handler)
@@ -37,7 +39,7 @@ export function AppShell() {
 
   useEffect(() => {
     if (!toast) return
-    const timer = setTimeout(() => setToast(null), 4000)
+    const timer = setTimeout(() => setToast(null), 6000)
     return () => clearTimeout(timer)
   }, [toast])
 
@@ -157,17 +159,19 @@ export function AppShell() {
       </div>
       <ProductivityAdviceDialog advice={advice} onClose={clearAdvice} />
       {toast ? (
-        <aside
-          role="status"
-          aria-live="polite"
-          className="fixed bottom-20 left-1/2 z-50 flex max-w-[90vw] -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-popover px-4 py-2.5 text-xs sm:text-sm font-medium text-popover-foreground shadow-lg md:bottom-6"
-        >
-          <span
-            className="size-2 shrink-0 rounded-full bg-primary"
-            aria-hidden="true"
-          />
-          <span className="truncate">{toast}</span>
-        </aside>
+        <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
+          <Alert
+            role="status"
+            aria-live="polite"
+            className="pointer-events-auto w-full max-w-lg shadow-lg"
+          >
+            <CircleCheck aria-hidden="true" />
+            <AlertTitle>{toast.title}</AlertTitle>
+            <AlertDescription className="text-pretty">
+              {toast.description}
+            </AlertDescription>
+          </Alert>
+        </div>
       ) : null}
     </div>
   )

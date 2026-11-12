@@ -79,7 +79,7 @@ Falha de rede ou HTTP deixa a linha na fila com backoff. A resposta da API do Co
 
 ### Google para o app
 
-O webhook responde na hora. `sync` (confirmação do canal) não baixa eventos. `exists` enfileira `pull-calendar`. O processamento incremental usa `syncToken`. Evento cancelado remove o item local se houver vínculo. Evento ou tarefa criados no Google, mesmo sem marca Colabora, entram na agenda e nas tarefas locais (janela recente de calendário na sincronização manual e na abertura de Hoje). A sincronização manual liga a entrada automática.
+O webhook responde na hora. `sync` (confirmação do canal) não baixa eventos. `exists` enfileira `pull-calendar`. O processamento incremental usa `syncToken`. Evento cancelado remove o item local se houver vínculo. Evento ou tarefa criados no Google, mesmo sem marca Colabora, entram na agenda e nas tarefas locais (janela recente de calendário na sincronização manual e na abertura de Hoje). A sincronização manual liga a entrada automática e sempre puxa o calendário `primary`; a listagem completa de calendários exige o escopo `calendar.calendarlist.readonly` (reconectar após a mudança de escopos).
 
 Conflito: se o Colabora e o Google mudaram desde `colaboraRevision` / `syncedAt`, com folga de 5 segundos, o vínculo fica `conflict` e nenhum lado é sobrescrito. Não há tela de resolução nesta entrega.
 

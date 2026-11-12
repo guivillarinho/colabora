@@ -62,7 +62,13 @@ it('saves automatic sync preferences and lists recent link states', async () => 
       preferences: { ...status.preferences, autoSync: true },
     })
   render(<GoogleSettings />)
-  expect(await screen.findByText(/Tarefa · Pendente/)).toBeVisible()
+  expect(screen.queryByText('Pendente')).not.toBeInTheDocument()
+  await user.click(
+    await screen.findByRole('button', { name: 'Histórico de sincronização' }),
+  )
+  expect(await screen.findByText('Pendente')).toBeVisible()
+  expect(screen.getByText('Tarefa')).toBeVisible()
+  await user.click(screen.getByRole('button', { name: 'Voltar' }))
   await user.click(
     screen.getByRole('checkbox', {
       name: 'Sincronizar automaticamente criações, edições e exclusões',

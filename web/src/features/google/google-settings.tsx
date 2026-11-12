@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check } from 'lucide-react'
+import { Check, ChevronLeft } from 'lucide-react'
 import {
   fetchTaskCategories,
   type ApiTaskCategory,
@@ -12,6 +12,7 @@ import {
   googleStatus,
   googleSyncNow,
   saveGooglePreferences,
+  type GoogleLink,
   type GooglePreferences,
   type GoogleStatus,
 } from './google-api'
@@ -33,6 +34,7 @@ export function GoogleSettings() {
     null | 'connect' | 'disconnect' | 'status' | 'save' | 'lists'
   >(null)
   const [saved, setSaved] = useState(false)
+  const [screen, setScreen] = useState<'settings' | 'history'>('settings')
   const [message, setMessage] = useState(() => {
     const outcome = new URLSearchParams(window.location.search).get('google')
     if (outcome === 'connected') return 'Conta Google vinculada com sucesso.'
@@ -145,6 +147,16 @@ export function GoogleSettings() {
         : status.status === 'disconnecting'
           ? 'Revogação pendente: tente desconectar novamente.'
           : 'Conta não vinculada.'
+  if (screen === 'history') {
+    return (
+      <section className="surface-panel grid min-w-0 gap-3 rounded-2xl border p-4 sm:p-5">
+        <SyncHistory
+          links={status?.links ?? []}
+          onBack={() => setScreen('settings')}
+        />
+      </section>
+    )
+  }
   return (
     <section className="surface-panel grid min-w-0 gap-3 rounded-2xl border p-4 sm:p-5">
       <h2 className="text-lg font-semibold">Google Agenda</h2>
@@ -267,35 +279,29 @@ export function GoogleSettings() {
               em conflito.
             </p>
           ) : null}
-          <div className="flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={pending !== null}>
-              {pending === 'save' ? 'Salvando...' : 'Salvar sincronização'}
-            </Button>
-            {saved ? (
-              <span
-                role="status"
-                className="inline-flex items-center gap-1.5 text-sm"
-              >
-                <Check
-                  aria-hidden="true"
-                  className="colabora-sync-check size-5"
-                />
-                Sincronização salva
-              </span>
-            ) : null}
-          </div>
+          <button
+            type="button"
+            className="justify-self-start text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => setScreen('history')}
+          >
+            Histórico de sincronização
+          </button>
+          <Button type="submit" className="h-11 w-full" disabled={pending !== null}>
+            {pending === 'save' ? 'Salvando...' : 'Salvar sincronização'}
+          </Button>
+          {saved ? (
+            <span
+              role="status"
+              className="inline-flex items-center justify-center gap-1.5 text-sm"
+            >
+              <Check
+                aria-hidden="true"
+                className="colabora-sync-check size-5"
+              />
+              Sincronização salva
+            </span>
+          ) : null}
         </form>
-      ) : null}
-      {status?.links?.length ? (
-        <ul className="grid gap-2">
-          {status.links.map((link) => (
-            <li key={`${link.entityType}-${link.entityId}`} className="text-sm">
-              {link.entityType === 'task' ? 'Tarefa' : 'Agenda'} ·{' '}
-              {states[link.syncState] ?? link.syncState} ·{' '}
-              {new Date(link.syncedAt).toLocaleString()}
-            </li>
-          ))}
-        </ul>
       ) : null}
       {pending === 'connect' ||
       pending === 'disconnect' ||
@@ -308,5 +314,49 @@ export function GoogleSettings() {
         </p>
       ) : null}
     </section>
+  )
+}
+
+function SyncHistory({
+  links,
+  onBack,
+}: {
+  links: GoogleLink[]
+  onBack: () => void
+}) {
+  return (
+    <div className="grid gap-3">
+      <button
+        type="button"
+        className="inline-flex min-h-11 items-center gap-1 justify-self-start text-sm font-medium focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={onBack}
+      >
+        <ChevronLeft aria-hidden="true" className="size-4" />
+        Voltar
+      </button>
+      <h2 className="text-lg font-semibold">Histórico de sincronização</h2>
+      {links.length ? (
+        <ul className="grid gap-2" aria-label="Histórico de sincronização">
+          {links.map((link) => (
+            <li
+              key={`${link.entityType}-${link.entityId}`}
+              className="grid gap-0.5 rounded-xl border px-3 py-2 text-sm"
+            >
+              <span className="font-medium">
+                {link.entityType === 'task' ? 'Tarefa' : 'Agenda'}
+              </span>
+              <span className="text-muted-foreground">
+                {states[link.syncState] ?? link.syncState} ·{' '}
+                {new Date(link.syncedAt).toLocaleString('pt-BR')}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Nenhuma sincronização registrada.
+        </p>
+      )}
+    </div>
   )
 }

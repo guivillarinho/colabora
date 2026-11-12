@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { act, fireEvent, screen } from '@testing-library/react'
 import { renderAuthenticated as render } from '@/test/auth-fixture'
 import { AppShell } from './app-shell'
 import { useNavigation } from './navigation'
@@ -72,6 +72,23 @@ it('changes the header on scroll, restores it at the top and cleans up its liste
   expect(scrollCall[2]).toEqual({ passive: true })
   unmount()
   expect(remove).toHaveBeenCalledWith('scroll', scrollCall[1])
+})
+
+it('shows the task confirmation centered at the top with the full text', () => {
+  render(<AppShell />)
+  const description =
+    '“Enviar proposta” na categoria Trabalho, prioridade Alta. Prazo 04/11/2026, 09:30. Sincronizada com a lista “Trabalho” no Google Tasks.'
+  act(() => {
+    window.dispatchEvent(
+      new CustomEvent('colabora:toast', {
+        detail: { title: 'Tarefa criada', description },
+      }),
+    )
+  })
+  const alert = screen.getByRole('status')
+  expect(alert).toHaveTextContent('Tarefa criada')
+  expect(alert).toHaveTextContent(description)
+  expect(alert.parentElement).toHaveClass('top-4', 'justify-center')
 })
 
 it('starts with the scrolled appearance when restoring a scroll position', () => {
