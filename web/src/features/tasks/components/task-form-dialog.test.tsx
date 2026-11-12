@@ -90,7 +90,7 @@ it('fills the date while typing and saves the recognized local time', async () =
   expect(notification?.detail).toEqual(
     expect.objectContaining({
       title: 'Tarefa criada',
-      duration: null,
+      duration: 2000,
       description: expect.stringContaining('Enviar proposta às 9h30'),
     }),
   )

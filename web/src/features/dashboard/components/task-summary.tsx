@@ -17,10 +17,12 @@ export function TaskSummary({
   children,
   footer,
   linkDescription = true,
+  titlePrefix,
 }: {
   task: Task
   children?: ReactNode
   linkDescription?: boolean
+  titlePrefix?: ReactNode
   footer?: ReactNode
 }) {
   const swatch =
@@ -48,6 +50,7 @@ export function TaskSummary({
         </div>
       </div>
       <div className="flex min-w-0 items-center gap-2">
+        {titlePrefix}
         <h3 className="line-clamp-1 min-w-0 font-semibold leading-snug">
           {task.title}
         </h3>

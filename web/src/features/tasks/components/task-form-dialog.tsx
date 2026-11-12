@@ -381,7 +381,7 @@ function TaskFormContent({
     showToast({
       title: editing ? 'Tarefa atualizada' : 'Tarefa criada',
       description: description.join('\n'),
-      duration: editing ? 6000 : null,
+      duration: editing ? 6000 : 2000,
     })
   }
 

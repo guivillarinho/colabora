@@ -12,7 +12,7 @@ import { AgendaDetails } from '../agenda-page'
 import { ArrowLeft, ArrowRight, CircleCheck, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
+import { AgendaCardSkeleton } from './agenda-card-skeleton'
 import { cn } from 'cn'
 import { MutedText, SectionTitle } from '@/components/typography'
 import { sortTasks } from '@/features/tasks/sort-tasks'
@@ -34,27 +34,20 @@ const interactiveTarget = 'button, input, textarea, select, a, [role="dialog"]'
 const dragThreshold = 8
 const actionThreshold = 48
 const previewLimit = 3
-const taskSkeletonWidths = ['w-3/5', 'w-2/5', 'w-1/2'] as const
-
 function TaskSkeletons() {
   return (
-    <div aria-label="Carregando tarefas" role="status">
-      <ol aria-hidden="true" className="grid min-w-0 gap-3">
-        {taskSkeletonWidths.map((width) => (
-          <li
-            key={width}
-            className="surface-card grid gap-2 rounded-xl border bg-card p-3 sm:p-4"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-8 w-16 rounded-lg" />
-            </div>
-            <Skeleton className={cn('h-5', width)} />
-            <Skeleton className="h-4 w-full" />
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-6 w-20 rounded-full" />
-              <Skeleton className="h-3 w-24" />
-            </div>
+    <div
+      aria-label="Carregando tarefas"
+      role="status"
+      className="w-full min-w-0"
+    >
+      <ol
+        aria-hidden="true"
+        className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)] gap-3"
+      >
+        {Array.from({ length: 3 }, (_, index) => (
+          <li key={index} className="w-full min-w-0">
+            <AgendaCardSkeleton task />
           </li>
         ))}
       </ol>

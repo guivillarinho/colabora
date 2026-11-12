@@ -168,7 +168,7 @@ export function AppShell() {
           <Alert
             role="status"
             aria-live="polite"
-            className="pointer-events-auto max-h-[calc(100svh-2rem)] w-full max-w-lg overflow-y-auto shadow-lg"
+            className="pointer-events-auto max-h-[calc(100svh-2rem)] w-full max-w-lg overflow-y-auto shadow-lg motion-safe:animate-in motion-safe:slide-in-from-top-8 motion-safe:fade-in motion-safe:duration-200"
           >
             <CircleCheck aria-hidden="true" />
             <AlertTitle>{toast.title}</AlertTitle>

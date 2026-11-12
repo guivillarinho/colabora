@@ -3,8 +3,7 @@ import { CalendarDays, FolderKanban } from 'lucide-react'
 
 import { MutedText, SectionTitle } from '@/components/typography'
 import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { cn } from 'cn'
+import { AgendaCardSkeleton } from './agenda-card-skeleton'
 
 import { AgendaDetails } from '../agenda-page'
 import {
@@ -18,23 +17,20 @@ import {
 } from '../agenda-items'
 
 const previewLimit = 3
-const eventSkeletonWidths = ['w-2/5', 'w-1/2', 'w-1/3'] as const
-
 function EventSkeletons() {
   return (
-    <div aria-label="Carregando eventos e projetos" role="status">
-      <ul aria-hidden="true" className="grid min-w-0 gap-2">
-        {eventSkeletonWidths.map((width) => (
-          <li
-            key={width}
-            className="surface-card flex min-w-0 items-center gap-3 rounded-xl border bg-card p-3"
-          >
-            <Skeleton className="size-9 shrink-0 rounded-lg" />
-            <span className="grid min-w-0 flex-1 gap-2">
-              <Skeleton className={cn('h-4', width)} />
-              <Skeleton className="h-3.5 w-16" />
-            </span>
-            <Skeleton className="h-3 w-12 shrink-0" />
+    <div
+      aria-label="Carregando eventos e projetos"
+      role="status"
+      className="w-full min-w-0"
+    >
+      <ul
+        aria-hidden="true"
+        className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)] gap-3"
+      >
+        {Array.from({ length: 3 }, (_, index) => (
+          <li key={index} className="w-full min-w-0">
+            <AgendaCardSkeleton />
           </li>
         ))}
       </ul>
@@ -116,7 +112,7 @@ export function TodayAgenda({ onViewAll }: { onViewAll: () => void }) {
               <li key={item.id} className="min-w-0">
                 <button
                   type="button"
-                  className="surface-card flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-xl border bg-card p-3 text-left hover:bg-accent"
+                  className="surface-card grid min-h-44 w-full min-w-0 cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] content-start items-start gap-3 rounded-2xl border bg-card p-4 text-left hover:bg-accent"
                   onClick={(event) => {
                     trigger.current = event.currentTarget
                     setDetails(item)

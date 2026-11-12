@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui/skeleton'
+import { AgendaCardSkeleton } from './components/agenda-card-skeleton'
 import { hapticFeedback } from '@/lib/haptics'
 import {
   googleStatus,
@@ -25,6 +25,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Circle,
   CircleCheck,
   CirclePlay,
   Clock3,
@@ -39,6 +40,7 @@ import {
   SlidersHorizontal,
   Timer,
   Trash2,
+  X,
 } from 'lucide-react'
 
 import { MutedText, PageTitle, SectionTitle } from '@/components/typography'
@@ -304,6 +306,10 @@ export function AgendaPage() {
 
   const unscheduledItems = visibleItems.filter((item) => !item.startDate)
 
+  const selectableItems = (
+    searchOpen ? matchingItems : [...dayItems, ...unscheduledItems]
+  ).filter((item) => !item.task || item.task.permissions.delete)
+
   async function createItem(
     input: Omit<AgendaItem, 'id' | 'createdAt' | 'updatedAt'> & {
       syncOptOut?: boolean
@@ -409,31 +415,6 @@ export function AgendaPage() {
           </p>
         ) : null}
       </details>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          variant="outline"
-          onClick={() =>
-            selectionMode ? cancelSelection() : setSelectionMode(true)
-          }
-        >
-          {selectionMode ? 'Cancelar seleção' : 'Selecionar itens'}
-        </Button>
-        {selectionMode ? (
-          <>
-            <span role="status" className="text-sm">
-              {selected.size} selecionado(s)
-            </span>
-            <Button
-              variant="destructive"
-              disabled={!selected.size}
-              onClick={() => setDeleteOpen(true)}
-            >
-              <Trash2 aria-hidden="true" />
-              Excluir selecionados
-            </Button>
-          </>
-        ) : null}
-      </div>
       <DeleteConfirmationDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
@@ -587,6 +568,70 @@ export function AgendaPage() {
         </p>
       ) : null}
 
+      {selectionMode ? (
+        <div
+          className="flex items-center justify-between gap-3"
+          aria-label="Seleção de itens"
+        >
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={
+              selectableItems.length > 0 &&
+              selectableItems.every((item) =>
+                selected.has(`${item.type}-${item.id}`),
+              )
+            }
+            className="flex min-h-11 items-center gap-2 text-sm font-medium"
+            onClick={() => {
+              const allSelected = selectableItems.every((item) =>
+                selected.has(`${item.type}-${item.id}`),
+              )
+              setSelected(
+                new Set(
+                  allSelected
+                    ? []
+                    : selectableItems.map((item) => `${item.type}-${item.id}`),
+                ),
+              )
+            }}
+          >
+            <SelectionCircle
+              checked={
+                selectableItems.length > 0 &&
+                selectableItems.every((item) =>
+                  selected.has(`${item.type}-${item.id}`),
+                )
+              }
+            />
+            Tudo
+          </button>
+          <span role="status" className="sr-only">
+            {selected.size} selecionado(s)
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Cancelar seleção"
+              onClick={cancelSelection}
+            >
+              <X aria-hidden="true" />
+            </Button>
+            <Button
+              aria-label="Excluir selecionados"
+              title="Excluir selecionados"
+              className="size-11 rounded-full border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              size="icon"
+              variant="outline"
+              disabled={!selected.size}
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 aria-hidden="true" className="size-5" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {loading || tasksLoading ? (
         <AgendaSkeleton />
       ) : searchOpen && query.trim() ? (
@@ -704,6 +749,21 @@ export function AgendaPage() {
   )
 }
 
+function SelectionCircle({ checked }: { checked: boolean }) {
+  const Icon = checked ? CircleCheck : Circle
+  return (
+    <Icon
+      aria-hidden="true"
+      className={cn(
+        'size-5 shrink-0',
+        checked
+          ? 'fill-primary text-primary-foreground stroke-[2.5]'
+          : 'text-muted-foreground',
+      )}
+    />
+  )
+}
+
 function AgendaSkeleton() {
   return (
     <section
@@ -714,15 +774,7 @@ function AgendaSkeleton() {
       <span className="sr-only">Carregando agenda...</span>
       <div aria-hidden="true" className="grid gap-3 sm:grid-cols-2">
         {Array.from({ length: 4 }, (_, index) => (
-          <div
-            key={index}
-            className="grid gap-3 rounded-2xl border bg-card p-4"
-          >
-            <Skeleton className="h-5 w-3/4" />
-            <Skeleton className="h-4 w-1/3" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-4 w-1/2" />
-          </div>
+          <AgendaCardSkeleton key={index} />
         ))}
       </div>
     </section>
@@ -757,7 +809,18 @@ function AgendaCard({
     [],
   )
   const interactions = {
-    'aria-pressed': selectionMode ? selected : undefined,
+    role: selectionMode ? 'checkbox' : undefined,
+    'aria-checked': selectionMode ? selected : undefined,
+    onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        return
+      }
+      if (!selectionMode && event.shiftKey && event.key === ' ') {
+        event.preventDefault()
+        if (canSelect) onLongPress()
+      }
+    },
     disabled: selectionMode && !canSelect,
     onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
       if (event.button !== 0 || !canSelect) return
@@ -799,13 +862,16 @@ function AgendaCard({
         className={cn(
           taskSummaryClassName,
           selectionClass,
-          'select-none',
+          'touch-pan-y select-none [-webkit-touch-callout:none]',
           'text-left transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         )}
       >
         <TaskSummary
           task={item.task}
           linkDescription={false}
+          titlePrefix={
+            selectionMode ? <SelectionCircle checked={selected} /> : undefined
+          }
           footer={
             <>
               <AgendaTaskStatus status={item.task.status} />
@@ -826,7 +892,7 @@ function AgendaCard({
         'surface-card grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 rounded-2xl border p-4 text-left transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         status?.card ?? 'bg-card hover:border-primary/40',
         selectionClass,
-        'select-none',
+        'touch-pan-y select-none [-webkit-touch-callout:none]',
       )}
       {...interactions}
     >
@@ -840,9 +906,12 @@ function AgendaCard({
             )}
           </span>
           <div className="min-w-0 overflow-hidden">
-            <p className="truncate font-semibold" title={item.title}>
-              {item.title}
-            </p>
+            <div className="flex min-w-0 items-center gap-2">
+              {selectionMode ? <SelectionCircle checked={selected} /> : null}
+              <p className="truncate font-semibold" title={item.title}>
+                {item.title}
+              </p>
+            </div>
             <p className="text-xs capitalize text-muted-foreground [overflow-wrap:anywhere]">
               {task
                 ? `Tarefa · ${item.category}`

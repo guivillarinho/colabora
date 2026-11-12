@@ -131,7 +131,13 @@ describe('AgendaPage', () => {
     })
     fireEvent.pointerUp(card)
     fireEvent.click(card)
-    expect(card).toHaveAttribute('aria-pressed', 'true')
+    expect(card).toHaveAttribute('aria-checked', 'true')
+    expect(card.querySelector('h3')?.previousElementSibling).toHaveClass(
+      'lucide-circle-check',
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Selecionar itens' }),
+    ).not.toBeInTheDocument()
     expect(vibrate).toHaveBeenCalled()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     await user.click(
@@ -171,9 +177,13 @@ describe('AgendaPage', () => {
       </TasksProvider>,
     )
     await screen.findByText('Enviar proposta')
-    await user.click(screen.getByRole('button', { name: 'Selecionar itens' }))
-    await user.click(screen.getByRole('button', { name: /Enviar proposta/ }))
-    await user.click(screen.getByRole('button', { name: /Reunião de equipe/ }))
+    fireEvent.keyDown(screen.getByRole('button', { name: /Enviar proposta/ }), {
+      key: ' ',
+      shiftKey: true,
+    })
+    await user.click(
+      screen.getByRole('checkbox', { name: /Reunião de equipe/ }),
+    )
     expect(screen.getByText('2 selecionado(s)')).toBeVisible()
     await user.click(
       screen.getByRole('button', { name: 'Excluir selecionados' }),
@@ -183,7 +193,7 @@ describe('AgendaPage', () => {
       'Não foi possível excluir: Enviar proposta',
     )
     expect(
-      screen.queryByRole('button', { name: /Reunião de equipe/ }),
+      screen.queryByRole('checkbox', { name: /Reunião de equipe/ }),
     ).not.toBeInTheDocument()
     expect(screen.getByText('1 selecionado(s)')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
@@ -193,6 +203,37 @@ describe('AgendaPage', () => {
     expect(
       screen.queryByRole('button', { name: /Enviar proposta/ }),
     ).not.toBeInTheDocument()
+  })
+
+  it('toggles round checkboxes and selects all currently displayed items', async () => {
+    const user = userEvent.setup()
+    render(
+      <TasksProvider>
+        <AgendaPage />
+      </TasksProvider>,
+    )
+    const card = await screen.findByRole('button', { name: /Enviar proposta/ })
+    fireEvent.keyDown(card, { key: ' ', shiftKey: true })
+    const checkbox = screen.getByRole('checkbox', { name: /Enviar proposta/ })
+    expect(checkbox).toBeChecked()
+    await user.click(screen.getByRole('checkbox', { name: 'Tudo' }))
+    expect(checkbox).not.toBeChecked()
+    expect(checkbox.querySelector('h3')?.previousElementSibling).toHaveClass(
+      'lucide-circle',
+    )
+    expect(
+      screen.getByRole('button', { name: 'Excluir selecionados' }),
+    ).toBeDisabled()
+    await user.click(checkbox)
+    expect(checkbox).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Tudo' })).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Cancelar seleção' }))
+    expect(
+      screen.queryByRole('checkbox', { name: 'Tudo' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /Enviar proposta/ }),
+    ).toBeVisible()
   })
 
   it('filters Google calendars and persists visibility separately from local items', async () => {
