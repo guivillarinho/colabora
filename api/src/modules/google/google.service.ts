@@ -24,7 +24,9 @@ import {
 } from './google-preferences'
 export const tasksScope = 'https://www.googleapis.com/auth/tasks'
 export const calendarScope = 'https://www.googleapis.com/auth/calendar.events'
-export const googleScopes = `openid email ${calendarScope} ${tasksScope}`
+export const calendarListScope =
+  'https://www.googleapis.com/auth/calendar.calendarlist.readonly'
+export const googleScopes = `openid email ${calendarScope} ${calendarListScope} ${tasksScope}`
 export type OAuthPending = {
   state: string
   verifier: string

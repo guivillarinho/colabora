@@ -31,6 +31,7 @@ export class GoogleCalendarClient {
     calendarId: string,
     syncToken?: string | null,
     range?: { timeMin: string; timeMax: string },
+    pageToken?: string,
   ) {
     const url = new URL(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
@@ -38,6 +39,7 @@ export class GoogleCalendarClient {
     url.searchParams.set('showDeleted', 'true')
     url.searchParams.set('singleEvents', 'true')
     url.searchParams.set('maxResults', '250')
+    if (pageToken) url.searchParams.set('pageToken', pageToken)
     if (range) {
       url.searchParams.set('timeMin', range.timeMin)
       url.searchParams.set('timeMax', range.timeMax)

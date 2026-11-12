@@ -80,15 +80,33 @@ export class GoogleInboundService {
       window,
     )
     if (response.status === 410) {
-      response = await this.calendar.listEvents(access, calendarId, null)
+      response = await this.calendar.listEvents(
+        access,
+        calendarId,
+        null,
+        window,
+      )
     }
     if (!response.ok) throw new Error('Calendar')
-    const body = (await response.json()) as {
+    let body = (await response.json()) as {
       items?: Array<Record<string, unknown>>
       nextSyncToken?: string
+      nextPageToken?: string
     }
-    for (const item of body.items ?? [])
-      await this.applyEvent(ownerId, calendarId, item)
+    const items = [...(body.items ?? [])]
+    while (body.nextPageToken) {
+      response = await this.calendar.listEvents(
+        access,
+        calendarId,
+        null,
+        window,
+        body.nextPageToken,
+      )
+      if (!response.ok) throw new Error('Calendar')
+      body = (await response.json()) as typeof body
+      items.push(...(body.items ?? []))
+    }
+    for (const item of items) await this.applyEvent(ownerId, calendarId, item)
     if (body.nextSyncToken && !options?.window) {
       await this.source.query(
         'UPDATE google_watch_channels SET "syncToken"=$3 WHERE "ownerId"=$1 AND "calendarId"=$2',
@@ -97,9 +115,12 @@ export class GoogleInboundService {
     }
   }
 
-  async pullTaskLists(ownerId: string) {
+  async pullTaskLists(
+    ownerId: string,
+    options?: { force?: boolean },
+  ) {
     const prefs = await this.preferences(ownerId)
-    if (!prefs?.inboundEnabled) return
+    if (!options?.force && !prefs?.inboundEnabled) return
     const access = await this.google.authorized(ownerId)
     const response = await this.tasks.listLists(access)
     if (!response.ok) throw new Error('Tasks')
@@ -249,7 +270,10 @@ export class GoogleInboundService {
       'SELECT id,"updatedAt" FROM agenda_items WHERE id=$1 AND "ownerId"=$2',
       [entityId, ownerId],
     )
-    if (!rows[0]) return
+    if (!rows[0]) {
+      await this.importEvent(ownerId, calendarId, id, item)
+      return
+    }
     if (this.conflict(rows[0].updatedAt, link, item.updated)) {
       await this.markConflict(ownerId, 'agenda_item', entityId)
       return
@@ -362,35 +386,49 @@ export class GoogleInboundService {
     item: Record<string, unknown>,
   ) {
     if (!id || item.status === 'cancelled') return
+    const existing = await this.linkByResource(ownerId, 'event', id)
     const start = dateTime(item.start)
     const end =
       dateTime(item.end) ??
       (start ? new Date(start.getTime() + 60 * 60 * 1000) : null)
     if (!start || !end) return
-    const rows = await this.source.query(
-      `INSERT INTO agenda_items (id,"ownerId",title,type,description,"startDate","endDate",location,attachments)
-       VALUES (gen_random_uuid(),$1,$2,'event',$3,$4,$5,$6,'[]'::jsonb)
-       RETURNING id`,
-      [
-        ownerId,
-        String(item.summary ?? 'Evento').slice(0, 120),
-        textOrNull(item.description),
-        start,
-        end,
-        textOrNull(item.location),
-      ],
-    )
-    const createdId = rows[0]?.id as string | undefined
-    if (!createdId) return
+    const title = String(item.summary ?? 'Evento').slice(0, 120)
+    const description = textOrNull(item.description)
+    const location = textOrNull(item.location)
+    const revision = new Date()
+    let entityId = existing?.entityId as string | undefined
+    if (entityId) {
+      const local = await this.source.query(
+        'SELECT id FROM agenda_items WHERE id=$1 AND "ownerId"=$2',
+        [entityId, ownerId],
+      )
+      if (!local[0]) entityId = undefined
+    }
+    if (entityId) {
+      await this.source.query(
+        `UPDATE agenda_items SET title=$3, description=$4, location=$5, "startDate"=$6, "endDate"=$7, "updatedAt"=$8
+         WHERE id=$1 AND "ownerId"=$2`,
+        [entityId, ownerId, title, description, location, start, end, revision],
+      )
+    } else {
+      const rows = await this.source.query(
+        `INSERT INTO agenda_items (id,"ownerId",title,type,description,"startDate","endDate",location,attachments)
+         VALUES (gen_random_uuid(),$1,$2,'event',$3,$4,$5,$6,'[]'::jsonb)
+         RETURNING id`,
+        [ownerId, title, description, start, end, location],
+      )
+      entityId = rows[0]?.id as string | undefined
+      if (!entityId) return
+    }
     await this.saveLink({
       ownerId,
       entityType: 'agenda_item',
-      entityId: createdId,
+      entityId,
       googleKind: 'event',
       googleResourceId: id.slice(0, 1024),
       googleCalendarId: calendarId,
       googleEtag: stringOrNull(item.etag),
-      revision: new Date(),
+      revision,
       state: 'synced',
     })
   }

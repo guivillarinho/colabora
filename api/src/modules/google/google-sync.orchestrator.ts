@@ -130,14 +130,16 @@ export class GoogleSyncOrchestrator {
       })
       if (!saved) return { ok: false as const }
     }
-    const calendars = await this.calendars(ownerId)
-    for (const calendar of calendars) {
-      await this.inbound.pullCalendar(ownerId, calendar.id, {
+    const listed = await this.calendars(ownerId).catch(() => [])
+    const calendarIds = new Set<string>(['primary'])
+    for (const calendar of listed) calendarIds.add(calendar.id)
+    for (const calendarId of calendarIds) {
+      await this.inbound.pullCalendar(ownerId, calendarId, {
         force: true,
         window: true,
       })
     }
-    await this.inbound.pullTaskLists(ownerId)
+    await this.inbound.pullTaskLists(ownerId, { force: true })
     await this.inbound.pullTasks(ownerId, { force: true, full: true })
     return { ok: true as const }
   }
