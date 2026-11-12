@@ -53,18 +53,31 @@ export class GoogleInboundService {
     return true
   }
 
-  async pullCalendar(ownerId: string, calendarId: string) {
+  async pullCalendar(
+    ownerId: string,
+    calendarId: string,
+    options?: { force?: boolean; window?: boolean },
+  ) {
     const prefs = await this.preferences(ownerId)
-    if (!prefs?.inboundEnabled) return
+    if (!options?.force && !prefs?.inboundEnabled) return
     const access = await this.google.authorized(ownerId)
     const channels = await this.source.query(
       'SELECT "syncToken" FROM google_watch_channels WHERE "ownerId"=$1 AND "calendarId"=$2',
       [ownerId, calendarId],
     )
+    const window = options?.window
+      ? {
+          timeMin: new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString(),
+          timeMax: new Date(
+            Date.now() + 45 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+        }
+      : undefined
     let response = await this.calendar.listEvents(
       access,
       calendarId,
-      channels[0]?.syncToken,
+      window ? null : channels[0]?.syncToken,
+      window,
     )
     if (response.status === 410) {
       response = await this.calendar.listEvents(access, calendarId, null)
@@ -76,7 +89,7 @@ export class GoogleInboundService {
     }
     for (const item of body.items ?? [])
       await this.applyEvent(ownerId, calendarId, item)
-    if (body.nextSyncToken) {
+    if (body.nextSyncToken && !options?.window) {
       await this.source.query(
         'UPDATE google_watch_channels SET "syncToken"=$3 WHERE "ownerId"=$1 AND "calendarId"=$2',
         [ownerId, calendarId, body.nextSyncToken],
@@ -160,9 +173,12 @@ export class GoogleInboundService {
     }
   }
 
-  async pullTasks(ownerId: string) {
+  async pullTasks(
+    ownerId: string,
+    options?: { force?: boolean; full?: boolean },
+  ) {
     const prefs = await this.preferences(ownerId)
-    if (!prefs?.inboundEnabled) return
+    if (!options?.force && !prefs?.inboundEnabled) return
     const access = await this.google.authorized(ownerId)
     const listResponse = await this.tasks.listLists(access)
     const listBody = listResponse.ok
@@ -188,9 +204,10 @@ export class GoogleInboundService {
       'SELECT "tasksPolledAt" FROM google_connections WHERE "ownerId"=$1',
       [ownerId],
     )
-    const updatedMin = cursor[0]?.tasksPolledAt
-      ? new Date(cursor[0].tasksPolledAt).toISOString()
-      : null
+    const updatedMin =
+      options?.full || !cursor[0]?.tasksPolledAt
+        ? null
+        : new Date(cursor[0].tasksPolledAt).toISOString()
     for (const listId of lists) {
       const response = await this.tasks.listUpdated(access, listId, updatedMin)
       if (!response.ok) throw new Error('Tasks')
@@ -215,7 +232,10 @@ export class GoogleInboundService {
     const link = await this.linkByResource(ownerId, 'event', id)
     const mark = privateMark(item)
     const entityId = link?.entityId ?? mark?.id
-    if (!entityId) return
+    if (!entityId) {
+      await this.importEvent(ownerId, calendarId, id, item)
+      return
+    }
     if (item.status === 'cancelled') {
       if (!link) return
       await this.source.query(
@@ -274,7 +294,10 @@ export class GoogleInboundService {
     const link = await this.linkByResource(ownerId, 'task', id)
     const marked = colaboraId(String(item.notes ?? ''))
     const entityId = link?.entityId ?? marked
-    if (!entityId) return
+    if (!entityId) {
+      await this.importTask(ownerId, listId, id, item)
+      return
+    }
     if (item.deleted === true) {
       if (!link) return
       await this.source.query(
@@ -310,7 +333,7 @@ export class GoogleInboundService {
         ownerId,
         String(item.title ?? 'Tarefa').slice(0, 120),
         stripMark(String(item.notes ?? '')),
-        item.due ? new Date(String(item.due)) : null,
+        dueOnLocalDay(item.due),
         completed ? TaskStatus.Completed : TaskStatus.Pending,
         completed ? revision : null,
         revision,
@@ -325,6 +348,99 @@ export class GoogleInboundService {
       entityId,
       googleKind: 'task',
       googleResourceId: id,
+      googleCalendarId: listId,
+      googleEtag: stringOrNull(item.etag),
+      revision,
+      state: 'synced',
+    })
+  }
+
+  private async importEvent(
+    ownerId: string,
+    calendarId: string,
+    id: string,
+    item: Record<string, unknown>,
+  ) {
+    if (!id || item.status === 'cancelled') return
+    const start = dateTime(item.start)
+    const end =
+      dateTime(item.end) ??
+      (start ? new Date(start.getTime() + 60 * 60 * 1000) : null)
+    if (!start || !end) return
+    const rows = await this.source.query(
+      `INSERT INTO agenda_items (id,"ownerId",title,type,description,"startDate","endDate",location,attachments)
+       VALUES (gen_random_uuid(),$1,$2,'event',$3,$4,$5,$6,'[]'::jsonb)
+       RETURNING id`,
+      [
+        ownerId,
+        String(item.summary ?? 'Evento').slice(0, 120),
+        textOrNull(item.description),
+        start,
+        end,
+        textOrNull(item.location),
+      ],
+    )
+    const createdId = rows[0]?.id as string | undefined
+    if (!createdId) return
+    await this.saveLink({
+      ownerId,
+      entityType: 'agenda_item',
+      entityId: createdId,
+      googleKind: 'event',
+      googleResourceId: id.slice(0, 1024),
+      googleCalendarId: calendarId,
+      googleEtag: stringOrNull(item.etag),
+      revision: new Date(),
+      state: 'synced',
+    })
+  }
+
+  private async importTask(
+    ownerId: string,
+    listId: string,
+    id: string,
+    item: Record<string, unknown>,
+  ) {
+    if (!id || item.deleted === true) return
+    const title = String(item.title ?? '')
+      .trim()
+      .slice(0, 120)
+    if (!title) return
+    const categoryRows = await this.source.query(
+      `SELECT id,name,color FROM task_categories WHERE "ownerId"=$1 AND "googleListId"=$2 AND "deletedAt" IS NULL`,
+      [ownerId, listId],
+    )
+    const category = categoryRows[0] as
+      { id: string; name: string; color: string } | undefined
+    const completed = item.status === 'completed'
+    const revision = new Date()
+    const rows = await this.source.query(
+      `INSERT INTO tasks (
+         id,title,description,category,"categoryId",color,"dueDate",status,"completedAt",
+         "estimatedTime","createdById","assignedToId","assignmentStatus",attachments
+       ) VALUES (
+         gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,30,$9,$9,'accepted','[]'::jsonb
+       ) RETURNING id`,
+      [
+        title,
+        stripMark(String(item.notes ?? '')),
+        category?.name ?? 'Google',
+        category?.id ?? null,
+        category?.color ?? 'blue',
+        dueOnLocalDay(item.due),
+        completed ? TaskStatus.Completed : TaskStatus.Pending,
+        completed ? revision : null,
+        ownerId,
+      ],
+    )
+    const createdId = rows[0]?.id as string | undefined
+    if (!createdId) return
+    await this.saveLink({
+      ownerId,
+      entityType: 'task',
+      entityId: createdId,
+      googleKind: 'task',
+      googleResourceId: id.slice(0, 1024),
       googleCalendarId: listId,
       googleEtag: stringOrNull(item.etag),
       revision,
@@ -463,6 +579,14 @@ function colaboraId(notes: string) {
 function stripMark(notes: string) {
   const value = notes.replace(/\n?\[colabora:[0-9a-f-]{36}\]/i, '').trim()
   return value || null
+}
+
+function dueOnLocalDay(value: unknown) {
+  if (typeof value !== 'string' || !value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  if (/T00:00:00(?:\.000)?Z$/u.test(value)) date.setUTCHours(15)
+  return date
 }
 
 function dateTime(value: unknown) {

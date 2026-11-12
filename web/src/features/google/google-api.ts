@@ -60,3 +60,7 @@ export function googleCalendars() {
 export function googleTasklists() {
   return apiRequest<Array<{ id: string; title: string }>>('/google/tasklists')
 }
+
+export function googleSyncNow() {
+  return apiRequest<{ ok: true }>('/google/sync-now', { method: 'POST' })
+}

@@ -167,7 +167,9 @@ function TaskFormContent({
     }
   }, [open, task?.category, task?.categoryId])
 
-  const selectedCategory = categories.find((item) => item.id === categoryId) ?? {
+  const selectedCategory = categories.find(
+    (item) => item.id === categoryId,
+  ) ?? {
     id: '',
     name: task?.category ?? taskCategories[0].name,
     color: categoryByName(task?.category).color,
@@ -181,7 +183,7 @@ function TaskFormContent({
       setCreatingCategory(false)
       return
     }
-  const color = categoryByName(trimmed).color
+    const color = categoryByName(trimmed).color
     try {
       const created = await createTaskCategory({ name: trimmed, color })
       setCategories((current) => [...current, created])
@@ -512,12 +514,13 @@ function TaskFormContent({
                   )
                 })}
                 {creatingCategory ? (
-                  <div className="flex items-center gap-1.5">
+                  <div className="grid w-full basis-full gap-2">
                     <input
                       autoFocus
                       type="text"
                       placeholder="Nome da lista..."
-                      className="h-8 rounded-full border border-input bg-card px-3 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+                      aria-label="Nome da nova categoria"
+                      className="h-8 w-full rounded-full border border-input bg-card px-3 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
                       value={newCategoryInput}
                       onChange={(e) => setNewCategoryInput(e.target.value)}
                       onKeyDown={(e) => {
@@ -530,25 +533,27 @@ function TaskFormContent({
                         }
                       }}
                     />
-                    <button
-                      type="button"
-                      className="h-8 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground transition hover:opacity-90"
-                      onClick={() => {
-                        void handleCreateCategory()
-                      }}
-                    >
-                      Criar
-                    </button>
-                    <button
-                      type="button"
-                      className="h-8 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => {
-                        setCreatingCategory(false)
-                        setNewCategoryInput('')
-                      }}
-                    >
-                      Cancelar
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="h-8 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground transition hover:opacity-90"
+                        onClick={() => {
+                          void handleCreateCategory()
+                        }}
+                      >
+                        Criar
+                      </button>
+                      <button
+                        type="button"
+                        className="h-8 rounded-full border border-border bg-card px-3 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          setCreatingCategory(false)
+                          setNewCategoryInput('')
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <button

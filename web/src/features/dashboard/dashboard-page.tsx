@@ -1,5 +1,8 @@
+import { useEffect } from 'react'
+
 import { MutedText, PageTitle } from '@/components/typography'
 import { useNavigation } from '@/components/layout/navigation'
+import { googleStatus, googleSyncNow } from '@/features/google/google-api'
 import { useTasks } from '@/features/tasks/tasks-context'
 
 import { ProgressSummary } from './components/progress-summary'
@@ -12,6 +15,26 @@ export function DashboardPage() {
   const { goTo } = useNavigation()
 
   const completed = tasks.filter((task) => task.status === 'completed').length
+
+  useEffect(() => {
+    let active = true
+    googleStatus()
+      .then(async (status) => {
+        if (
+          !active ||
+          !status.configured ||
+          status.status !== 'connected' ||
+          !status.preferences?.inboundEnabled
+        )
+          return
+        await googleSyncNow()
+        if (active) window.dispatchEvent(new Event('colabora-google-synced'))
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [])
 
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-8">

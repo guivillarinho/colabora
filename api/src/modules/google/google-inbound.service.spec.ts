@@ -84,6 +84,44 @@ it('queues a calendar pull and ignores events that Colabora did not create', asy
   ).toBe(false)
 })
 
+it('imports a Google event that was not created in Colabora', async () => {
+  const { service, source, calendar } = setup()
+  source.query.mockImplementation(async (sql: string) => {
+    if (String(sql).includes('SELECT status,preferences'))
+      return [{ status: 'connected', preferences: { inboundEnabled: true } }]
+    if (String(sql).includes('SELECT "syncToken"')) return [{ syncToken: null }]
+    if (String(sql).includes('INSERT INTO agenda_items'))
+      return [{ id: entity }]
+    return []
+  })
+  calendar.listEvents.mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      items: [
+        {
+          id: 'foreign-event',
+          summary: 'Consulta',
+          status: 'confirmed',
+          start: { dateTime: '2026-11-12T15:00:00.000Z' },
+          end: { dateTime: '2026-11-12T16:00:00.000Z' },
+        },
+      ],
+    }),
+  })
+  await service.pullCalendar(owner, 'primary')
+  expect(
+    source.query.mock.calls.some((call) =>
+      String(call[0]).includes('INSERT INTO agenda_items'),
+    ),
+  ).toBe(true)
+  expect(
+    source.query.mock.calls.some((call) =>
+      String(call[0]).includes('INSERT INTO google_sync_links'),
+    ),
+  ).toBe(true)
+})
+
 it('marks a conflict when the task changed on both sides', async () => {
   const { service, source, tasks } = setup()
   const past = new Date('2026-11-01T00:00:00.000Z')

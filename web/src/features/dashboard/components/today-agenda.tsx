@@ -25,14 +25,21 @@ export function TodayAgenda({ onViewAll }: { onViewAll: () => void }) {
 
   useEffect(() => {
     const controller = new AbortController()
-    listAgendaItems(controller.signal)
-      .then((data) => {
-        if (!controller.signal.aborted) setItems(data)
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setFailed(true)
-      })
-    return () => controller.abort()
+    const load = () => {
+      listAgendaItems(controller.signal)
+        .then((data) => {
+          if (!controller.signal.aborted) setItems(data)
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setFailed(true)
+        })
+    }
+    load()
+    window.addEventListener('colabora-google-synced', load)
+    return () => {
+      controller.abort()
+      window.removeEventListener('colabora-google-synced', load)
+    }
   }, [])
 
   const today = startOfDay(new Date())

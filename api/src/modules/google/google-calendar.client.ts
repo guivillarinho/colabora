@@ -26,14 +26,23 @@ export class GoogleCalendarClient {
     )
   }
 
-  listEvents(token: string, calendarId: string, syncToken?: string | null) {
+  listEvents(
+    token: string,
+    calendarId: string,
+    syncToken?: string | null,
+    range?: { timeMin: string; timeMax: string },
+  ) {
     const url = new URL(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
     )
     url.searchParams.set('showDeleted', 'true')
     url.searchParams.set('singleEvents', 'true')
-    url.searchParams.set('maxResults', '100')
-    if (syncToken) url.searchParams.set('syncToken', syncToken)
+    url.searchParams.set('maxResults', '250')
+    if (range) {
+      url.searchParams.set('timeMin', range.timeMin)
+      url.searchParams.set('timeMax', range.timeMax)
+      url.searchParams.set('orderBy', 'startTime')
+    } else if (syncToken) url.searchParams.set('syncToken', syncToken)
     return this.request(token, url.toString())
   }
 

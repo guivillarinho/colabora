@@ -5,6 +5,13 @@ import { DashboardPage } from './dashboard-page'
 import { TaskExecutionChart } from './components/task-execution-chart'
 import type { Task } from '@/features/tasks/types/task'
 
+jest.mock('@/features/google/google-api', () => ({
+  googleStatus: jest.fn().mockResolvedValue({
+    configured: false,
+    status: 'disconnected',
+  }),
+  googleSyncNow: jest.fn(),
+}))
 jest.mock('@/features/tasks/tasks-context', () => ({
   useTasks: () => ({
     tasks: [],

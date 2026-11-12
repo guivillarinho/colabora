@@ -120,6 +120,28 @@ export class GoogleSyncOrchestrator {
     return true
   }
 
+  async syncNow(ownerId: string) {
+    const current = await this.preferences(ownerId)
+    if (!current) return { ok: false as const }
+    if (!current.inboundEnabled) {
+      const saved = await this.savePreferences(ownerId, {
+        ...current,
+        inboundEnabled: true,
+      })
+      if (!saved) return { ok: false as const }
+    }
+    const calendars = await this.calendars(ownerId)
+    for (const calendar of calendars) {
+      await this.inbound.pullCalendar(ownerId, calendar.id, {
+        force: true,
+        window: true,
+      })
+    }
+    await this.inbound.pullTaskLists(ownerId)
+    await this.inbound.pullTasks(ownerId, { force: true, full: true })
+    return { ok: true as const }
+  }
+
   async calendars(ownerId: string) {
     const access = await this.google.authorized(ownerId)
     const response = await this.calendar.listCalendars(access)

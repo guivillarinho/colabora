@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Check } from 'lucide-react'
 import {
   fetchTaskCategories,
   type ApiTaskCategory,
@@ -6,10 +7,10 @@ import {
 import { Button } from '@/components/ui/button'
 import {
   defaultGooglePreferences,
-  googleCalendars,
   googleConnect,
   googleDisconnect,
   googleStatus,
+  googleSyncNow,
   saveGooglePreferences,
   type GooglePreferences,
   type GoogleStatus,
@@ -27,11 +28,11 @@ export function GoogleSettings() {
   const [preferences, setPreferences] = useState<GooglePreferences>(
     defaultGooglePreferences,
   )
-  const [calendars, setCalendars] = useState<
-    Array<{ id: string; summary: string }>
-  >([])
   const [catalog, setCatalog] = useState<ApiTaskCategory[]>([])
-  const [busy, setBusy] = useState(false)
+  const [pending, setPending] = useState<
+    null | 'connect' | 'disconnect' | 'status' | 'save' | 'lists'
+  >(null)
+  const [saved, setSaved] = useState(false)
   const [message, setMessage] = useState(() => {
     const outcome = new URLSearchParams(window.location.search).get('google')
     if (outcome === 'connected') return 'Conta Google vinculada com sucesso.'
@@ -88,8 +89,9 @@ export function GoogleSettings() {
   async function act(
     action: 'connect' | 'disconnect' | 'status' | 'save' | 'lists',
   ) {
-    if (busy) return
-    setBusy(true)
+    if (pending) return
+    setPending(action)
+    setSaved(false)
     setMessage('')
     try {
       if (action === 'status') {
@@ -101,18 +103,16 @@ export function GoogleSettings() {
         return
       }
       if (action === 'lists') {
-        const [calendarItems, categoryItems] = await Promise.all([
-          googleCalendars(),
-          fetchTaskCategories(),
-        ])
-        setCalendars(calendarItems)
-        setCatalog(categoryItems)
-        setMessage('Calendários e categorias carregados.')
+        await googleSyncNow()
+        setCatalog(await fetchTaskCategories())
+        window.dispatchEvent(new Event('colabora-google-synced'))
+        setMessage('Calendários e tarefas sincronizados.')
         return
       }
       if (action === 'save') {
         await saveGooglePreferences(preferences)
         await refresh()
+        setSaved(true)
         setMessage('Preferências de sincronização salvas.')
         return
       }
@@ -129,7 +129,7 @@ export function GoogleSettings() {
         .then(setStatus)
         .catch(() => undefined)
     } finally {
-      setBusy(false)
+      setPending(null)
     }
   }
   const connection = !status
@@ -176,7 +176,7 @@ export function GoogleSettings() {
         </p>
       ) : null}
       {!status && message ? (
-        <Button disabled={busy} onClick={() => act('status')}>
+        <Button disabled={pending !== null} onClick={() => act('status')}>
           Tentar novamente
         </Button>
       ) : null}
@@ -190,7 +190,7 @@ export function GoogleSettings() {
         <div className="flex flex-wrap gap-2">
           {['disconnected', 'reconnect'].includes(status.status) ? (
             <Button
-              disabled={busy || !status.configured}
+              disabled={pending !== null || !status.configured}
               onClick={() => act('connect')}
             >
               {status.status === 'disconnected'
@@ -201,7 +201,7 @@ export function GoogleSettings() {
           {status.status !== 'disconnected' ? (
             <Button
               variant="outline"
-              disabled={busy}
+              disabled={pending !== null}
               onClick={() => act('disconnect')}
             >
               Desconectar Google
@@ -245,40 +245,15 @@ export function GoogleSettings() {
             />
             Receber alterações feitas no Google
           </label>
-          <label className="grid gap-1 text-sm">
-            Calendário padrão
-            {calendars.length ? (
-              <select
-                className="h-11 rounded-lg border bg-card px-3"
-                value={preferences.defaultCalendarId}
-                onChange={(event) =>
-                  setPreferences((current) => ({
-                    ...current,
-                    defaultCalendarId: event.target.value,
-                  }))
-                }
-              >
-                {calendars.map((calendar) => (
-                  <option key={calendar.id} value={calendar.id}>
-                    {calendar.summary}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                className="h-11 rounded-lg border bg-card px-3"
-                value={preferences.defaultCalendarId}
-                onChange={(event) =>
-                  setPreferences((current) => ({
-                    ...current,
-                    defaultCalendarId: event.target.value,
-                  }))
-                }
-              />
-            )}
-          </label>
-          <Button type="button" variant="outline" onClick={() => act('lists')}>
-            Carregar calendários e categorias
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending !== null}
+            onClick={() => act('lists')}
+          >
+            {pending === 'lists'
+              ? 'Sincronizando...'
+              : 'Sincronizar calendários e tarefas'}
           </Button>
           {catalog.length ? (
             <p className="text-sm text-muted-foreground">
@@ -292,9 +267,23 @@ export function GoogleSettings() {
               em conflito.
             </p>
           ) : null}
-          <Button type="submit" disabled={busy}>
-            Salvar sincronização
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="submit" disabled={pending !== null}>
+              {pending === 'save' ? 'Salvando...' : 'Salvar sincronização'}
+            </Button>
+            {saved ? (
+              <span
+                role="status"
+                className="inline-flex items-center gap-1.5 text-sm"
+              >
+                <Check
+                  aria-hidden="true"
+                  className="colabora-sync-check size-5"
+                />
+                Sincronização salva
+              </span>
+            ) : null}
+          </div>
         </form>
       ) : null}
       {status?.links?.length ? (
@@ -308,7 +297,11 @@ export function GoogleSettings() {
           ))}
         </ul>
       ) : null}
-      {busy ? <p role="status">Processando integração Google...</p> : null}
+      {pending === 'connect' ||
+      pending === 'disconnect' ||
+      pending === 'status' ? (
+        <p role="status">Processando integração Google...</p>
+      ) : null}
       {message ? (
         <p role="status" className="break-words">
           {message}

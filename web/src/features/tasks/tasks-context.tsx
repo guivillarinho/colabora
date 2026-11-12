@@ -107,10 +107,12 @@ export function TasksProvider({ children }: TasksProviderProps) {
         .catch(() => undefined)
     }
     window.addEventListener('focus', refresh)
+    window.addEventListener('colabora-google-synced', refresh)
     const interval = window.setInterval(refresh, 30_000)
     return () => {
       controller?.abort()
       window.removeEventListener('focus', refresh)
+      window.removeEventListener('colabora-google-synced', refresh)
       window.clearInterval(interval)
     }
   }, [])

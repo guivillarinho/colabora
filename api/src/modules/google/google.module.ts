@@ -101,6 +101,22 @@ export class GoogleController {
     return this.google.sync(user.id, dto.taskId)
   }
 
+  @Post('sync-now')
+  @HttpCode(200)
+  async syncNow(@CurrentUser() user: Identity) {
+    try {
+      const result = await this.outbound.syncNow(user.id)
+      if (!result.ok)
+        throw new ConflictException('Vincule sua conta Google primeiro.')
+      return result
+    } catch (error) {
+      if (error instanceof ConflictException) throw error
+      throw new BadRequestException(
+        'Não foi possível sincronizar com o Google.',
+      )
+    }
+  }
+
   @Patch('preferences')
   async preferences(
     @CurrentUser() user: Identity,
