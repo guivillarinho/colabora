@@ -1034,10 +1034,33 @@ export function AgendaDetails({
         }
         className="flex max-h-[85svh] flex-col overflow-hidden sm:max-w-lg [overflow-wrap:anywhere]"
       >
-        <DialogHeader className="shrink-0 min-w-0 pr-8">
-          <DialogTitle className="leading-snug">
+        <DialogHeader className="shrink-0 min-w-0">
+          <DialogTitle className="pr-8 leading-snug">
             {item?.title ?? 'Detalhes'}
           </DialogTitle>
+          {item &&
+            (item.startDate ? (
+              <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted p-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Início</p>
+                  <p>
+                    {formatDate(item.startDate)} · {formatTime(item.startDate)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Final</p>
+                  <p>
+                    {item.endDate
+                      ? `${formatDate(item.endDate)} · ${formatTime(item.endDate)}`
+                      : task?.status === 'completed'
+                        ? 'Não registrado'
+                        : 'Em andamento'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <MutedText>Sem data agendada.</MutedText>
+            ))}
           <DialogDescription>
             {item?.type === 'task'
               ? `Tarefa · ${item.category}`
@@ -1084,28 +1107,6 @@ export function AgendaDetails({
                 <LinkedText>{item.description || 'Sem descrição.'}</LinkedText>
               </p>
             </section>
-            {item.startDate ? (
-              <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted p-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">Início</p>
-                  <p>
-                    {formatDate(item.startDate)} · {formatTime(item.startDate)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Final</p>
-                  <p>
-                    {item.endDate
-                      ? `${formatDate(item.endDate)} · ${formatTime(item.endDate)}`
-                      : task?.status === 'completed'
-                        ? 'Não registrado'
-                        : 'Em andamento'}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <MutedText>Sem data agendada.</MutedText>
-            )}
             {item.location?.trim() ? (
               <section
                 aria-labelledby="agenda-location-heading"
