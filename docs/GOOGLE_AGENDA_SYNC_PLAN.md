@@ -4,13 +4,13 @@ Este documento é a referência da evolução da E12. A E12 original vincula a c
 
 ## Decisões
 
-- Tarefas com prazo usam a **Google Tasks API**. Eventos e projetos da agenda usam **Calendar Events**.
+- Tarefas usam a **Google Tasks API**. Tarefas com horário também geram um evento no calendário padrão, com os mesmos lembretes configurados no Colabora. Eventos e projetos da agenda usam **Calendar Events**.
 - Alterações feitas no Google Agenda chegam por **watch channel** e webhook. A Tasks API não oferece push; alterações de tarefas são lidas por **poll** (`updatedMin`).
 - A sincronização automática começa **desligada** (`autoSync` e `inboundEnabled` falsos). Quem já usa o envio manual não passa a exportar tudo ao reconectar. A pessoa liga as opções no perfil.
 - Tokens continuam só no servidor, cifrados com AES-256-GCM. A interface recebe e-mail, status, preferências e o estado dos vínculos, nunca o refresh token.
 - Eventos do Google sem a marca privada do Colabora não são importados. Isso evita copiar a agenda inteira para o aplicativo.
 - Desconectar revoga o refresh token e apaga vínculos, canais e a fila local. Eventos e tarefas que já estão no Google permanecem lá.
-- Tarefa sem `dueDate` não é exportada.
+- Tarefa sem `dueDate` é exportada somente para o Google Tasks.
 
 ## Escopos OAuth
 
@@ -26,14 +26,14 @@ Migração aditiva `1795000000000-google-sync-v2.ts`. Sem rollback automático.
 
 `google_sync_links` guarda o par Colabora/Google:
 
-- `entityType`: `task` ou `agenda_item`
+- `entityType`: `task`, `task_event` ou `agenda_item`
 - `googleKind`: `task` ou `event`
 - `googleResourceId`, `googleCalendarId`, `googleEtag`
 - `colaboraRevision`, `syncedAt`, `syncState` (`synced`, `pending`, `error`, `conflict`)
 
 Não há chave estrangeira para `tasks` nem `agenda_items`. O vínculo precisa sobreviver à exclusão local o tempo suficiente para apagar o recurso no Google. `ownerId` continua em cascata com o usuário.
 
-Linhas antigas de `google_calendar_sync` são copiadas como `googleKind = event` e `syncState = pending`. No próximo envio automático o evento legado vira uma Google Task e o evento é removido.
+Linhas antigas de `google_calendar_sync` são copiadas como `googleKind = event` e `syncState = pending`. No próximo envio automático, o Colabora reaproveita o evento legado e cria vínculos separados para a Google Task e seu evento.
 
 `google_watch_channels` guarda canal, `resourceId`, segredo, expiração e `syncToken` do calendário.
 

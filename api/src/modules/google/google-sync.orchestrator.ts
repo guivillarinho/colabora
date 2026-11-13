@@ -4,6 +4,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { DataSource } from 'typeorm'
 
 import { AgendaItem } from '../agenda/entities/agenda-item.entity'
+import { taskReminderOffsets } from '../notifications/notifications.service'
 import { Task } from '../tasks/entities/task.entity'
 import { TaskStatus } from '../tasks/task-status.enum'
 import { GoogleCalendarClient } from './google-calendar.client'
@@ -62,12 +63,20 @@ export class GoogleSyncOrchestrator {
         payload.entityType,
         payload.entityId,
       )
-      if (!link) return
+      const event =
+        operation === 'delete-task'
+          ? await this.link(ownerId, 'task_event', payload.entityId)
+          : undefined
+      if (!link && !event) return
       payload = {
         ...payload,
-        googleKind: link.googleKind,
-        googleResourceId: link.googleResourceId,
-        googleCalendarId: link.googleCalendarId ?? prefs.defaultCalendarId,
+        googleKind: link?.googleKind ?? '',
+        googleResourceId: link?.googleResourceId ?? '',
+        googleCalendarId: link?.googleCalendarId ?? prefs.defaultCalendarId,
+        ...(event && {
+          taskEventId: event.googleResourceId,
+          taskEventCalendar: event.googleCalendarId ?? 'primary',
+        }),
       }
     }
     await this.source.query(
@@ -150,7 +159,8 @@ export class GoogleSyncOrchestrator {
     Array<{ entityType: string; entityId: string; googleCalendarId: string }>
   > {
     return this.source.query(
-      `SELECT "entityType","entityId","googleCalendarId" FROM google_sync_links
+      `SELECT CASE WHEN "entityType"='task_event' THEN 'task' ELSE "entityType" END AS "entityType",
+        "entityId","googleCalendarId" FROM google_sync_links
        WHERE "ownerId"=$1 AND "googleKind"='event' AND "googleCalendarId" IS NOT NULL`,
       [ownerId],
     )
@@ -220,7 +230,7 @@ export class GoogleSyncOrchestrator {
   private async dispatch(row: OutboxRow) {
     const payload = row.payload ?? {}
     if (row.operation === 'push-task')
-      await this.pushTask(row.ownerId, payload.taskId)
+      await this.pushTask(row.ownerId, payload.taskId, payload.target)
     else if (row.operation === 'push-agenda')
       await this.pushAgenda(row.ownerId, payload.agendaId)
     else if (
@@ -249,50 +259,114 @@ export class GoogleSyncOrchestrator {
       await this.ensureWatch(row.ownerId)
   }
 
-  private async pushTask(ownerId: string, taskId: string) {
+  private async pushTask(ownerId: string, taskId: string, target?: string) {
     const task = await this.task(taskId, ownerId)
-    if (!task?.dueDate) return
+    if (!task) return
     const prefs = await this.preferences(ownerId)
     if (!prefs) return
     const access = await this.google.authorized(ownerId)
     const existing = await this.link(ownerId, 'task', taskId)
-    if (existing?.googleKind === 'event') {
-      await this.calendar.remove(
+    const event = await this.link(ownerId, 'task_event', taskId)
+    const calendarLink =
+      event ?? (existing?.googleKind === 'event' ? existing : undefined)
+    if (!task.dueDate && calendarLink) {
+      await this.removeCalendarEvent(
         access,
-        existing.googleCalendarId || 'primary',
-        existing.googleResourceId,
+        calendarLink.googleCalendarId ?? 'primary',
+        calendarLink.googleResourceId,
+      )
+      await this.source.query(
+        `DELETE FROM google_sync_links WHERE "ownerId"=$1 AND "entityType"='task_event' AND "entityId"=$2`,
+        [ownerId, taskId],
       )
     }
-    const listId = await this.resolveListIdForCategory(
-      ownerId,
-      task.categoryId,
-      task.category,
-      prefs,
+    if (target !== 'calendar') {
+      const listId = await this.resolveListIdForCategory(
+        ownerId,
+        task.categoryId,
+        task.category,
+        prefs,
+        access,
+      )
+      const response = await this.tasks.upsert(
+        access,
+        listId,
+        existing?.googleKind === 'task' ? existing.googleResourceId : null,
+        {
+          title: task.title,
+          notes: `${task.description ?? ''}\n[colabora:${task.id}]`.trim(),
+          due: task.dueDate ? new Date(task.dueDate).toISOString() : null,
+          status:
+            task.status === TaskStatus.Completed ? 'completed' : 'needsAction',
+        },
+      )
+      if (!response.ok) throw new Error('Tasks')
+      const body = (await response.json()) as { id?: string; etag?: string }
+      if (!body.id) throw new Error('Tasks')
+      await this.saveLink(
+        ownerId,
+        'task',
+        task.id,
+        'task',
+        body.id,
+        listId,
+        body.etag ?? null,
+        task.updatedAt,
+      )
+    }
+    if (!task.dueDate || target === 'tasks') return
+    const start = new Date(task.dueDate)
+    const eventId =
+      calendarLink?.googleResourceId ??
+      createHash('sha256')
+        .update(`colabora:${ownerId}:${task.id}`)
+        .digest('hex')
+    const legacy =
+      !calendarLink &&
+      (
+        await this.source.query(
+          'SELECT "eventId" FROM google_calendar_sync WHERE "ownerId"=$1 AND "taskId"=$2',
+          [ownerId, taskId],
+        )
+      )[0]
+    const targetCalendar =
+      calendarLink?.googleCalendarId ??
+      (legacy ? 'primary' : prefs.defaultCalendarId)
+    const offsets =
+      task.status === TaskStatus.Completed ? [] : taskReminderOffsets(task)
+    const eventResponse = await this.calendar.upsert(
       access,
-    )
-    const response = await this.tasks.upsert(
-      access,
-      listId,
-      existing?.googleKind === 'task' ? existing.googleResourceId : null,
+      targetCalendar,
+      eventId,
       {
-        title: task.title,
-        notes: `${task.description ?? ''}\n[colabora:${task.id}]`.trim(),
-        due: new Date(task.dueDate).toISOString(),
-        status:
-          task.status === TaskStatus.Completed ? 'completed' : 'needsAction',
+        summary: task.title,
+        description: task.description ?? '',
+        location: task.location ?? undefined,
+        start: { dateTime: start.toISOString() },
+        end: {
+          dateTime: new Date(
+            start.getTime() + (task.estimatedTime || 30) * 60000,
+          ).toISOString(),
+        },
+        reminders: {
+          useDefault: false,
+          overrides: offsets.map((minutes) => ({ method: 'popup', minutes })),
+        },
+        extendedProperties: {
+          private: { colaboraEntityId: task.id, colaboraEntityType: 'task' },
+        },
       },
     )
-    if (!response.ok) throw new Error('Tasks')
-    const body = (await response.json()) as { id?: string; etag?: string }
-    if (!body.id) throw new Error('Tasks')
+    if (!eventResponse.ok) throw new Error('Calendar')
+    const eventBody = (await eventResponse.json()) as { etag?: string }
     await this.saveLink(
       ownerId,
-      'task',
+      'task_event',
       task.id,
-      'task',
-      body.id,
-      listId,
-      body.etag ?? null,
+      'event',
+      eventId,
+      targetCalendar,
+      eventBody.etag ?? null,
       task.updatedAt,
     )
   }
@@ -409,7 +483,7 @@ export class GoogleSyncOrchestrator {
 
   private async moveTaskList(ownerId: string, taskId: string) {
     const task = await this.task(taskId, ownerId)
-    if (!task?.dueDate || !task.categoryId) {
+    if (!task?.categoryId) {
       await this.pushTask(ownerId, taskId)
       return
     }
@@ -451,6 +525,7 @@ export class GoogleSyncOrchestrator {
       body.etag ?? null,
       task.updatedAt,
     )
+    await this.pushTask(ownerId, taskId)
   }
 
   private async pushAgenda(ownerId: string, agendaId: string) {
@@ -505,18 +580,34 @@ export class GoogleSyncOrchestrator {
       )
       if (!response.ok && response.status !== 404) throw new Error('Tasks')
     } else if (payload.googleResourceId) {
-      const response = await this.calendar.remove(
+      await this.removeCalendarEvent(
         access,
         payload.googleCalendarId || 'primary',
         payload.googleResourceId,
       )
-      if (!response.ok && response.status !== 404 && response.status !== 410)
-        throw new Error('Calendar')
+    }
+    if (payload.taskEventId) {
+      await this.removeCalendarEvent(
+        access,
+        payload.taskEventCalendar,
+        payload.taskEventId,
+      )
     }
     await this.source.query(
-      'DELETE FROM google_sync_links WHERE "ownerId"=$1 AND "entityType"=$2 AND "entityId"=$3',
+      `DELETE FROM google_sync_links WHERE "ownerId"=$1 AND "entityId"=$3
+       AND ("entityType"=$2 OR ($2='task' AND "entityType"='task_event'))`,
       [ownerId, payload.entityType, payload.entityId],
     )
+  }
+
+  private async removeCalendarEvent(
+    access: string,
+    calendarId: string,
+    eventId: string,
+  ) {
+    const response = await this.calendar.remove(access, calendarId, eventId)
+    if (!response.ok && response.status !== 404 && response.status !== 410)
+      throw new Error('Calendar')
   }
 
   private webhookUrl() {

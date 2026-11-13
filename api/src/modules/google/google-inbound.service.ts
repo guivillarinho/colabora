@@ -2,6 +2,8 @@ import { Inject, Injectable, forwardRef } from '@nestjs/common'
 import { timingSafeEqual } from 'node:crypto'
 import { DataSource } from 'typeorm'
 
+import { NotificationsService } from '../notifications/notifications.service'
+import { Task } from '../tasks/entities/task.entity'
 import { TaskStatus } from '../tasks/task-status.enum'
 import { GoogleCalendarClient } from './google-calendar.client'
 import { GoogleService } from './google.service'
@@ -30,6 +32,7 @@ export class GoogleInboundService {
     private readonly google: GoogleService,
     private readonly tasks: GoogleTasksClient,
     private readonly calendar: GoogleCalendarClient,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async acceptWebhook(headers: Record<string, string | string[] | undefined>) {
@@ -248,6 +251,17 @@ export class GoogleInboundService {
   ) {
     const id = String(item.id ?? '')
     const link = await this.linkByResource(ownerId, 'event', id)
+    if (
+      link?.entityType === 'task_event' ||
+      link?.entityType === 'task' ||
+      (
+        item.extendedProperties as
+          { private?: Record<string, string> } | undefined
+      )?.private?.colaboraEntityType === 'task'
+    ) {
+      if (link) await this.applyTaskEvent(ownerId, calendarId, item, link)
+      return
+    }
     const mark = privateMark(item)
     const entityId = link?.entityId ?? mark?.id
     if (!entityId) {
@@ -306,6 +320,84 @@ export class GoogleInboundService {
     })
   }
 
+  private async applyTaskEvent(
+    ownerId: string,
+    calendarId: string,
+    item: Record<string, unknown>,
+    link: LinkRow,
+  ) {
+    if (item.status === 'cancelled') {
+      await this.deleteLink(ownerId, link.entityType, link.entityId)
+      return
+    }
+    if (link.googleEtag && link.googleEtag === item.etag) return
+    const start = dateTime(item.start)
+    const end = dateTime(item.end)
+    if (
+      !start ||
+      !end ||
+      !Number.isFinite(start.getTime()) ||
+      !Number.isFinite(end.getTime())
+    )
+      return
+    const [task] = await this.source.query(
+      'SELECT id,"updatedAt" FROM tasks WHERE id=$1 AND "createdById"=$2',
+      [link.entityId, ownerId],
+    )
+    if (!task) return
+    if (this.conflict(task.updatedAt, link, item.updated)) {
+      await this.markConflict(ownerId, link.entityType, link.entityId)
+      return
+    }
+    const duration = Math.max(
+      1,
+      Math.min(10080, Math.round((end.getTime() - start.getTime()) / 60000)),
+    )
+    const revision = new Date()
+    await this.source.transaction(async (manager) => {
+      const [updated] = await manager.query(
+        `UPDATE tasks SET title=$3, description=$4, location=$5, "dueDate"=$6,
+         "estimatedTime"=$7, "updatedAt"=$8 WHERE id=$1 AND "createdById"=$2
+         RETURNING *`,
+        [
+          link.entityId,
+          ownerId,
+          String(item.summary || 'Tarefa').slice(0, 120),
+          textOrNull(item.description),
+          textOrNull(item.location)?.slice(0, 200) ?? null,
+          start,
+          duration,
+          revision,
+        ],
+      )
+      if (updated)
+        await this.notifications.scheduleTaskReminders(updated as Task, manager)
+    })
+    await this.saveLink({
+      ...link,
+      ownerId,
+      googleCalendarId: calendarId,
+      googleEtag: stringOrNull(item.etag),
+      revision,
+      state: 'synced',
+    })
+    await this.queueTaskPush(ownerId, link.entityId, 'tasks')
+  }
+
+  private async queueTaskPush(
+    ownerId: string,
+    taskId: string,
+    target: 'tasks' | 'calendar',
+  ) {
+    const prefs = await this.preferences(ownerId)
+    if (!prefs?.autoSync) return
+    await this.source.query(
+      `INSERT INTO google_sync_outbox (id,"ownerId",operation,payload)
+       VALUES (gen_random_uuid(),$1,'push-task',$2::jsonb)`,
+      [ownerId, JSON.stringify({ taskId, target })],
+    )
+  }
+
   private async applyTask(
     ownerId: string,
     listId: string,
@@ -326,10 +418,19 @@ export class GoogleInboundService {
         [entityId, ownerId],
       )
       await this.deleteLink(ownerId, 'task', entityId)
+      await this.source.query(
+        `INSERT INTO google_sync_outbox (id,"ownerId",operation,payload)
+         SELECT gen_random_uuid(),$1,'delete-task',
+         jsonb_build_object('entityType','task','entityId',"entityId",
+           'taskEventId',"googleResourceId",'taskEventCalendar',"googleCalendarId")
+         FROM google_sync_links WHERE "ownerId"=$1 AND "entityType"='task_event' AND "entityId"=$2`,
+        [ownerId, entityId],
+      )
       return
     }
+    if (link?.googleEtag && link.googleEtag === item.etag) return
     const rows = await this.source.query(
-      'SELECT id,"updatedAt" FROM tasks WHERE id=$1 AND "createdById"=$2',
+      'SELECT id,"updatedAt","dueDate","completedAt" FROM tasks WHERE id=$1 AND "createdById"=$2',
       [entityId, ownerId],
     )
     if (!rows[0]) return
@@ -345,24 +446,47 @@ export class GoogleInboundService {
     )
     const category = categoryRows[0] as
       { id: string; name: string; color: string } | undefined
-    await this.source.query(
-      `UPDATE tasks SET title=$3, description=$4, "dueDate"=$5, status=$6, "completedAt"=$7, "updatedAt"=$8,
+    const due = dueOnLocalDay(item.due)
+    const previousDue = rows[0].dueDate ? new Date(rows[0].dueDate) : null
+    if (due && previousDue) {
+      // Tasks returns a date only. Carry the existing hour across edits.
+      due.setUTCHours(
+        previousDue.getUTCHours(),
+        previousDue.getUTCMinutes(),
+        previousDue.getUTCSeconds(),
+        previousDue.getUTCMilliseconds(),
+      )
+    }
+    const completedAt = completed
+      ? (dateTime({
+          dateTime:
+            typeof item.completed === 'string' ? item.completed : undefined,
+        }) ??
+        rows[0].completedAt ??
+        null)
+      : null
+    await this.source.transaction(async (manager) => {
+      const [updated] = await manager.query(
+        `UPDATE tasks SET title=$3, description=$4, "dueDate"=$5, status=$6, "completedAt"=$7, "updatedAt"=$8,
        "categoryId"=COALESCE($9,"categoryId"), category=COALESCE($10,category), color=COALESCE($11,color)
-       WHERE id=$1 AND "createdById"=$2`,
-      [
-        entityId,
-        ownerId,
-        String(item.title ?? 'Tarefa').slice(0, 120),
-        stripMark(String(item.notes ?? '')),
-        dueOnLocalDay(item.due),
-        completed ? TaskStatus.Completed : TaskStatus.Pending,
-        completed ? revision : null,
-        revision,
-        category?.id ?? null,
-        category?.name ?? null,
-        category?.color ?? null,
-      ],
-    )
+       WHERE id=$1 AND "createdById"=$2 RETURNING *`,
+        [
+          entityId,
+          ownerId,
+          String(item.title ?? 'Tarefa').slice(0, 120),
+          stripMark(String(item.notes ?? '')),
+          due,
+          completed ? TaskStatus.Completed : TaskStatus.Pending,
+          completedAt,
+          revision,
+          category?.id ?? null,
+          category?.name ?? null,
+          category?.color ?? null,
+        ],
+      )
+      if (updated)
+        await this.notifications.scheduleTaskReminders(updated as Task, manager)
+    })
     await this.saveLink({
       ownerId,
       entityType: 'task',
@@ -374,6 +498,13 @@ export class GoogleInboundService {
       revision,
       state: 'synced',
     })
+    // Refresh an existing Calendar counterpart without assigning an invented
+    // time to a date-only task imported from Google.
+    const events = await this.source.query(
+      `SELECT 1 FROM google_sync_links WHERE "ownerId"=$1 AND "entityType"='task_event' AND "entityId"=$2`,
+      [ownerId, entityId],
+    )
+    if (events.length) await this.queueTaskPush(ownerId, entityId, 'calendar')
   }
 
   private async importEvent(

@@ -16,7 +16,12 @@ function setup() {
     createList: jest.fn(),
   }
   const calendar = {
-    upsert: jest.fn(),
+    upsert: jest
+      .fn()
+      .mockResolvedValue({
+        ok: true,
+        json: async () => ({ etag: 'calendar-etag' }),
+      }),
     remove: jest.fn(),
     listCalendars: jest.fn(),
     watch: jest.fn(),
@@ -48,8 +53,8 @@ it('does not enqueue a push while automatic sync is off', async () => {
   ).toBe(false)
 })
 
-it('creates a Google Task for a dated Colabora task and records the link', async () => {
-  const { service, source, tasks } = setup()
+it('creates a Google Task and a timed Calendar event with reminders', async () => {
+  const { service, source, tasks, calendar } = setup()
   source.query.mockImplementation(async (sql: string) => {
     if (String(sql).includes('FROM google_sync_outbox'))
       return [
@@ -78,6 +83,8 @@ it('creates a Google Task for a dated Colabora task and records the link', async
           id: taskId,
           title: 'Estudar',
           description: 'Capítulo 1',
+          estimatedTime: 45,
+          reminderOffsets: [10, 0],
           category: 'Pessoal',
           dueDate: '2026-11-06T12:00:00.000Z',
           status: 'pending',
@@ -103,11 +110,29 @@ it('creates a Google Task for a dated Colabora task and records the link', async
       status: 'needsAction',
     }),
   )
-  expect(
-    source.query.mock.calls.some((call) =>
-      String(call[0]).includes('INSERT INTO google_sync_links'),
-    ),
-  ).toBe(true)
+  expect(calendar.upsert).toHaveBeenCalledWith(
+    'access',
+    'primary',
+    expect.stringMatching(/^[a-f0-9]{64}$/),
+    expect.objectContaining({
+      start: { dateTime: '2026-11-06T12:00:00.000Z' },
+      end: { dateTime: '2026-11-06T12:45:00.000Z' },
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: 'popup', minutes: 10 },
+          { method: 'popup', minutes: 0 },
+        ],
+      },
+    }),
+  )
+  const links = source.query.mock.calls.filter(([sql]) =>
+    String(sql).includes('INSERT INTO google_sync_links'),
+  )
+  expect(links.map(([, args]) => [args[1], args[3]])).toEqual([
+    ['task', 'task'],
+    ['task_event', 'event'],
+  ])
 })
 
 it('keeps a failed push in the outbox', async () => {

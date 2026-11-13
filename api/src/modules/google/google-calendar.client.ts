@@ -7,6 +7,10 @@ export type GoogleEventBody = {
   start: { dateTime: string }
   end: { dateTime: string }
   colorId?: string
+  reminders?: {
+    useDefault: boolean
+    overrides: Array<{ method: 'popup'; minutes: number }>
+  }
   extendedProperties?: { private: Record<string, string> }
 }
 

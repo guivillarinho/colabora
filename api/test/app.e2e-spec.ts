@@ -374,9 +374,11 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       googleFetch
         .mockResolvedValueOnce(reply({ access_token: 'access' }))
         .mockResolvedValueOnce(reply({ id: 'google-task-1', etag: 'etag-1' }))
+        .mockResolvedValueOnce(reply({}, 404))
+        .mockResolvedValueOnce(reply({ etag: 'calendar-etag' }))
       const created = await task(owner, { dueDate: '2026-11-06T12:00:00Z' })
       const links = await source.query(
-        `SELECT "googleKind","googleResourceId","syncState" FROM google_sync_links WHERE "ownerId"=$1 AND "entityId"=$2`,
+        `SELECT "googleKind","googleResourceId","syncState" FROM google_sync_links WHERE "ownerId"=$1 AND "entityId"=$2 ORDER BY "googleKind" DESC`,
         [owner.user.id, created.id],
       )
       expect(links).toEqual([
@@ -385,7 +387,26 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
           googleResourceId: 'google-task-1',
           syncState: 'synced',
         },
+        {
+          googleKind: 'event',
+          googleResourceId: expect.stringMatching(/^[a-f0-9]{64}$/),
+          syncState: 'synced',
+        },
       ])
+      const calendarInsert = googleFetch.mock.calls.find(
+        ([url, init]) =>
+          String(url).includes('/calendar/v3/') && init?.method === 'POST',
+      )
+      expect(JSON.parse(String(calendarInsert?.[1]?.body))).toEqual(
+        expect.objectContaining({
+          start: { dateTime: '2026-11-06T12:00:00.000Z' },
+          reminders: expect.objectContaining({
+            overrides: expect.arrayContaining([
+              { method: 'popup', minutes: 0 },
+            ]),
+          }),
+        }),
+      )
       await request(app.getHttpServer())
         .post('/api/google/webhook/calendar')
         .set('X-Goog-Channel-Token', 'nope')

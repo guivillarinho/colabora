@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common'
 export type GoogleTaskBody = {
   title: string
   notes?: string
-  due?: string
+  due?: string | null
   status?: 'needsAction' | 'completed'
 }
 

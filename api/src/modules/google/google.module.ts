@@ -21,6 +21,7 @@ import { timingSafeEqual } from 'node:crypto'
 import type { Request, Response } from 'express'
 import { CurrentUser, MachineRequest, Public } from '../auth/auth.decorators'
 import type { Identity } from '../auth/entities/user.entity'
+import { NotificationsModule } from '../notifications/notifications.module'
 import { TasksModule } from '../tasks/tasks.module'
 import { GooglePreferencesDto } from './dto/google-preferences.dto'
 import { GoogleCalendarClient } from './google-calendar.client'
@@ -189,7 +190,7 @@ export class GoogleController {
   }
 }
 @Module({
-  imports: [forwardRef(() => TasksModule)],
+  imports: [forwardRef(() => TasksModule), NotificationsModule],
   controllers: [GoogleController],
   providers: [
     GoogleService,

@@ -703,7 +703,7 @@ describe('AgendaPage', () => {
     ).toBeGreaterThan(0)
   })
 
-  it('shows dates below the title and makes description links clickable', async () => {
+  it('shows dates below the task category and makes description links clickable', async () => {
     const [task] = await api.list()
     api.list.mockResolvedValue([
       { ...task, description: 'Contrato: https://exemplo.com/contrato' },
@@ -718,11 +718,11 @@ describe('AgendaPage', () => {
     expect(within(card).queryByRole('link')).not.toBeInTheDocument()
     await user.click(card)
     const details = within(screen.getByRole('dialog'))
-    const title = details.getByRole('heading', { name: 'Enviar proposta' })
+    const category = details.getByText('Tarefa · Trabalho')
     const startDate = details.getByText('Início', { exact: true })
     const endDate = details.getByText('Final', { exact: true })
-    expect(title.nextElementSibling).toContainElement(startDate)
-    expect(title.nextElementSibling).toContainElement(endDate)
+    expect(category.nextElementSibling).toContainElement(startDate)
+    expect(category.nextElementSibling).toContainElement(endDate)
 
     const description = details.getByRole('region', { name: 'Descrição' })
     expect(
