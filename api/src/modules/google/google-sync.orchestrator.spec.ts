@@ -16,12 +16,10 @@ function setup() {
     createList: jest.fn(),
   }
   const calendar = {
-    upsert: jest
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        json: async () => ({ etag: 'calendar-etag' }),
-      }),
+    upsert: jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ etag: 'calendar-etag' }),
+    }),
     remove: jest.fn(),
     listCalendars: jest.fn(),
     watch: jest.fn(),
@@ -53,7 +51,7 @@ it('does not enqueue a push while automatic sync is off', async () => {
   ).toBe(false)
 })
 
-it('creates a Google Task and a timed Calendar event with reminders', async () => {
+it('creates only a Google Task for a scheduled task', async () => {
   const { service, source, tasks, calendar } = setup()
   source.query.mockImplementation(async (sql: string) => {
     if (String(sql).includes('FROM google_sync_outbox'))
@@ -110,28 +108,12 @@ it('creates a Google Task and a timed Calendar event with reminders', async () =
       status: 'needsAction',
     }),
   )
-  expect(calendar.upsert).toHaveBeenCalledWith(
-    'access',
-    'primary',
-    expect.stringMatching(/^[a-f0-9]{64}$/),
-    expect.objectContaining({
-      start: { dateTime: '2026-11-06T12:00:00.000Z' },
-      end: { dateTime: '2026-11-06T12:45:00.000Z' },
-      reminders: {
-        useDefault: false,
-        overrides: [
-          { method: 'popup', minutes: 10 },
-          { method: 'popup', minutes: 0 },
-        ],
-      },
-    }),
-  )
+  expect(calendar.upsert).not.toHaveBeenCalled()
   const links = source.query.mock.calls.filter(([sql]) =>
     String(sql).includes('INSERT INTO google_sync_links'),
   )
   expect(links.map(([, args]) => [args[1], args[3]])).toEqual([
     ['task', 'task'],
-    ['task_event', 'event'],
   ])
 })
 

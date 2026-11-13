@@ -270,6 +270,6 @@ it('applies a Calendar time change to the linked task and reschedules its remind
   )
   expect(source.query).toHaveBeenCalledWith(
     expect.stringContaining("'push-task'"),
-    [owner, JSON.stringify({ taskId: entity, target: 'tasks' })],
+    [owner, JSON.stringify({ taskId: entity })],
   )
 })

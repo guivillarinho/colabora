@@ -381,20 +381,16 @@ export class GoogleInboundService {
       revision,
       state: 'synced',
     })
-    await this.queueTaskPush(ownerId, link.entityId, 'tasks')
+    await this.queueTaskPush(ownerId, link.entityId)
   }
 
-  private async queueTaskPush(
-    ownerId: string,
-    taskId: string,
-    target: 'tasks' | 'calendar',
-  ) {
+  private async queueTaskPush(ownerId: string, taskId: string) {
     const prefs = await this.preferences(ownerId)
     if (!prefs?.autoSync) return
     await this.source.query(
       `INSERT INTO google_sync_outbox (id,"ownerId",operation,payload)
        VALUES (gen_random_uuid(),$1,'push-task',$2::jsonb)`,
-      [ownerId, JSON.stringify({ taskId, target })],
+      [ownerId, JSON.stringify({ taskId })],
     )
   }
 
@@ -498,13 +494,6 @@ export class GoogleInboundService {
       revision,
       state: 'synced',
     })
-    // Refresh an existing Calendar counterpart without assigning an invented
-    // time to a date-only task imported from Google.
-    const events = await this.source.query(
-      `SELECT 1 FROM google_sync_links WHERE "ownerId"=$1 AND "entityType"='task_event' AND "entityId"=$2`,
-      [ownerId, entityId],
-    )
-    if (events.length) await this.queueTaskPush(ownerId, entityId, 'calendar')
   }
 
   private async importEvent(

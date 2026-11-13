@@ -4,7 +4,7 @@ Este documento é a referência da evolução da E12. A E12 original vincula a c
 
 ## Decisões
 
-- Tarefas usam a **Google Tasks API**. Tarefas com horário também geram um evento no calendário padrão, com os mesmos lembretes configurados no Colabora. Eventos e projetos da agenda usam **Calendar Events**.
+- Tarefas usam a **Google Tasks API**, que recebe a data. O horário e os lembretes da tarefa ficam no Colabora. Eventos e projetos da agenda usam **Calendar Events** com início, fim e lembretes.
 - Alterações feitas no Google Agenda chegam por **watch channel** e webhook. A Tasks API não oferece push; alterações de tarefas são lidas por **poll** (`updatedMin`).
 - A sincronização automática começa **desligada** (`autoSync` e `inboundEnabled` falsos). Quem já usa o envio manual não passa a exportar tudo ao reconectar. A pessoa liga as opções no perfil.
 - Tokens continuam só no servidor, cifrados com AES-256-GCM. A interface recebe e-mail, status, preferências e o estado dos vínculos, nunca o refresh token.
@@ -33,7 +33,7 @@ Migração aditiva `1795000000000-google-sync-v2.ts`. Sem rollback automático.
 
 Não há chave estrangeira para `tasks` nem `agenda_items`. O vínculo precisa sobreviver à exclusão local o tempo suficiente para apagar o recurso no Google. `ownerId` continua em cascata com o usuário.
 
-Linhas antigas de `google_calendar_sync` são copiadas como `googleKind = event` e `syncState = pending`. No próximo envio automático, o Colabora reaproveita o evento legado e cria vínculos separados para a Google Task e seu evento.
+Linhas antigas de `google_calendar_sync` são copiadas como `googleKind = event` e `syncState = pending`. No próximo envio automático, o Colabora preserva o vínculo com o evento legado e sincroniza a tarefa com o Google Tasks.
 
 `google_watch_channels` guarda canal, `resourceId`, segredo, expiração e `syncToken` do calendário.
 

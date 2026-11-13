@@ -319,7 +319,7 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
     }
   })
 
-  it('pushes an automatic task to Google Tasks and accepts a signed calendar webhook', async () => {
+  it('routes tasks to Google Tasks and events to Google Calendar', async () => {
     const original = { ...process.env }
     const googleFetch = jest.spyOn(global, 'fetch')
     Object.assign(process.env, {
@@ -374,8 +374,6 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
       googleFetch
         .mockResolvedValueOnce(reply({ access_token: 'access' }))
         .mockResolvedValueOnce(reply({ id: 'google-task-1', etag: 'etag-1' }))
-        .mockResolvedValueOnce(reply({}, 404))
-        .mockResolvedValueOnce(reply({ etag: 'calendar-etag' }))
       const created = await task(owner, { dueDate: '2026-11-06T12:00:00Z' })
       const links = await source.query(
         `SELECT "googleKind","googleResourceId","syncState" FROM google_sync_links WHERE "ownerId"=$1 AND "entityId"=$2 ORDER BY "googleKind" DESC`,
@@ -387,24 +385,56 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
           googleResourceId: 'google-task-1',
           syncState: 'synced',
         },
-        {
-          googleKind: 'event',
-          googleResourceId: expect.stringMatching(/^[a-f0-9]{64}$/),
-          syncState: 'synced',
-        },
       ])
-      const calendarInsert = googleFetch.mock.calls.find(
+      expect(
+        googleFetch.mock.calls.some(([url]) =>
+          String(url).includes('/calendar/v3/'),
+        ),
+      ).toBe(false)
+
+      const callCount = googleFetch.mock.calls.length
+      googleFetch
+        .mockResolvedValueOnce(reply({ access_token: 'access' }))
+        .mockResolvedValueOnce(reply({}, 404))
+        .mockResolvedValueOnce(reply({ etag: 'calendar-etag' }))
+      const startDate = new Date(Date.now() + 60 * 60_000).toISOString()
+      const endDate = new Date(Date.now() + 2 * 60 * 60_000).toISOString()
+      const event = await owner.agent
+        .post('/api/agenda-items')
+        .set('Origin', origin)
+        .set('X-CSRF-Token', owner.csrf)
+        .send({
+          title: 'Reunião',
+          type: 'event',
+          startDate,
+          endDate,
+          reminderOffsets: [0],
+        })
+        .expect(201)
+      const eventCalls = googleFetch.mock.calls.slice(callCount)
+      expect(
+        eventCalls.some(([url]) =>
+          String(url).includes('tasks.googleapis.com'),
+        ),
+      ).toBe(false)
+      const calendarInsert = eventCalls.find(
         ([url, init]) =>
           String(url).includes('/calendar/v3/') && init?.method === 'POST',
       )
       expect(JSON.parse(String(calendarInsert?.[1]?.body))).toEqual(
         expect.objectContaining({
-          start: { dateTime: '2026-11-06T12:00:00.000Z' },
-          reminders: expect.objectContaining({
-            overrides: expect.arrayContaining([
-              { method: 'popup', minutes: 0 },
-            ]),
-          }),
+          start: { dateTime: startDate },
+          end: { dateTime: endDate },
+          reminders: {
+            useDefault: false,
+            overrides: [{ method: 'popup', minutes: 0 }],
+          },
+          extendedProperties: {
+            private: {
+              colaboraEntityId: event.body.id,
+              colaboraEntityType: 'agenda_item',
+            },
+          },
         }),
       )
       await request(app.getHttpServer())

@@ -4,7 +4,6 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { DataSource } from 'typeorm'
 
 import { AgendaItem } from '../agenda/entities/agenda-item.entity'
-import { taskReminderOffsets } from '../notifications/notifications.service'
 import { Task } from '../tasks/entities/task.entity'
 import { TaskStatus } from '../tasks/task-status.enum'
 import { GoogleCalendarClient } from './google-calendar.client'
@@ -229,9 +228,10 @@ export class GoogleSyncOrchestrator {
 
   private async dispatch(row: OutboxRow) {
     const payload = row.payload ?? {}
-    if (row.operation === 'push-task')
-      await this.pushTask(row.ownerId, payload.taskId, payload.target)
-    else if (row.operation === 'push-agenda')
+    if (row.operation === 'push-task') {
+      if (payload.target !== 'calendar')
+        await this.pushTask(row.ownerId, payload.taskId)
+    } else if (row.operation === 'push-agenda')
       await this.pushAgenda(row.ownerId, payload.agendaId)
     else if (
       row.operation === 'delete-task' ||
@@ -259,114 +259,55 @@ export class GoogleSyncOrchestrator {
       await this.ensureWatch(row.ownerId)
   }
 
-  private async pushTask(ownerId: string, taskId: string, target?: string) {
+  private async pushTask(ownerId: string, taskId: string) {
     const task = await this.task(taskId, ownerId)
     if (!task) return
     const prefs = await this.preferences(ownerId)
     if (!prefs) return
     const access = await this.google.authorized(ownerId)
     const existing = await this.link(ownerId, 'task', taskId)
-    const event = await this.link(ownerId, 'task_event', taskId)
-    const calendarLink =
-      event ?? (existing?.googleKind === 'event' ? existing : undefined)
-    if (!task.dueDate && calendarLink) {
-      await this.removeCalendarEvent(
-        access,
-        calendarLink.googleCalendarId ?? 'primary',
-        calendarLink.googleResourceId,
-      )
-      await this.source.query(
-        `DELETE FROM google_sync_links WHERE "ownerId"=$1 AND "entityType"='task_event' AND "entityId"=$2`,
-        [ownerId, taskId],
-      )
-    }
-    if (target !== 'calendar') {
-      const listId = await this.resolveListIdForCategory(
-        ownerId,
-        task.categoryId,
-        task.category,
-        prefs,
-        access,
-      )
-      const response = await this.tasks.upsert(
-        access,
-        listId,
-        existing?.googleKind === 'task' ? existing.googleResourceId : null,
-        {
-          title: task.title,
-          notes: `${task.description ?? ''}\n[colabora:${task.id}]`.trim(),
-          due: task.dueDate ? new Date(task.dueDate).toISOString() : null,
-          status:
-            task.status === TaskStatus.Completed ? 'completed' : 'needsAction',
-        },
-      )
-      if (!response.ok) throw new Error('Tasks')
-      const body = (await response.json()) as { id?: string; etag?: string }
-      if (!body.id) throw new Error('Tasks')
+    if (existing?.googleKind === 'event') {
       await this.saveLink(
         ownerId,
-        'task',
+        'task_event',
         task.id,
-        'task',
-        body.id,
-        listId,
-        body.etag ?? null,
+        'event',
+        existing.googleResourceId,
+        existing.googleCalendarId ?? 'primary',
+        null,
         task.updatedAt,
       )
     }
-    if (!task.dueDate || target === 'tasks') return
-    const start = new Date(task.dueDate)
-    const eventId =
-      calendarLink?.googleResourceId ??
-      createHash('sha256')
-        .update(`colabora:${ownerId}:${task.id}`)
-        .digest('hex')
-    const legacy =
-      !calendarLink &&
-      (
-        await this.source.query(
-          'SELECT "eventId" FROM google_calendar_sync WHERE "ownerId"=$1 AND "taskId"=$2',
-          [ownerId, taskId],
-        )
-      )[0]
-    const targetCalendar =
-      calendarLink?.googleCalendarId ??
-      (legacy ? 'primary' : prefs.defaultCalendarId)
-    const offsets =
-      task.status === TaskStatus.Completed ? [] : taskReminderOffsets(task)
-    const eventResponse = await this.calendar.upsert(
+    const listId = await this.resolveListIdForCategory(
+      ownerId,
+      task.categoryId,
+      task.category,
+      prefs,
       access,
-      targetCalendar,
-      eventId,
+    )
+    const response = await this.tasks.upsert(
+      access,
+      listId,
+      existing?.googleKind === 'task' ? existing.googleResourceId : null,
       {
-        summary: task.title,
-        description: task.description ?? '',
-        location: task.location ?? undefined,
-        start: { dateTime: start.toISOString() },
-        end: {
-          dateTime: new Date(
-            start.getTime() + (task.estimatedTime || 30) * 60000,
-          ).toISOString(),
-        },
-        reminders: {
-          useDefault: false,
-          overrides: offsets.map((minutes) => ({ method: 'popup', minutes })),
-        },
-        extendedProperties: {
-          private: { colaboraEntityId: task.id, colaboraEntityType: 'task' },
-        },
+        title: task.title,
+        notes: `${task.description ?? ''}\n[colabora:${task.id}]`.trim(),
+        due: task.dueDate ? new Date(task.dueDate).toISOString() : null,
+        status:
+          task.status === TaskStatus.Completed ? 'completed' : 'needsAction',
       },
     )
-    if (!eventResponse.ok) throw new Error('Calendar')
-    const eventBody = (await eventResponse.json()) as { etag?: string }
+    if (!response.ok) throw new Error('Tasks')
+    const body = (await response.json()) as { id?: string; etag?: string }
+    if (!body.id) throw new Error('Tasks')
     await this.saveLink(
       ownerId,
-      'task_event',
+      'task',
       task.id,
-      'event',
-      eventId,
-      targetCalendar,
-      eventBody.etag ?? null,
+      'task',
+      body.id,
+      listId,
+      body.etag ?? null,
       task.updatedAt,
     )
   }
@@ -548,6 +489,15 @@ export class GoogleSyncOrchestrator {
         start: { dateTime: new Date(item.startDate).toISOString() },
         end: { dateTime: new Date(item.endDate).toISOString() },
         colorId: item.type === 'project' ? colors.purple : colors.blue,
+        ...(item.reminderOffsets && {
+          reminders: {
+            useDefault: false,
+            overrides: item.reminderOffsets.map((minutes) => ({
+              method: 'popup',
+              minutes,
+            })),
+          },
+        }),
         extendedProperties: {
           private: {
             colaboraEntityId: item.id,
