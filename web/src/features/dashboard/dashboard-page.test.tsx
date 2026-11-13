@@ -176,7 +176,7 @@ it('previews up to three agenda entries overlapping today and opens the agenda',
     screen.getByRole('dialog', { name: 'Excluir itens selecionados?' }),
   ).toBeVisible()
   await user.click(
-    screen.getByRole('button', { name: 'Cancelar', exact: true }),
+    screen.getByRole('button', { name: /^Cancelar$/ }),
   )
   await user.click(screen.getByRole('button', { name: 'Cancelar seleção' }))
   expect(eventCard).not.toHaveAttribute('aria-checked')
