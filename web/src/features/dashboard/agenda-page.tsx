@@ -1038,6 +1038,13 @@ export function AgendaDetails({
           <DialogTitle className="pr-8 leading-snug">
             {item?.title ?? 'Detalhes'}
           </DialogTitle>
+          <DialogDescription>
+            {item?.type === 'task'
+              ? `Tarefa · ${item.category}`
+              : item?.type === 'event'
+                ? 'Evento'
+                : 'Projeto'}
+          </DialogDescription>
           {item &&
             (item.startDate ? (
               <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted p-3">
@@ -1061,13 +1068,6 @@ export function AgendaDetails({
             ) : (
               <MutedText>Sem data agendada.</MutedText>
             ))}
-          <DialogDescription>
-            {item?.type === 'task'
-              ? `Tarefa · ${item.category}`
-              : item?.type === 'event'
-                ? 'Evento'
-                : 'Projeto'}
-          </DialogDescription>
         </DialogHeader>
         {item ? (
           <div className="-mx-3 grid min-h-0 flex-1 content-start gap-4 overflow-x-hidden overflow-y-auto px-3 pb-3 text-sm">
