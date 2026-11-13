@@ -12,6 +12,11 @@ import { AgendaDetails } from '../agenda-page'
 import { ArrowLeft, ArrowRight, CircleCheck, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import {
+  SelectionCircle,
+  useCardHold,
+  type CardSelection,
+} from './card-selection'
 import { AgendaCardSkeleton } from './agenda-card-skeleton'
 import { cn } from 'cn'
 import { MutedText, SectionTitle } from '@/components/typography'
@@ -28,6 +33,8 @@ type TaskTimelineProps = {
   loading?: boolean
   preview?: boolean
   onViewAll?: () => void
+  selection?: CardSelection
+  onHold?: (key: string) => void
 }
 
 const interactiveTarget = 'button, input, textarea, select, a, [role="dialog"]'
@@ -63,6 +70,8 @@ export function TaskTimeline({
   loading = false,
   preview = false,
   onViewAll,
+  selection,
+  onHold,
 }: TaskTimelineProps) {
   const [showSwipeTutorial, setShowSwipeTutorial] = useState(() => {
     try {
@@ -71,12 +80,11 @@ export function TaskTimeline({
       return true
     }
   })
-  const ordered = sortTasks(
-    tasks.filter((task) => task.status !== 'completed'),
-    'dueDate',
-  )
-  const visibleTasks = preview ? ordered.slice(0, previewLimit) : ordered
-  const remaining = ordered.length - visibleTasks.length
+  const visibleTasks = timelineTasks(tasks, preview)
+  const pendingCount = tasks.filter(
+    (task) => task.status !== 'completed',
+  ).length
+  const remaining = pendingCount - visibleTasks.length
 
   return (
     <section className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
@@ -132,7 +140,7 @@ export function TaskTimeline({
       ) : null}
       {loading ? (
         <TaskSkeletons />
-      ) : ordered.length === 0 ? (
+      ) : pendingCount === 0 ? (
         <MutedText>
           {tasks.some((task) => task.status === 'completed')
             ? 'Nenhuma tarefa pendente.'
@@ -146,6 +154,8 @@ export function TaskTimeline({
               task={task}
               onComplete={onComplete}
               onDelete={onDelete}
+              selection={selection}
+              onHold={onHold}
             />
           ))}
         </ol>
@@ -154,13 +164,36 @@ export function TaskTimeline({
   )
 }
 
+export function timelineTasks(tasks: Task[], preview: boolean) {
+  const ordered = sortTasks(
+    tasks.filter((task) => task.status !== 'completed'),
+    'dueDate',
+  )
+  return preview ? ordered.slice(0, previewLimit) : ordered
+}
+
 type TimelineTaskProps = {
   task: Task
   onComplete: TaskTimelineProps['onComplete']
   onDelete: TaskTimelineProps['onDelete']
+  selection?: CardSelection
+  onHold?: (key: string) => void
 }
 
-function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
+function TimelineTask({
+  task,
+  onComplete,
+  onDelete,
+  selection,
+  onHold,
+}: TimelineTaskProps) {
+  const hold = useCardHold()
+  const selecting = useRef(Boolean(selection))
+  useEffect(() => {
+    selecting.current = Boolean(selection)
+  }, [selection])
+  const key = `task-${task.id}`
+  const selected = selection?.selected.has(key) ?? false
   const [completing, setCompleting] = useState(false)
   const completionPending = useRef(false)
   const [completionError, setCompletionError] = useState<string | null>(null)
@@ -233,6 +266,13 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
     dragStartOffset.current = currentOffset.current
     dragDirection.current = null
     thresholdAction.current = 0
+    if (onHold && canDelete && currentOffset.current === 0)
+      hold.start(() => {
+        dragStartX.current = null
+        suppressClick.current = true
+        onHold(key)
+        hapticFeedback('threshold')
+      })
     return true
   }
 
@@ -242,11 +282,12 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
     const dy = y - dragStartY.current
     if (!dragDirection.current) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) < dragThreshold) return
+      hold.cancel()
       suppressClick.current = true
       dragDirection.current =
         Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical'
     }
-    if (dragDirection.current !== 'horizontal') return
+    if (selecting.current || dragDirection.current !== 'horizontal') return
     setDragging(true)
     updateOffset(dragStartOffset.current + dx)
     const action =
@@ -259,6 +300,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
   }
 
   function finishDrag(cancelled: boolean) {
+    hold.cancel()
     if (activePointer.current === null) return
     const horizontal = dragDirection.current === 'horizontal'
     dragStartX.current = null
@@ -266,7 +308,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
     thresholdAction.current = 0
     setDragging(false)
     if (cancelled) suppressClick.current = true
-    if (cancelled || !horizontal) {
+    if (cancelled || !horizontal || selecting.current) {
       updateOffset(0)
       return
     }
@@ -340,7 +382,11 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
       )
       if (!touch) return
       moveDrag(touch.clientX, touch.clientY)
-      if (dragDirection.current === 'horizontal' && event.cancelable)
+      if (
+        !selecting.current &&
+        dragDirection.current === 'horizontal' &&
+        event.cancelable
+      )
         event.preventDefault()
     }
     function touchEnd(event: TouchEvent) {
@@ -379,7 +425,9 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           event.target.closest(interactiveTarget)
         )
           return
-        setDetailsOpen(true)
+        if (selection) {
+          if (canDelete) selection.toggle(key)
+        } else setDetailsOpen(true)
       }}
       onClickCapture={(event) => {
         if (
@@ -400,6 +448,14 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
         } as CSSProperties
       }
       className="colabora-timeline-task relative isolate grid min-w-0 touch-auto overflow-hidden rounded-xl"
+      onContextMenu={(event) => {
+        if (
+          onHold &&
+          event.target instanceof Element &&
+          !event.target.closest(interactiveTarget)
+        )
+          event.preventDefault()
+      }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishPointerDrag}
@@ -410,6 +466,7 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
           activePointer.current !== event.pointerId
         )
           return
+        hold.cancel()
         activePointer.current = null
         dragStartX.current = null
         thresholdAction.current = 0
@@ -447,12 +504,31 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
       <article
         ref={cardRef}
         tabIndex={0}
+        role={selection ? 'checkbox' : undefined}
+        aria-checked={selection ? selected : undefined}
+        aria-disabled={selection && !canDelete ? true : undefined}
         aria-busy={completing}
-        aria-label={`${task.title}. Enter ou espaço para abrir detalhes.${canDelete ? ' Arraste para a esquerda para excluir.' : ''}${canComplete ? ' Arraste para a direita para concluir.' : ''}`}
+        aria-label={
+          selection
+            ? task.title
+            : `${task.title}. Enter ou espaço para abrir detalhes.${canDelete ? ' Arraste para a esquerda para excluir.' : ''}${canComplete ? ' Arraste para a direita para concluir.' : ''}`
+        }
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return
           if (completionPending.current) return
-          if (event.key === 'Enter' || event.key === ' ') {
+          if (selection) {
+            if (event.key === 'Escape') selection.cancel()
+            if (canDelete && (event.key === 'Enter' || event.key === ' ')) {
+              event.preventDefault()
+              selection.toggle(key)
+            }
+            return
+          }
+          if (onHold && canDelete && event.shiftKey && event.key === ' ') {
+            event.preventDefault()
+            onHold(key)
+            hapticFeedback('threshold')
+          } else if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault()
             setDetailsOpen(true)
           } else if (event.key === 'ArrowLeft' && canDelete) {
@@ -477,10 +553,15 @@ function TimelineTask({ task, onComplete, onDelete }: TimelineTaskProps) {
         }}
         className={cn(
           taskSummaryClassName,
-          'content-start active:cursor-grabbing motion-reduce:!transition-none',
+          'content-start active:cursor-grabbing motion-reduce:!transition-none [-webkit-touch-callout:none]',
         )}
       >
-        <TaskSummary task={task}>
+        <TaskSummary
+          task={task}
+          titlePrefix={
+            selection ? <SelectionCircle checked={selected} /> : undefined
+          }
+        >
           {completing ? (
             <p role="status" className="text-sm text-muted-foreground">
               Concluindo...

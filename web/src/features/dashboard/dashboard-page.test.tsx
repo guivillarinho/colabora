@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { listAgendaItems, type AgendaItem } from './agenda-items'
 import { DashboardPage } from './dashboard-page'
@@ -39,6 +39,7 @@ beforeEach(() => {
 })
 jest.mock('./components/active-timer', () => ({ ActiveTimer: () => null }))
 jest.mock('./components/task-timeline', () => ({
+  ...jest.requireActual('./components/task-timeline'),
   TaskTimeline: ({ loading }: { loading?: boolean }) =>
     loading ? (
       <p aria-label="Carregando tarefas" role="status">
@@ -154,6 +155,32 @@ it('previews up to three agenda entries overlapping today and opens the agenda',
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(card).toHaveFocus()
   }
+  const eventCard = screen.getByRole('button', { name: /Reunião/ })
+  fireEvent(
+    eventCard,
+    new MouseEvent('pointerdown', { bubbles: true, button: 0 }),
+  )
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 520))
+  })
+  fireEvent.pointerUp(eventCard)
+  fireEvent.click(eventCard, { detail: 1 })
+  expect(eventCard).toHaveAttribute('aria-checked', 'true')
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  await user.click(
+    screen.getByRole('checkbox', { name: /Projeto em andamento/ }),
+  )
+  expect(screen.getByText('2 selecionado(s)')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Excluir selecionados' }))
+  expect(
+    screen.getByRole('dialog', { name: 'Excluir itens selecionados?' }),
+  ).toBeVisible()
+  await user.click(
+    screen.getByRole('button', { name: 'Cancelar', exact: true }),
+  )
+  await user.click(screen.getByRole('button', { name: 'Cancelar seleção' }))
+  expect(eventCard).not.toHaveAttribute('aria-checked')
+
   fireEvent.click(
     screen.getByRole('button', { name: 'Ver tudo na agenda de hoje' }),
   )

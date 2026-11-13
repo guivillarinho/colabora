@@ -3,6 +3,12 @@ import { CalendarDays, FolderKanban } from 'lucide-react'
 
 import { MutedText, SectionTitle } from '@/components/typography'
 import { Button } from '@/components/ui/button'
+import {
+  SelectionCircle,
+  useCardHold,
+  type CardSelection,
+} from './card-selection'
+import { hapticFeedback } from '@/lib/haptics'
 import { AgendaCardSkeleton } from './agenda-card-skeleton'
 
 import { AgendaDetails } from '../agenda-page'
@@ -38,11 +44,9 @@ function EventSkeletons() {
   )
 }
 
-export function TodayAgenda({ onViewAll }: { onViewAll: () => void }) {
+export function useTodayAgenda() {
   const [items, setItems] = useState<AgendaItem[] | null>(null)
   const [failed, setFailed] = useState(false)
-  const [details, setDetails] = useState<AgendaItem | null>(null)
-  const trigger = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -67,6 +71,31 @@ export function TodayAgenda({ onViewAll }: { onViewAll: () => void }) {
   const todayItems = items
     ?.filter((item) => overlapsDay(item.startDate, item.endDate, today))
     .slice(0, previewLimit)
+
+  return {
+    todayItems,
+    failed,
+    removeItem: async (id: string) => {
+      await removeAgendaItem(id)
+      setItems((current) => current?.filter((item) => item.id !== id) ?? null)
+    },
+  }
+}
+
+export function TodayAgenda({
+  onViewAll,
+  todayItems,
+  failed,
+  removeItem,
+  selection,
+  onHold,
+}: ReturnType<typeof useTodayAgenda> & {
+  onViewAll: () => void
+  selection?: CardSelection
+  onHold: (key: string) => void
+}) {
+  const [details, setDetails] = useState<AgendaItem | null>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
 
   return (
     <section
@@ -100,45 +129,18 @@ export function TodayAgenda({ onViewAll }: { onViewAll: () => void }) {
         )
       ) : todayItems.length ? (
         <ul className="grid min-w-0 gap-2">
-          {todayItems.map((item) => {
-            const isProject = item.type === 'project'
-            const Icon = isProject ? FolderKanban : CalendarDays
-            const when =
-              new Date(item.startDate) < today
-                ? `Desde ${formatDate(item.startDate)}`
-                : formatTime(item.startDate)
-
-            return (
-              <li key={item.id} className="min-w-0">
-                <button
-                  type="button"
-                  className="surface-card grid min-h-44 w-full min-w-0 cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] content-start items-start gap-3 rounded-2xl border bg-card p-4 text-left hover:bg-accent"
-                  onClick={(event) => {
-                    trigger.current = event.currentTarget
-                    setDetails(item)
-                  }}
-                >
-                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-primary">
-                    <Icon aria-hidden="true" className="size-4" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium wrap-anywhere">
-                      {item.title}
-                    </span>
-                    <span className="block text-sm text-muted-foreground">
-                      {isProject ? 'Projeto' : 'Evento'}
-                    </span>
-                  </span>
-                  <time
-                    dateTime={item.startDate}
-                    className="shrink-0 text-xs text-muted-foreground"
-                  >
-                    {when}
-                  </time>
-                </button>
-              </li>
-            )
-          })}
+          {todayItems.map((item) => (
+            <TodayAgendaCard
+              key={item.id}
+              item={item}
+              selection={selection}
+              onHold={onHold}
+              onOpen={(button) => {
+                trigger.current = button
+                setDetails(item)
+              }}
+            />
+          ))}
         </ul>
       ) : (
         <div role="status">
@@ -151,14 +153,99 @@ export function TodayAgenda({ onViewAll }: { onViewAll: () => void }) {
           onClose={() => setDetails(null)}
           returnFocus={() => trigger.current?.focus()}
           onDelete={async ({ id }) => {
-            await removeAgendaItem(id)
-            setItems(
-              (current) => current?.filter((item) => item.id !== id) ?? null,
-            )
+            await removeItem(id)
             setDetails(null)
           }}
         />
       ) : null}
     </section>
+  )
+}
+
+function TodayAgendaCard({
+  item,
+  selection,
+  onHold,
+  onOpen,
+}: {
+  item: AgendaItem
+  selection?: CardSelection
+  onHold: (key: string) => void
+  onOpen: (button: HTMLButtonElement) => void
+}) {
+  const hold = useCardHold()
+  const origin = useRef({ x: 0, y: 0 })
+  const key = `${item.type}-${item.id}`
+  const selected = selection?.selected.has(key) ?? false
+  const isProject = item.type === 'project'
+  const Icon = isProject ? FolderKanban : CalendarDays
+  const when =
+    new Date(item.startDate) < startOfDay(new Date())
+      ? `Desde ${formatDate(item.startDate)}`
+      : formatTime(item.startDate)
+
+  function selectOnHold() {
+    onHold(key)
+    hapticFeedback('threshold')
+  }
+
+  return (
+    <li className="min-w-0">
+      <button
+        type="button"
+        role={selection ? 'checkbox' : undefined}
+        aria-checked={selection ? selected : undefined}
+        className="surface-card grid min-h-44 w-full min-w-0 cursor-pointer touch-pan-y select-none grid-cols-[auto_minmax(0,1fr)_auto] content-start items-start gap-3 rounded-2xl border bg-card p-4 text-left hover:bg-accent [-webkit-touch-callout:none]"
+        onPointerDown={(event) => {
+          if (event.button !== 0 || event.isPrimary === false) return
+          origin.current = { x: event.clientX, y: event.clientY }
+          hold.start(selectOnHold)
+        }}
+        onPointerMove={(event) => {
+          if (
+            Math.hypot(
+              event.clientX - origin.current.x,
+              event.clientY - origin.current.y,
+            ) > 10
+          )
+            hold.cancel()
+        }}
+        onPointerUp={hold.cancel}
+        onPointerCancel={hold.cancel}
+        onPointerLeave={hold.cancel}
+        onContextMenu={(event) => event.preventDefault()}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') selection?.cancel()
+          if (!selection && event.shiftKey && event.key === ' ') {
+            event.preventDefault()
+            selectOnHold()
+          }
+        }}
+        onClick={(event) => {
+          if (hold.consume() && event.detail !== 0) return
+          if (selection) selection.toggle(key)
+          else onOpen(event.currentTarget)
+        }}
+      >
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-primary">
+          <Icon aria-hidden="true" className="size-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-2 text-sm font-medium wrap-anywhere">
+            {selection ? <SelectionCircle checked={selected} /> : null}
+            <span className="min-w-0">{item.title}</span>
+          </span>
+          <span className="block text-sm text-muted-foreground">
+            {isProject ? 'Projeto' : 'Evento'}
+          </span>
+        </span>
+        <time
+          dateTime={item.startDate}
+          className="shrink-0 text-xs text-muted-foreground"
+        >
+          {when}
+        </time>
+      </button>
+    </li>
   )
 }

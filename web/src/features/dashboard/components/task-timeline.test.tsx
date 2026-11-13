@@ -64,6 +64,40 @@ beforeEach(() => {
   sessionStorage.setItem('colabora:swipe-tutorial', 'seen')
 })
 
+it('selects a task by holding it without opening details or triggering a swipe action', () => {
+  jest.useFakeTimers()
+  try {
+    const onHold = jest.fn()
+    const onComplete = jest.fn()
+    const onDelete = jest.fn()
+    const view = (selected?: Set<string>) => (
+      <TaskTimeline
+        tasks={[task]}
+        onComplete={onComplete}
+        onDelete={onDelete}
+        onHold={onHold}
+        selection={
+          selected && { selected, toggle: jest.fn(), cancel: jest.fn() }
+        }
+      />
+    )
+    const { rerender } = render(view())
+    const card = screen.getByRole('article')
+    pointer(card, 'pointerdown', 0)
+    act(() => jest.advanceTimersByTime(500))
+    expect(onHold).toHaveBeenCalledWith('task-task-1')
+    rerender(view(new Set(['task-task-1'])))
+    pointer(card, 'pointerup', -75)
+    fireEvent.click(card, { detail: 1 })
+    expect(screen.getByRole('checkbox', { name: task.title })).toBeChecked()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(onComplete).not.toHaveBeenCalled()
+    expect(onDelete).not.toHaveBeenCalled()
+  } finally {
+    jest.useRealTimers()
+  }
+})
+
 it('shows skeleton cards while tasks are loading', () => {
   render(
     <TaskTimeline

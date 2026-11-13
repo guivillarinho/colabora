@@ -1,3 +1,8 @@
+import {
+  CardSelectionActions,
+  SelectionCircle,
+  useCardHold,
+} from './components/card-selection'
 import { AgendaCardSkeleton } from './components/agenda-card-skeleton'
 import { hapticFeedback } from '@/lib/haptics'
 import {
@@ -25,7 +30,6 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Circle,
   CircleCheck,
   CirclePlay,
   Clock3,
@@ -40,7 +44,6 @@ import {
   SlidersHorizontal,
   Timer,
   Trash2,
-  X,
 } from 'lucide-react'
 
 import { MutedText, PageTitle, SectionTitle } from '@/components/typography'
@@ -569,68 +572,25 @@ export function AgendaPage() {
       ) : null}
 
       {selectionMode ? (
-        <div
-          className="flex items-center justify-between gap-3"
-          aria-label="Seleção de itens"
-        >
-          <button
-            type="button"
-            role="checkbox"
-            aria-checked={
-              selectableItems.length > 0 &&
-              selectableItems.every((item) =>
-                selected.has(`${item.type}-${item.id}`),
-              )
-            }
-            className="flex min-h-11 items-center gap-2 text-sm font-medium"
-            onClick={() => {
-              const allSelected = selectableItems.every((item) =>
-                selected.has(`${item.type}-${item.id}`),
-              )
-              setSelected(
-                new Set(
-                  allSelected
-                    ? []
-                    : selectableItems.map((item) => `${item.type}-${item.id}`),
-                ),
-              )
-            }}
-          >
-            <SelectionCircle
-              checked={
-                selectableItems.length > 0 &&
-                selectableItems.every((item) =>
-                  selected.has(`${item.type}-${item.id}`),
-                )
-              }
-            />
-            Tudo
-          </button>
-          <span role="status" className="sr-only">
-            {selected.size} selecionado(s)
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Cancelar seleção"
-              onClick={cancelSelection}
-            >
-              <X aria-hidden="true" />
-            </Button>
-            <Button
-              aria-label="Excluir selecionados"
-              title="Excluir selecionados"
-              className="size-11 rounded-full border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              size="icon"
-              variant="outline"
-              disabled={!selected.size}
-              onClick={() => setDeleteOpen(true)}
-            >
-              <Trash2 aria-hidden="true" className="size-5" />
-            </Button>
-          </div>
-        </div>
+        <CardSelectionActions
+          count={selected.size}
+          allSelected={
+            selectableItems.length > 0 &&
+            selectableItems.every((item) =>
+              selected.has(`${item.type}-${item.id}`),
+            )
+          }
+          onToggleAll={() => {
+            const keys = selectableItems.map(
+              (item) => `${item.type}-${item.id}`,
+            )
+            setSelected(
+              new Set(keys.every((key) => selected.has(key)) ? [] : keys),
+            )
+          }}
+          onCancel={cancelSelection}
+          onDelete={() => setDeleteOpen(true)}
+        />
       ) : null}
       {loading || tasksLoading ? (
         <AgendaSkeleton />
@@ -749,21 +709,6 @@ export function AgendaPage() {
   )
 }
 
-function SelectionCircle({ checked }: { checked: boolean }) {
-  const Icon = checked ? CircleCheck : Circle
-  return (
-    <Icon
-      aria-hidden="true"
-      className={cn(
-        'size-5 shrink-0',
-        checked
-          ? 'fill-primary text-primary-foreground stroke-[2.5]'
-          : 'text-muted-foreground',
-      )}
-    />
-  )
-}
-
 function AgendaSkeleton() {
   return (
     <section
@@ -794,20 +739,9 @@ function AgendaCard({
   item: ReturnType<typeof normalizeItem>
   onSelect: () => void
 }) {
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hold = useCardHold()
   const origin = useRef({ x: 0, y: 0 })
-  const held = useRef(false)
   const canSelect = !item.task || item.task.permissions.delete
-  const cancelHold = () => {
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = null
-  }
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current)
-    },
-    [],
-  )
   const interactions = {
     role: selectionMode ? 'checkbox' : undefined,
     'aria-checked': selectionMode ? selected : undefined,
@@ -824,13 +758,8 @@ function AgendaCard({
     disabled: selectionMode && !canSelect,
     onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
       if (event.button !== 0 || !canSelect) return
-      held.current = false
       origin.current = { x: event.clientX, y: event.clientY }
-      cancelHold()
-      timer.current = setTimeout(() => {
-        held.current = true
-        onLongPress()
-      }, 500)
+      hold.start(onLongPress)
     },
     onPointerMove: (event: React.PointerEvent<HTMLButtonElement>) => {
       if (
@@ -839,18 +768,14 @@ function AgendaCard({
           event.clientY - origin.current.y,
         ) > 10
       )
-        cancelHold()
+        hold.cancel()
     },
-    onPointerUp: cancelHold,
-    onPointerCancel: cancelHold,
-    onPointerLeave: cancelHold,
+    onPointerUp: hold.cancel,
+    onPointerCancel: hold.cancel,
+    onPointerLeave: hold.cancel,
     onContextMenu: (event: React.MouseEvent) => event.preventDefault(),
     onClick: () => {
-      if (held.current) {
-        held.current = false
-        return
-      }
-      onSelect()
+      if (!hold.consume()) onSelect()
     },
   }
   const selectionClass = selected ? 'ring-2 ring-primary' : ''
