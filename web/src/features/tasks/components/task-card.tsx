@@ -121,27 +121,29 @@ export function TaskCard({
             Iniciar
           </Button>
         ) : null}
-        {task.permissions.changeStatus && task.status !== 'completed' ? (
-          <Button
-            size="sm"
-            type="button"
-            onClick={() => {
-              setCompleting(true)
-            }}
-          >
-            Concluir
-          </Button>
-        ) : null}
-        {task.permissions.delete ? (
-          <Button
-            size="sm"
-            type="button"
-            variant="destructive"
-            onClick={() => setConfirmingDelete(true)}
-          >
-            Excluir
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap gap-1 empty:hidden">
+          {task.permissions.changeStatus && task.status !== 'completed' ? (
+            <Button
+              size="sm"
+              type="button"
+              onClick={() => {
+                setCompleting(true)
+              }}
+            >
+              Concluir
+            </Button>
+          ) : null}
+          {task.permissions.delete ? (
+            <Button
+              size="sm"
+              type="button"
+              variant="destructive"
+              onClick={() => setConfirmingDelete(true)}
+            >
+              Excluir
+            </Button>
+          ) : null}
+        </div>
       </div>
       <DeleteConfirmationDialog
         open={confirmingDelete}

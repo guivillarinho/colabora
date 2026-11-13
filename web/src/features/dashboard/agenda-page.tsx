@@ -1038,13 +1038,27 @@ export function AgendaDetails({
           <DialogTitle className="pr-8 leading-snug">
             {item?.title ?? 'Detalhes'}
           </DialogTitle>
-          <DialogDescription>
-            {item?.type === 'task'
-              ? `Tarefa · ${item.category}`
-              : item?.type === 'event'
-                ? 'Evento'
-                : 'Projeto'}
-          </DialogDescription>
+          <div className="flex items-center justify-between gap-2">
+            <DialogDescription className="min-w-0">
+              {item?.type === 'task'
+                ? `Tarefa · ${item.category}`
+                : item?.type === 'event'
+                  ? 'Evento'
+                  : 'Projeto'}
+            </DialogDescription>
+            {task?.permissions.edit ? (
+              <Button
+                aria-label="Editar tarefa"
+                className="-mr-2"
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+                onClick={() => setEditing(true)}
+              >
+                <Pencil aria-hidden="true" />
+              </Button>
+            ) : null}
+          </div>
           {item &&
             (item.startDate ? (
               <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted p-3">
@@ -1074,20 +1088,7 @@ export function AgendaDetails({
             {task ? (
               <>
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-1">
-                    <AgendaTaskStatus status={task.status} />
-                    {task.permissions.edit ? (
-                      <Button
-                        aria-label="Editar tarefa"
-                        size="icon-sm"
-                        type="button"
-                        variant="ghost"
-                        onClick={() => setEditing(true)}
-                      >
-                        <Pencil aria-hidden="true" />
-                      </Button>
-                    ) : null}
-                  </div>
+                  <AgendaTaskStatus status={task.status} />
                   <TaskKindLabel task={task} />
                 </div>
                 <TaskAssigneeBadge task={task} />
@@ -1124,69 +1125,71 @@ export function AgendaDetails({
             {item.attachments.length ? (
               <AgendaAttachments attachments={item.attachments} />
             ) : null}
-            {task?.permissions.changeStatus &&
-            task.status === 'completed' &&
-            onReopen ? (
-              <Button
-                disabled={reopening}
-                onClick={async () => {
-                  setReopening(true)
-                  setReopenError(null)
-                  try {
-                    await onReopen(task)
-                  } catch (cause) {
-                    setReopenError(messageOf(cause))
-                  } finally {
-                    setReopening(false)
-                  }
-                }}
-              >
-                <RotateCcw aria-hidden="true" />
-                {reopening ? 'Reabrindo...' : 'Reabrir tarefa'}
-              </Button>
-            ) : null}
-            {reopenError ? (
-              <p className="text-sm text-destructive" role="alert">
-                {reopenError}
-              </p>
-            ) : null}
-            {task?.permissions.changeStatus &&
-            task.status !== 'completed' &&
-            onComplete ? (
-              <Button
-                disabled={completing}
-                aria-busy={completing}
-                onClick={async () => {
-                  setCompleting(true)
-                  setCompleteError(null)
-                  try {
-                    await onComplete(task)
-                  } catch (cause) {
-                    setCompleteError(messageOf(cause))
-                  } finally {
-                    setCompleting(false)
-                  }
-                }}
-              >
-                {completing ? 'Concluindo...' : 'Concluir tarefa'}
-              </Button>
-            ) : null}
-            {completeError ? (
-              <p className="text-sm text-destructive" role="alert">
-                {completeError}
-              </p>
-            ) : null}
-            {!task || task.permissions.delete ? (
-              <Button
-                type="button"
-                variant="destructive"
-                className="w-full"
-                onClick={() => setConfirmingDelete(true)}
-              >
-                <Trash2 aria-hidden="true" />
-                Excluir {entity}
-              </Button>
-            ) : null}
+            <div className="grid gap-2 empty:hidden">
+              {task?.permissions.changeStatus &&
+              task.status === 'completed' &&
+              onReopen ? (
+                <Button
+                  disabled={reopening}
+                  onClick={async () => {
+                    setReopening(true)
+                    setReopenError(null)
+                    try {
+                      await onReopen(task)
+                    } catch (cause) {
+                      setReopenError(messageOf(cause))
+                    } finally {
+                      setReopening(false)
+                    }
+                  }}
+                >
+                  <RotateCcw aria-hidden="true" />
+                  {reopening ? 'Reabrindo...' : 'Reabrir tarefa'}
+                </Button>
+              ) : null}
+              {reopenError ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {reopenError}
+                </p>
+              ) : null}
+              {task?.permissions.changeStatus &&
+              task.status !== 'completed' &&
+              onComplete ? (
+                <Button
+                  disabled={completing}
+                  aria-busy={completing}
+                  onClick={async () => {
+                    setCompleting(true)
+                    setCompleteError(null)
+                    try {
+                      await onComplete(task)
+                    } catch (cause) {
+                      setCompleteError(messageOf(cause))
+                    } finally {
+                      setCompleting(false)
+                    }
+                  }}
+                >
+                  {completing ? 'Concluindo...' : 'Concluir tarefa'}
+                </Button>
+              ) : null}
+              {completeError ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {completeError}
+                </p>
+              ) : null}
+              {!task || task.permissions.delete ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="w-full"
+                  onClick={() => setConfirmingDelete(true)}
+                >
+                  <Trash2 aria-hidden="true" />
+                  Excluir {entity}
+                </Button>
+              ) : null}
+            </div>
             <DeleteConfirmationDialog
               open={confirmingDelete}
               onOpenChange={setConfirmingDelete}

@@ -307,7 +307,20 @@ describe('AgendaPage', () => {
     await user.click(
       await screen.findByRole('button', { name: /Enviar proposta/ }),
     )
-    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }))
+    const taskDetails = within(
+      screen.getByRole('dialog', { name: 'Enviar proposta' }),
+    )
+    const edit = taskDetails.getByRole('button', { name: 'Editar tarefa' })
+    expect(edit.parentElement).toContainElement(
+      taskDetails.getByText('Tarefa · Trabalho'),
+    )
+    expect(
+      taskDetails.getByRole('button', { name: 'Concluir tarefa' })
+        .parentElement,
+    ).toContainElement(
+      taskDetails.getByRole('button', { name: 'Excluir tarefa' }),
+    )
+    await user.click(edit)
     const editor = within(screen.getByRole('dialog', { name: 'Editar tarefa' }))
     await user.clear(editor.getByLabelText('Título'))
     await user.type(editor.getByLabelText('Título'), 'Proposta revisada')
@@ -721,8 +734,10 @@ describe('AgendaPage', () => {
     const category = details.getByText('Tarefa · Trabalho')
     const startDate = details.getByText('Início', { exact: true })
     const endDate = details.getByText('Final', { exact: true })
-    expect(category.nextElementSibling).toContainElement(startDate)
-    expect(category.nextElementSibling).toContainElement(endDate)
+    expect(category.parentElement?.nextElementSibling).toContainElement(
+      startDate,
+    )
+    expect(category.parentElement?.nextElementSibling).toContainElement(endDate)
 
     const description = details.getByRole('region', { name: 'Descrição' })
     expect(
