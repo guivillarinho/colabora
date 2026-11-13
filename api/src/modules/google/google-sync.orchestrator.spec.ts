@@ -7,7 +7,11 @@ const taskId = '22222222-2222-4222-8222-222222222222'
 
 function setup() {
   const source = { query: jest.fn().mockResolvedValue([]) }
-  const google = { authorized: jest.fn().mockResolvedValue('access') }
+  const google = {
+    authorized: jest.fn().mockResolvedValue('access'),
+    authorizedConnection: jest.fn().mockResolvedValue({ access: 'access' }),
+  }
+  const drive = { copy: jest.fn().mockResolvedValue([]) }
   const inbound = { pullCalendar: jest.fn(), pullTasks: jest.fn() }
   const tasks = {
     upsert: jest.fn(),
@@ -34,6 +38,7 @@ function setup() {
     inbound as never,
     tasks as never,
     calendar as never,
+    drive as never,
   )
   return { service, source, google, inbound, tasks, calendar }
 }

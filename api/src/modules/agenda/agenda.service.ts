@@ -108,6 +108,32 @@ export class AgendaService {
     return item
   }
 
+  async addAttachment(id: string, reference: string, actor: string) {
+    await this.attachments.assertOwnReferences([reference], actor)
+    const item = await this.items.manager.transaction(async (manager) => {
+      const repository = manager.getRepository(AgendaItem)
+      const current = await repository.findOne({
+        where: { id, ownerId: actor },
+        lock: { mode: 'pessimistic_write' },
+      })
+      if (!current)
+        throw new NotFoundException('Evento ou projeto não encontrado.')
+      const url = reference.split('||')[1]
+      if (current.attachments.some((entry) => entry.split('||')[1] === url))
+        return current
+      if (current.attachments.length >= 10)
+        throw new BadRequestException('A agenda aceita no máximo 10 arquivos.')
+      current.attachments = [...current.attachments, reference]
+      return repository.save(current)
+    })
+    if (item.type === 'event')
+      await this.mirror(actor, 'push-agenda', {
+        agendaId: id,
+        attachmentsOnly: 'true',
+      })
+    return item
+  }
+
   async update(
     id: string,
     dto: UpdateAgendaItemDto,

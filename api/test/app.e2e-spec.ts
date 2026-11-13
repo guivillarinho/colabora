@@ -9,7 +9,10 @@ import { DataSource } from 'typeorm'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { readdir, rm } from 'node:fs/promises'
 import { createApplication } from '../src/bootstrap'
-import { googleScopes } from '../src/modules/google/google.service'
+import {
+  driveFileScope,
+  googleScopes,
+} from '../src/modules/google/google.service'
 import { InitialSchema1793448000000 } from '../src/database/migrations/1793448000000-initial-schema'
 jest.mock('@google/genai', () => ({ GoogleGenAI: jest.fn() }))
 
@@ -344,7 +347,7 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
           reply({
             refresh_token: 'refresh-auto',
             access_token: 'access-auto',
-            scope: googleScopes,
+            scope: googleScopes.replace(` ${driveFileScope}`, ''),
           }),
         )
         .mockResolvedValueOnce(
@@ -437,6 +440,108 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
           },
         }),
       )
+      const upload = await owner.agent
+        .post('/api/agenda-items/uploads')
+        .set('Origin', origin)
+        .set('X-CSRF-Token', owner.csrf)
+        .attach('files', Buffer.from('Arquivo privado de teste'), 'pauta.txt')
+        .expect(201)
+      const { url, name } = upload.body[0]
+      const reference = `${name}||${url}`
+      const add = (actor: Actor) =>
+        actor.agent
+          .post(`/api/agenda-items/${event.body.id}/attachments`)
+          .set('Origin', origin)
+          .set('X-CSRF-Token', actor.csrf)
+          .send({ reference })
+      const other = await actor()
+      await add(other).expect(400)
+      googleFetch.mockResolvedValueOnce(reply({ access_token: 'access' }))
+      const attached = await add(owner).expect(201)
+      expect(attached.body.attachments).toEqual([reference])
+
+      const upgrade = await owner.agent
+        .post('/api/google/connect')
+        .set('Origin', origin)
+        .set('X-CSRF-Token', owner.csrf)
+        .expect(201)
+      const upgradeUrl = new URL(upgrade.body.url)
+      expect(upgradeUrl.searchParams.get('login_hint')).toBe(
+        'tasks@example.test',
+      )
+      expect(upgradeUrl.searchParams.get('scope')?.split(' ')).toContain(
+        driveFileScope,
+      )
+      googleFetch
+        .mockResolvedValueOnce(
+          reply({
+            refresh_token: 'refresh-drive',
+            access_token: 'access-drive',
+            scope: googleScopes,
+          }),
+        )
+        .mockResolvedValueOnce(
+          reply({
+            email: 'tasks@example.test',
+            email_verified: true,
+            sub: 'test-subject',
+          }),
+        )
+      await owner.agent
+        .get('/api/google/callback')
+        .query({ state: upgradeUrl.searchParams.get('state'), code: 'upgrade' })
+        .expect(302)
+        .expect('Location', `${origin}/perfil?google=connected`)
+      const status = await owner.agent.get('/api/google/status').expect(200)
+      expect(status.body.driveAttachmentsAuthorized).toBe(true)
+      expect(status.body.preferences.autoSync).toBe(true)
+
+      const driveUpload =
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=test'
+      const driveLink = 'https://drive.google.com/file/d/test-drive-id/view'
+      const previousAttachment = {
+        fileUrl: 'https://drive.google.com/file/d/previous-file/view',
+        title: 'Anexo do Google',
+      }
+      const afterUpgrade = googleFetch.mock.calls.length
+      googleFetch
+        .mockResolvedValueOnce(reply({ access_token: 'access' }))
+        .mockResolvedValueOnce(reply({ ids: ['test-drive-id'] }))
+        .mockResolvedValueOnce(reply({}, 404))
+        .mockResolvedValueOnce(
+          new Response(null, { headers: { Location: driveUpload } }),
+        )
+        .mockResolvedValueOnce(
+          reply({ id: 'test-drive-id', webViewLink: driveLink }),
+        )
+        .mockResolvedValueOnce(
+          reply({ etag: 'calendar-etag', attachments: [previousAttachment] }),
+        )
+        .mockResolvedValueOnce(reply({ etag: 'with-attachment' }))
+      await request(app.getHttpServer())
+        .post('/api/google/jobs/tick')
+        .set('Authorization', 'Bearer cron-secret-test-value')
+        .expect(200)
+
+      const syncCalls = googleFetch.mock.calls.slice(afterUpgrade)
+      const fileUpload = syncCalls.find(
+        ([url, init]) => String(url) === driveUpload && init?.method === 'PUT',
+      )
+      expect(fileUpload?.[1]?.body).toEqual(
+        Buffer.from('Arquivo privado de teste'),
+      )
+      const patch = syncCalls.find(([, init]) => init?.method === 'PATCH')
+      const remoteId = JSON.parse(String(calendarInsert?.[1]?.body)).id
+      expect(patch?.[0]).toContain(
+        `/calendars/primary/events/${remoteId}?sendUpdates=none&supportsAttachments=true`,
+      )
+      expect(JSON.parse(String(patch?.[1]?.body))).toEqual({
+        attachments: [
+          previousAttachment,
+          { fileUrl: driveLink, title: 'pauta.txt', mimeType: 'text/plain' },
+        ],
+      })
+
       await request(app.getHttpServer())
         .post('/api/google/webhook/calendar')
         .set('X-Goog-Channel-Token', 'nope')
@@ -1182,6 +1287,49 @@ describe('Authentication, ownership and CSRF (HTTP + isolated PostgreSQL)', () =
     await b.agent.get(`/api${file.url}`).expect(404)
     await c.agent.get(`/api${file.url}`).expect(200)
     await a.agent.get(`/api/uploads/agenda/../other.txt`).expect(404)
+  })
+
+  it('adds concurrent uploads to a project without losing earlier or repeated attachments', async () => {
+    const owner = await actor()
+    const other = await actor()
+    const project = await owner.agent
+      .post('/api/agenda-items')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', owner.csrf)
+      .send({
+        title: 'Projeto com anexos',
+        type: 'project',
+        startDate: '2026-11-06T12:00:00Z',
+        endDate: '2026-11-06T13:00:00Z',
+      })
+      .expect(201)
+    const upload = async (uploader: Actor, name: string) => {
+      const result = await uploader.agent
+        .post('/api/agenda-items/uploads')
+        .set('Origin', origin)
+        .set('X-CSRF-Token', uploader.csrf)
+        .attach('files', Buffer.from(name), name)
+        .expect(201)
+      return `${result.body[0].name}||${result.body[0].url}`
+    }
+    const first = await upload(owner, 'primeiro.txt')
+    const second = await upload(owner, 'segundo.txt')
+    const foreign = await upload(other, 'outro.txt')
+    const add = (actor: Actor, reference: string) =>
+      actor.agent
+        .post(`/api/agenda-items/${project.body.id}/attachments`)
+        .set('Origin', origin)
+        .set('X-CSRF-Token', actor.csrf)
+        .send({ reference })
+
+    await add(other, foreign).expect(404)
+    await add(owner, foreign).expect(400)
+    await Promise.all([
+      add(owner, first).expect(201),
+      add(owner, second).expect(201),
+    ])
+    const retry = await add(owner, first).expect(201)
+    expect(retry.body.attachments.sort()).toEqual([first, second].sort())
   })
 
   it('uses the same persistent session on a second API instance', async () => {

@@ -621,6 +621,83 @@ describe('AgendaPage', () => {
     },
   )
 
+  it.each(['event', 'project'] as const)(
+    'adds an attachment from %s details and keeps it after reopening',
+    async (type) => {
+      const user = userEvent.setup()
+      const item = {
+        id: 'agenda-1',
+        title: 'Planejamento',
+        type,
+        startDate: dueDate,
+        endDate: dueDate,
+        description: null,
+        location: null,
+        attachments: ['Arquivo anterior.pdf'],
+        icon: null,
+      }
+      const path = '/uploads/agenda/11111111-1111-4111-8111-111111111111.docx'
+      const file = new File(['document'], 'Documento.docx')
+      const reference = `${file.name}||${path}`
+      jest
+        .mocked(uploadAgendaFiles)
+        .mockResolvedValue([{ name: file.name, url: path }])
+      jest
+        .mocked(fetch)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [item],
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          json: async () => ({}),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            ...item,
+            attachments: [...item.attachments, reference],
+          }),
+        } as Response)
+      render(
+        <TasksProvider>
+          <AgendaPage />
+        </TasksProvider>,
+      )
+
+      await user.click(
+        await screen.findByRole('button', { name: /Planejamento/ }),
+      )
+      expect(
+        screen.getByRole('button', { name: 'Escolher arquivo' }),
+      ).toBeEnabled()
+      await user.upload(screen.getByLabelText('Anexos'), file)
+      await user.click(
+        await screen.findByRole('button', {
+          name: 'Tentar salvar anexo novamente',
+        }),
+      )
+      expect(
+        await screen.findByRole('link', { name: 'Baixar Documento.docx' }),
+      ).toHaveAttribute('href', expect.stringContaining(path))
+      expect(screen.getByText('Arquivo anterior.pdf')).toBeVisible()
+      expect(uploadAgendaFiles).toHaveBeenCalledTimes(1)
+      expect(fetch).toHaveBeenLastCalledWith(
+        expect.stringContaining('/agenda-items/agenda-1/attachments'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ reference }),
+        }),
+      )
+      await user.keyboard('{Escape}')
+      await user.click(screen.getByRole('button', { name: /Planejamento/ }))
+      expect(
+        screen.getByRole('link', { name: 'Baixar Documento.docx' }),
+      ).toBeVisible()
+    },
+  )
+
   it.each(['event', 'project'])(
     'deletes a %s only after confirmation',
     async (type) => {

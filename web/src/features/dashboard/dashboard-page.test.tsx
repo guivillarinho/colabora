@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { renderAuthenticated } from '@/test/auth-fixture'
 import { listAgendaItems, type AgendaItem } from './agenda-items'
 import { DashboardPage } from './dashboard-page'
 import { TaskExecutionChart } from './components/task-execution-chart'
@@ -134,7 +135,7 @@ it('previews up to three agenda entries overlapping today and opens the agenda',
     entry('Evento de amanhã', 'event', time(1, 9)),
   ])
 
-  render(<DashboardPage />)
+  renderAuthenticated(<DashboardPage />)
   expect(await screen.findByText('Projeto em andamento')).toBeVisible()
   expect(screen.getByText('Reunião')).toBeVisible()
   expect(screen.getByText('Planejamento')).toBeVisible()
@@ -151,6 +152,9 @@ it('previews up to three agenda entries overlapping today and opens the agenda',
     expect(within(details).getByText('Descrição completa')).toBeVisible()
     expect(within(details).getByText('Início')).toBeVisible()
     expect(within(details).getByText('Final')).toBeVisible()
+    expect(
+      within(details).getByRole('button', { name: 'Escolher arquivo' }),
+    ).toBeEnabled()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(card).toHaveFocus()
@@ -175,9 +179,7 @@ it('previews up to three agenda entries overlapping today and opens the agenda',
   expect(
     screen.getByRole('dialog', { name: 'Excluir itens selecionados?' }),
   ).toBeVisible()
-  await user.click(
-    screen.getByRole('button', { name: /^Cancelar$/ }),
-  )
+  await user.click(screen.getByRole('button', { name: /^Cancelar$/ }))
   await user.click(screen.getByRole('button', { name: 'Cancelar seleção' }))
   expect(eventCard).not.toHaveAttribute('aria-checked')
 

@@ -52,8 +52,16 @@ export class AttachmentsService {
       new Set(filenames).size
     )
       throw new BadRequestException(
-        'Um dos anexos não está disponível para esta tarefa.',
+        'Um dos anexos não está disponível para esta conta.',
       )
+  }
+
+  async owned(filename: string, ownerId: string): Promise<Attachment> {
+    if (!attachmentFilename.test(filename))
+      throw new NotFoundException('Arquivo não encontrado.')
+    const file = await this.files.findOneBy({ filename, ownerId })
+    if (!file) throw new NotFoundException('Arquivo não encontrado.')
+    return file
   }
 
   async readable(filename: string, userId: string): Promise<Attachment> {

@@ -93,6 +93,8 @@ No perfil, a seção Google Agenda mostra Conectado, Desconectado, Reconectar (t
 
 Os formulários de tarefa e de agenda avisam quando a conta está ligada e oferecem “Não sincronizar desta vez”.
 
+Nos detalhes de eventos e projetos, **Escolher arquivo** salva o anexo no item. Com a sincronização automática ligada, os arquivos dos eventos são copiados para o Drive da conta vinculada e aparecem como anexos no Google Agenda. Para vínculos existentes, **Perfil → Google Agenda → Autorizar anexos do Google Drive** concede o acesso sem perder o vínculo com os eventos.
+
 ## Variáveis
 
 Além das da E12:
@@ -105,9 +107,9 @@ Sem `GOOGLE_WEBHOOK_URL` o push de calendário não abre canal. O envio Colabora
 
 ## Homologação (não executada contra o Google real)
 
-1. Projeto Cloud com Calendar API e Tasks API. Tela de consentimento com os quatro escopos. Cliente Web com o redirect exato.
+1. Habilitar Calendar API, Tasks API e Drive API no projeto do cliente OAuth. Incluir o escopo `https://www.googleapis.com/auth/drive.file` na tela de consentimento e conferir o redirect do cliente Web. Aplicar a migração `1796200000000-google-drive-attachments` no ambiente de homologação.
 2. Conta de teste: vincular, ver o e-mail, desligar e religar a sincronização automática.
-3. Criar, editar e excluir tarefa com prazo e conferir a Google Task. Repetir com evento e projeto no calendário.
+3. Criar, editar e excluir tarefa com prazo e conferir a Google Task. Repetir com evento e projeto no calendário. Anexar um arquivo a um evento existente e abrir o anexo na conta vinculada, conferindo que os anexos anteriores continuam no evento.
 4. Expor o webhook (túnel ou Preview) e editar o evento no Google. O Colabora deve acompanhar. Editar a mesma tarefa dos dois lados em seguida deve marcar `conflict`.
 5. Revogar o acesso na conta Google e confirmar o estado Reconectar, sem vazar token na interface nem nos logs.
 6. Desconectar e confirmar que o remoto permanece e que o Colabora esquece canal, fila e vínculos.

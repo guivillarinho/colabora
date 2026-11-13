@@ -210,6 +210,14 @@ export function GoogleSettings() {
                 : 'Reconectar Google Agenda'}
             </Button>
           ) : null}
+          {status.configured &&
+          status.status === 'connected' &&
+          status.email &&
+          status.driveAttachmentsAuthorized === false ? (
+            <Button disabled={pending !== null} onClick={() => act('connect')}>
+              Autorizar anexos do Google Drive
+            </Button>
+          ) : null}
           {status.status !== 'disconnected' ? (
             <Button
               variant="outline"

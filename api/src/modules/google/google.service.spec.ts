@@ -241,6 +241,7 @@ it('returns the connected email without exposing encrypted credentials', async (
     configured: true,
     status: 'connected',
     email: 'calendar@example.test',
+    driveAttachmentsAuthorized: false,
     synced: [],
     links: [],
     preferences: {

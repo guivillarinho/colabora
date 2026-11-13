@@ -1,11 +1,11 @@
-import { Paperclip, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
 import { useAuth } from '@/features/auth/auth-context'
 import { uploadAgendaFiles } from '@/features/dashboard/upload-agenda-files'
-import { Label } from '@/components/ui/label'
+import { AttachmentPicker } from '@/components/attachment-picker'
 import { cn } from 'cn'
 import { attachmentReference, parseAttachment } from './attachment-reference'
 
@@ -50,8 +50,6 @@ export function AttachmentField({
   const [confirming, setConfirming] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [inputKey, setInputKey] = useState(0)
-  const inputRef = useRef<HTMLInputElement>(null)
   const request = useRef(0)
   const name = attachmentLabel(keptReference)
   const extension = fileExtension(name)
@@ -92,8 +90,7 @@ export function AttachmentField({
     }
   }, [file])
 
-  async function chooseFile(next: File | null) {
-    if (!next) return
+  async function chooseFile(next: File) {
     const current = ++request.current
     setError(null)
     setUploading(true)
@@ -121,7 +118,6 @@ export function AttachmentField({
         setUploading(false)
         onPendingChange?.(false)
       }
-      if (inputRef.current) inputRef.current.value = ''
     }
   }
 
@@ -133,76 +129,55 @@ export function AttachmentField({
     setUploading(false)
     onPendingChange?.(false)
     setConfirming(false)
-    setInputKey((current) => current + 1)
     onChange(null)
   }
 
   return (
     <div className="grid min-w-0 gap-2">
-      <Label htmlFor={id}>Anexos</Label>
-      {name ? (
-        <div className="flex h-28 w-full min-w-0 items-center gap-3 overflow-hidden rounded-xl border p-3">
-          <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
-            {previewUrl ? (
-              <img
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover object-top"
-                src={previewUrl}
-              />
-            ) : (
-              <span
-                className={cn(
-                  'absolute inset-0 flex items-center justify-center text-xs font-semibold',
-                  toneClass[tone],
-                )}
+      <AttachmentPicker id={id} disabled={uploading} onChoose={chooseFile}>
+        {name ? (
+          <div className="flex h-28 w-full min-w-0 items-center gap-3 overflow-hidden rounded-xl border p-3">
+            <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
+              {previewUrl ? (
+                <img
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover object-top"
+                  src={previewUrl}
+                />
+              ) : (
+                <span
+                  className={cn(
+                    'absolute inset-0 flex items-center justify-center text-xs font-semibold',
+                    toneClass[tone],
+                  )}
+                >
+                  {extension || 'ARQ'}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <p className="truncate font-semibold">{shortFileName(name)}</p>
+              <p
+                className={cn('text-xs font-medium uppercase', toneClass[tone])}
               >
-                {extension || 'ARQ'}
-              </span>
-            )}
+                {extension || 'arquivo'}
+              </p>
+            </div>
+            <Button
+              aria-label="Excluir anexo"
+              disabled={uploading}
+              size="icon"
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                setConfirming(true)
+              }}
+            >
+              <Trash2 />
+            </Button>
           </div>
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <p className="truncate font-semibold">{shortFileName(name)}</p>
-            <p className={cn('text-xs font-medium uppercase', toneClass[tone])}>
-              {extension || 'arquivo'}
-            </p>
-          </div>
-          <Button
-            aria-label="Excluir anexo"
-            disabled={uploading}
-            size="icon"
-            type="button"
-            variant="destructive"
-            onClick={() => {
-              setConfirming(true)
-            }}
-          >
-            <Trash2 />
-          </Button>
-        </div>
-      ) : null}
-      <input
-        key={inputKey}
-        ref={inputRef}
-        className="sr-only"
-        accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.webp"
-        id={id}
-        type="file"
-        onChange={(event) => {
-          chooseFile(event.target.files?.[0] ?? null)
-        }}
-      />
-      <Button
-        className="h-11 w-full bg-muted text-black hover:bg-muted/80 dark:text-foreground"
-        disabled={uploading}
-        type="button"
-        variant="outline"
-        onClick={() => {
-          inputRef.current?.click()
-        }}
-      >
-        <Paperclip />
-        Escolher arquivo
-      </Button>
+        ) : null}
+      </AttachmentPicker>
       {uploading ? (
         <p className="text-sm text-muted-foreground" role="status">
           Enviando anexo...

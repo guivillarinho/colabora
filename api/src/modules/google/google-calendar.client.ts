@@ -1,5 +1,13 @@
 import { Injectable } from '@nestjs/common'
 
+export type GoogleEventAttachment = {
+  fileId?: string
+  fileUrl: string
+  title?: string
+  mimeType?: string
+  iconLink?: string
+}
+
 export type GoogleEventBody = {
   summary: string
   description?: string
@@ -12,6 +20,16 @@ export type GoogleEventBody = {
     overrides: Array<{ method: 'popup'; minutes: number }>
   }
   extendedProperties?: { private: Record<string, string> }
+}
+
+function writableAttachment({
+  fileUrl,
+  title,
+  mimeType,
+  iconLink,
+  fileId,
+}: GoogleEventAttachment) {
+  return { fileUrl, title, mimeType, iconLink: fileId ? undefined : iconLink }
 }
 
 @Injectable()
@@ -57,31 +75,79 @@ export class GoogleCalendarClient {
     calendarId: string,
     eventId: string,
     body: GoogleEventBody,
+    attachments: GoogleEventAttachment[] = [],
+    attachmentsOnly = false,
   ) {
     const base = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`
-    const options = {
-      headers: this.headers(token),
-      redirect: 'error' as const,
-      signal: AbortSignal.timeout(10000),
-    }
-    let response = await fetch(`${base}/${eventId}?sendUpdates=none`, {
-      ...options,
-      method: 'PUT',
-      body: JSON.stringify(body),
-    })
-    if (response.status === 404) {
-      response = await fetch(`${base}?sendUpdates=none`, {
-        ...options,
-        method: 'POST',
-        body: JSON.stringify({ id: eventId, ...body }),
-      })
-      if (response.status === 409) {
-        response = await fetch(`${base}/${eventId}?sendUpdates=none`, {
-          ...options,
-          method: 'PUT',
+    const event = `${base}/${encodeURIComponent(eventId)}`
+    const query = 'sendUpdates=none'
+    const attachmentQuery = `${query}&supportsAttachments=true`
+
+    const patch = async () => {
+      if (!attachments.length) {
+        return this.request(token, `${event}?${query}`, {
+          method: 'PATCH',
           body: JSON.stringify(body),
         })
       }
+
+      // Read the live list before writing it because Calendar replaces arrays
+      // in their entirety. If-Match protects edits made between these requests.
+      const response = await this.request(token, event)
+      if (!response.ok) return response
+      const current = (await response.json()) as {
+        etag?: string
+        attachments?: GoogleEventAttachment[]
+      }
+      if (!current.etag)
+        throw new Error('Versão do evento Google indisponível.')
+      const merged = [...(current.attachments ?? [])]
+      let changed = false
+      for (const attachment of attachments) {
+        if (
+          merged.some(
+            (existing) =>
+              (existing.fileId && existing.fileId === attachment.fileId) ||
+              existing.fileUrl === attachment.fileUrl,
+          )
+        )
+          continue
+        merged.push(attachment)
+        changed = true
+      }
+      if (!changed && attachmentsOnly)
+        return Response.json({ etag: current.etag })
+      if (merged.length > 25)
+        throw new Error(
+          'O evento atingiu o limite de 25 anexos do Google Agenda.',
+        )
+      return this.request(token, `${event}?${attachmentQuery}`, {
+        method: 'PATCH',
+        headers: { 'If-Match': current.etag },
+        body: JSON.stringify({
+          ...(!attachmentsOnly && body),
+          attachments: merged.map(writableAttachment),
+        }),
+      })
+    }
+
+    let response = await patch()
+    if (response.status === 404 && !attachmentsOnly) {
+      response = await this.request(
+        token,
+        `${base}?${attachments.length ? attachmentQuery : query}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            id: eventId,
+            ...body,
+            ...(attachments.length && {
+              attachments: attachments.map(writableAttachment),
+            }),
+          }),
+        },
+      )
+      if (response.status === 409) response = await patch()
     }
     return response
   }
@@ -89,7 +155,7 @@ export class GoogleCalendarClient {
   remove(token: string, calendarId: string, eventId: string) {
     return this.request(
       token,
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}?sendUpdates=none`,
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=none`,
       { method: 'DELETE' },
     )
   }

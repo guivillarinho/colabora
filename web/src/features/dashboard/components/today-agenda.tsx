@@ -75,6 +75,12 @@ export function useTodayAgenda() {
   return {
     todayItems,
     failed,
+    updateItem: (saved: AgendaItem) => {
+      setItems(
+        (current) =>
+          current?.map((item) => (item.id === saved.id ? saved : item)) ?? null,
+      )
+    },
     removeItem: async (id: string) => {
       await removeAgendaItem(id)
       setItems((current) => current?.filter((item) => item.id !== id) ?? null)
@@ -87,6 +93,7 @@ export function TodayAgenda({
   todayItems,
   failed,
   removeItem,
+  updateItem,
   selection,
   onHold,
 }: ReturnType<typeof useTodayAgenda> & {
@@ -151,6 +158,12 @@ export function TodayAgenda({
         <AgendaDetails
           item={details}
           onClose={() => setDetails(null)}
+          onAttachmentSaved={(saved) => {
+            updateItem(saved)
+            setDetails((current) =>
+              current?.id === saved.id ? saved : current,
+            )
+          }}
           returnFocus={() => trigger.current?.focus()}
           onDelete={async ({ id }) => {
             await removeItem(id)

@@ -26,12 +26,14 @@ export const tasksScope = 'https://www.googleapis.com/auth/tasks'
 export const calendarScope = 'https://www.googleapis.com/auth/calendar.events'
 export const calendarListScope =
   'https://www.googleapis.com/auth/calendar.calendarlist.readonly'
-export const googleScopes = `openid email ${calendarScope} ${calendarListScope} ${tasksScope}`
+export const driveFileScope = 'https://www.googleapis.com/auth/drive.file'
+export const googleScopes = `openid email ${calendarScope} ${calendarListScope} ${tasksScope} ${driveFileScope}`
 export type OAuthPending = {
   state: string
   verifier: string
   expires: number
   owner: string
+  upgradeVersion?: string
 }
 type Connection = { version: string; token: string; status: string }
 @Injectable()
@@ -120,19 +122,27 @@ export class GoogleService {
   async start(actor: string) {
     this.enabled()
     await this.limits.consume('google-connect', actor, 10, 3600)
-    const existing = await this.source.query(
-      'SELECT status FROM google_connections WHERE "ownerId"=$1',
+    const [existing] = (await this.source.query(
+      'SELECT version,token,status FROM google_connections WHERE "ownerId"=$1',
       [actor],
+    )) as Connection[]
+    const upgrading = existing?.status === 'connected'
+    const credentials = upgrading
+      ? this.credentials(existing.token, actor)
+      : null
+    if (
+      (existing && !upgrading && existing.status !== 'reconnect') ||
+      (upgrading && (!credentials?.email || credentials.driveSubject))
     )
-    if (existing[0] && existing[0].status !== 'reconnect')
       throw new ConflictException(
         'Desconecte a conta atual antes de vincular outra.',
       )
-    const pending = {
+    const pending: OAuthPending = {
       state: randomBytes(32).toString('base64url'),
       verifier: randomBytes(48).toString('base64url'),
       expires: Date.now() + 600000,
       owner: actor,
+      ...(upgrading && { upgradeVersion: existing.version }),
     }
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth')
     url.search = new URLSearchParams({
@@ -142,6 +152,7 @@ export class GoogleService {
       scope: googleScopes,
       access_type: 'offline',
       prompt: 'consent select_account',
+      ...(credentials?.email && { login_hint: credentials.email }),
       state: pending.state,
       code_challenge: createHash('sha256')
         .update(pending.verifier)
@@ -163,12 +174,16 @@ export class GoogleService {
   ): {
     refreshToken: string
     email?: string
+    subject?: string
+    driveSubject?: string
   } {
     const decrypted = this.decrypt(value, actor)
     if (!decrypted.startsWith('{')) return { refreshToken: decrypted }
     const credentials = JSON.parse(decrypted) as {
       refreshToken: string
       email?: string
+      subject?: string
+      driveSubject?: string
     }
     if (!credentials.refreshToken)
       throw new ServiceUnavailableException('Reconecte sua conta Google.')
@@ -244,6 +259,7 @@ export class GoogleService {
       const identity = (await identityResponse.json()) as {
         email?: string
         email_verified?: boolean
+        sub?: string
       }
       if (
         typeof identity.email !== 'string' ||
@@ -251,13 +267,56 @@ export class GoogleService {
         identity.email_verified !== true
       )
         throw new Error('Conta sem e-mail verificado')
+      const subject =
+        typeof identity.sub === 'string' && identity.sub.length <= 255
+          ? identity.sub
+          : undefined
+      const driveSubject = granted.has(driveFileScope) ? subject : undefined
       const credentials = JSON.stringify({
         refreshToken: value.refresh_token,
         email: identity.email,
+        subject,
+        driveSubject,
       })
+      const encrypted = this.encrypt(credentials, actor)
+      if (pending.upgradeVersion) {
+        if (!driveSubject) throw new Error('Permissão do Google Drive ausente')
+        const current = await this.connection(actor)
+        const previous = this.credentials(current.token, actor)
+        if (
+          current.version !== pending.upgradeVersion ||
+          current.status !== 'connected' ||
+          (previous.subject
+            ? previous.subject !== subject
+            : previous.email?.toLowerCase() !== identity.email.toLowerCase())
+        )
+          throw new Error('A conta precisa ser a mesma do vínculo atual')
+        await this.source.transaction(async (manager) => {
+          const [, affected] = await manager.query(
+            `UPDATE google_connections SET version=$3,token=$4,"lastError"=NULL
+             WHERE "ownerId"=$1 AND version=$2 AND status='connected'`,
+            [actor, current.version, randomUUID(), encrypted],
+          )
+          if (!affected) throw new Error('O vínculo mudou')
+          await manager.query(
+            `INSERT INTO google_sync_outbox (id,"ownerId",operation,payload)
+             SELECT gen_random_uuid(),a."ownerId",'push-agenda',
+                    jsonb_build_object('agendaId',a.id,'attachmentsOnly','true')
+             FROM agenda_items a
+             JOIN google_sync_links l ON l."ownerId"=a."ownerId"
+               AND l."entityType"='agenda_item' AND l."entityId"=a.id
+             JOIN google_connections c ON c."ownerId"=a."ownerId"
+             WHERE a."ownerId"=$1 AND a.type='event'
+               AND jsonb_array_length(a.attachments)>0
+               AND c.preferences->>'autoSync'='true'`,
+            [actor],
+          )
+        })
+        return this.profileUrl('connected')
+      }
       await this.source.query(
         'INSERT INTO google_connections("ownerId",version,token,status) VALUES ($1,$2,$3,\'connected\') ON CONFLICT ("ownerId") DO UPDATE SET version=EXCLUDED.version,token=EXCLUDED.token,status=\'connected\'',
-        [actor, randomUUID(), this.encrypt(credentials, actor)],
+        [actor, randomUUID(), encrypted],
       )
       await this.source.query(
         'DELETE FROM google_calendar_sync WHERE "ownerId"=$1',
@@ -302,12 +361,14 @@ export class GoogleService {
       'SELECT "entityType","entityId","googleKind","syncState","syncedAt" FROM google_sync_links WHERE "ownerId"=$1 ORDER BY "syncedAt" DESC LIMIT 20',
       [actor],
     )
+    const credentials =
+      rows[0]?.token && this.config.get('GOOGLE_TOKEN_ENCRYPTION_KEY')
+        ? this.credentials(rows[0].token, actor)
+        : null
     return {
       configured: this.configured(),
-      email:
-        rows[0]?.token && this.config.get('GOOGLE_TOKEN_ENCRYPTION_KEY')
-          ? (this.credentials(rows[0].token, actor).email ?? null)
-          : null,
+      email: credentials?.email ?? null,
+      driveAttachmentsAuthorized: Boolean(credentials?.driveSubject),
       status: rows[0]?.status ?? 'disconnected',
       synced,
       links,
@@ -365,6 +426,10 @@ export class GoogleService {
   }
 
   async authorized(actor: string) {
+    return (await this.authorizedConnection(actor)).access
+  }
+
+  async authorizedConnection(actor: string) {
     this.enabled()
     const row = await this.connection(actor)
     if (row.status !== 'connected')
@@ -414,7 +479,10 @@ export class GoogleService {
     const current = await this.connection(actor)
     if (current.version !== row.version || current.status !== 'connected')
       throw new ConflictException('Reconecte sua conta Google.')
-    return tokens.access_token
+    return {
+      access: tokens.access_token,
+      driveSubject: credentials.driveSubject,
+    }
   }
 
   async sync(actor: string, taskId: string) {

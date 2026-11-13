@@ -1,3 +1,4 @@
+import { GoogleDriveAttachments1796200000000 } from './migrations/1796200000000-google-drive-attachments'
 import { GoogleResourceId1796100000000 } from './migrations/1796100000000-google-resource-id'
 import { TaskCategories1796000000000 } from './migrations/1796000000000-task-categories'
 import { GoogleSyncV21795000000000 } from './migrations/1795000000000-google-sync-v2'
@@ -58,6 +59,7 @@ async function migrate() {
       GoogleSyncV21795000000000,
       TaskCategories1796000000000,
       GoogleResourceId1796100000000,
+      GoogleDriveAttachments1796200000000,
     ],
     synchronize: false,
     extra: { max: 2 },

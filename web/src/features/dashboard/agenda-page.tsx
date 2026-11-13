@@ -60,6 +60,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useTasks } from '@/features/tasks/tasks-context'
+import { AgendaAttachmentField } from './components/agenda-attachment-field'
 import { AgendaAttachments } from './components/agenda-attachments'
 import { LocationField } from '@/features/tasks/components/location-field'
 import {
@@ -686,6 +687,16 @@ export function AgendaPage() {
             : details
         }
         onClose={() => setDetails(null)}
+        onAttachmentSaved={(saved) => {
+          setItems((current) =>
+            current.map((entry) => (entry.id === saved.id ? saved : entry)),
+          )
+          setDetails((current) =>
+            current?.id === saved.id && current.type !== 'task'
+              ? saved
+              : current,
+          )
+        }}
         onComplete={async (task) => {
           await completeTask(task.id)
           setDetails(null)
@@ -920,6 +931,7 @@ export function AgendaDetails({
   onComplete,
   onReopen,
   onDelete,
+  onAttachmentSaved,
   returnFocus,
 }: {
   item: NormalAgendaItem | null
@@ -927,6 +939,7 @@ export function AgendaDetails({
   onComplete?: (task: Task) => Promise<void>
   onReopen?: (task: Task) => Promise<void>
   onDelete: (item: NormalAgendaItem) => Promise<void>
+  onAttachmentSaved?: (item: AgendaItem) => void
   returnFocus?: () => void
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -1046,6 +1059,14 @@ export function AgendaDetails({
                 </p>
                 <LocationPreview location={item.location} />
               </section>
+            ) : null}
+            {item.type !== 'task' && onAttachmentSaved ? (
+              <AgendaAttachmentField
+                key={item.id}
+                itemId={item.id}
+                count={item.attachments.length}
+                onSaved={onAttachmentSaved}
+              />
             ) : null}
             {item.attachments.length ? (
               <AgendaAttachments attachments={item.attachments} />

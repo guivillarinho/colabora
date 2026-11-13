@@ -21,10 +21,12 @@ import { timingSafeEqual } from 'node:crypto'
 import type { Request, Response } from 'express'
 import { CurrentUser, MachineRequest, Public } from '../auth/auth.decorators'
 import type { Identity } from '../auth/entities/user.entity'
+import { AgendaModule } from '../agenda/agenda.module'
 import { NotificationsModule } from '../notifications/notifications.module'
 import { TasksModule } from '../tasks/tasks.module'
 import { GooglePreferencesDto } from './dto/google-preferences.dto'
 import { GoogleCalendarClient } from './google-calendar.client'
+import { GoogleDriveAttachmentsService } from './google-drive-attachments.service'
 import { GoogleInboundService } from './google-inbound.service'
 import { googlePreferences } from './google-preferences'
 import { GoogleService } from './google.service'
@@ -190,12 +192,17 @@ export class GoogleController {
   }
 }
 @Module({
-  imports: [forwardRef(() => TasksModule), NotificationsModule],
+  imports: [
+    forwardRef(() => TasksModule),
+    forwardRef(() => AgendaModule),
+    NotificationsModule,
+  ],
   controllers: [GoogleController],
   providers: [
     GoogleService,
     GoogleTasksClient,
     GoogleCalendarClient,
+    GoogleDriveAttachmentsService,
     GoogleSyncOrchestrator,
     GoogleInboundService,
     GoogleSyncWorker,

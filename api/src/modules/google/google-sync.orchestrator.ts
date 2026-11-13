@@ -7,6 +7,7 @@ import { AgendaItem } from '../agenda/entities/agenda-item.entity'
 import { Task } from '../tasks/entities/task.entity'
 import { TaskStatus } from '../tasks/task-status.enum'
 import { GoogleCalendarClient } from './google-calendar.client'
+import { GoogleDriveAttachmentsService } from './google-drive-attachments.service'
 import { GoogleInboundService } from './google-inbound.service'
 import { type GooglePreferences, googlePreferences } from './google-preferences'
 import { GoogleService } from './google.service'
@@ -40,6 +41,7 @@ export class GoogleSyncOrchestrator {
     private readonly inbound: GoogleInboundService,
     private readonly tasks: GoogleTasksClient,
     private readonly calendar: GoogleCalendarClient,
+    private readonly drive: GoogleDriveAttachmentsService,
   ) {}
 
   async enqueue(
@@ -232,7 +234,11 @@ export class GoogleSyncOrchestrator {
       if (payload.target !== 'calendar')
         await this.pushTask(row.ownerId, payload.taskId)
     } else if (row.operation === 'push-agenda')
-      await this.pushAgenda(row.ownerId, payload.agendaId)
+      await this.pushAgenda(
+        row.ownerId,
+        payload.agendaId,
+        payload.attachmentsOnly === 'true',
+      )
     else if (
       row.operation === 'delete-task' ||
       row.operation === 'delete-agenda'
@@ -469,23 +475,39 @@ export class GoogleSyncOrchestrator {
     await this.pushTask(ownerId, taskId)
   }
 
-  private async pushAgenda(ownerId: string, agendaId: string) {
+  private async pushAgenda(
+    ownerId: string,
+    agendaId: string,
+    attachmentsOnly: boolean,
+  ) {
     const item = await this.agenda(agendaId, ownerId)
-    if (!item) return
+    if (!item || (attachmentsOnly && item.type !== 'event')) return
     const prefs = await this.preferences(ownerId)
     if (!prefs) return
-    const access = await this.google.authorized(ownerId)
-    const eventId = createHash('sha256')
-      .update(`colabora:${ownerId}:${item.id}`)
-      .digest('hex')
+    const [{ access, driveSubject }, existing] = await Promise.all([
+      this.google.authorizedConnection(ownerId),
+      this.link(ownerId, 'agenda_item', item.id),
+    ])
+    if (existing && attachmentsOnly && !driveSubject) return
+    const calendarId = existing?.googleCalendarId ?? prefs.defaultCalendarId
+    const eventId =
+      existing?.googleResourceId ??
+      createHash('sha256')
+        .update(`colabora:${ownerId}:${item.id}`)
+        .digest('hex')
+    const attachments =
+      driveSubject && item.type === 'event'
+        ? await this.drive.copy(access, driveSubject, ownerId, item.attachments)
+        : []
+    if (existing && attachmentsOnly && !attachments.length) return
     const response = await this.calendar.upsert(
       access,
-      prefs.defaultCalendarId,
+      calendarId,
       eventId,
       {
         summary: item.title,
         description: item.description ?? '',
-        location: item.location ?? undefined,
+        location: item.location ?? '',
         start: { dateTime: new Date(item.startDate).toISOString() },
         end: { dateTime: new Date(item.endDate).toISOString() },
         colorId: item.type === 'project' ? colors.purple : colors.blue,
@@ -505,8 +527,11 @@ export class GoogleSyncOrchestrator {
           },
         },
       },
+      attachments,
+      Boolean(existing && attachmentsOnly),
     )
-    if (!response.ok) throw new Error('Calendar')
+    if (!response.ok)
+      throw new Error('Não foi possível atualizar o evento no Google Agenda.')
     const body = (await response.json()) as { etag?: string }
     await this.saveLink(
       ownerId,
@@ -514,7 +539,7 @@ export class GoogleSyncOrchestrator {
       item.id,
       'event',
       eventId,
-      prefs.defaultCalendarId,
+      calendarId,
       body.etag ?? null,
       item.updatedAt,
     )

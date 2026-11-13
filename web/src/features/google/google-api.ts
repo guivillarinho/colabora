@@ -19,6 +19,7 @@ export type GoogleStatus = {
   configured: boolean
   status: string
   email?: string | null
+  driveAttachmentsAuthorized?: boolean
   synced: Array<{ taskId: string; syncedAt: string }>
   links?: GoogleLink[]
   preferences?: GooglePreferences
