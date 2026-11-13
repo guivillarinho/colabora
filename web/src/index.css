@@ -124,6 +124,10 @@ html[data-palette='red'] {
   box-shadow: none;
 }
 
+button.surface-card[aria-checked='true'] {
+  background-color: var(--secondary);
+}
+
 [data-slot='button'][data-variant='default']:focus-visible,
 button.surface-card:focus-visible {
   outline: 2px solid var(--ring);
