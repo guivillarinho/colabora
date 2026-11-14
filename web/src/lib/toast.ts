@@ -1,6 +1,8 @@
 export type ToastMessage = {
   title: string
-  description: string
+  itemTitle?: string
+  description?: string
+  variant?: 'success'
   duration?: number | null
 }
 

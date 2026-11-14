@@ -161,7 +161,7 @@ it.each(['Enter', ' '])(
     expect(
       screen.queryByRole('button', { name: 'Editar tarefa' }),
     ).not.toBeInTheDocument()
-    expect(screen.getByText(/Criada por Guilherme/)).toBeVisible()
+    expect(screen.queryByText(/Criada por/)).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Excluir tarefa' }),
     ).not.toBeInTheDocument()
@@ -283,8 +283,17 @@ it('keeps editing on the details pencil and off the card', async () => {
   expect(screen.queryByText(/Responsável/)).not.toBeInTheDocument()
   await user.click(screen.getByRole('article'))
   expect(screen.getByText('tarefa agendada')).toBeVisible()
-  expect(screen.getByText(/Criada por Guilherme/)).toBeVisible()
-  expect(screen.getByText(/Responsável: Guilherme/)).toBeVisible()
+  expect(screen.queryByText(/Criada por/)).not.toBeInTheDocument()
+  const assignee = screen.getByText('Responsável: Guilherme')
+  expect(assignee).toBeVisible()
+  expect(assignee.previousElementSibling).toHaveTextContent('G')
+  expect(assignee.previousElementSibling).toHaveAttribute('aria-hidden', 'true')
+  const title = screen.getByRole('heading', { name: task.title })
+  const close = screen.getByRole('button', { name: 'Fechar' })
+  expect(title.nextElementSibling).toBe(close)
+  await user.click(close)
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('article'))
   await user.click(screen.getByRole('button', { name: 'Editar tarefa' }))
   expect(screen.getByRole('dialog', { name: 'Editar tarefa' })).toBeVisible()
 })

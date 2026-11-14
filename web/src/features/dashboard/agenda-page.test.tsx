@@ -84,6 +84,83 @@ describe('AgendaPage', () => {
       .mockResolvedValue({ ok: true, json: async () => [] }) as jest.Mock
   })
 
+  it.each([
+    ['Evento', 'event'],
+    ['Projeto', 'project'],
+  ])(
+    'shows the saved title and description after creating %s',
+    async (label, type) => {
+      const title = 'Planejamento da semana'
+      const description = 'Detalhes da pauta'
+      const fetch = jest.mocked(globalThis.fetch)
+      let finishSave!: (response: Response) => void
+      fetch.mockImplementation(async (_url, options) => {
+        if (options?.method === 'POST') {
+          return new Promise((resolve) => {
+            finishSave = resolve
+          })
+        }
+        return { ok: true, json: async () => [] } as unknown as Response
+      })
+      const onToast = jest.fn()
+      window.addEventListener('colabora:toast', onToast)
+      try {
+        render(
+          <TasksProvider>
+            <AgendaPage />
+          </TasksProvider>,
+        )
+        await screen.findByRole('button', { name: /Enviar proposta/ })
+        fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+        const dialog = within(screen.getByRole('dialog'))
+        fireEvent.click(dialog.getByRole('button', { name: label }))
+        fireEvent.change(dialog.getByLabelText('Título'), {
+          target: { value: title },
+        })
+        fireEvent.change(dialog.getByLabelText('Descrição'), {
+          target: { value: description },
+        })
+        fireEvent.change(dialog.getByLabelText('Data de início'), {
+          target: { value: '2099-11-15T09:00' },
+        })
+        fireEvent.change(dialog.getByLabelText('Data final'), {
+          target: { value: '2099-11-15T10:00' },
+        })
+        fireEvent.click(
+          dialog.getByRole('button', { name: 'Salvar na agenda' }),
+        )
+        await waitFor(() =>
+          expect(fetch).toHaveBeenCalledWith(
+            expect.stringContaining('/agenda-items'),
+            expect.objectContaining({ method: 'POST' }),
+          ),
+        )
+        expect(onToast).not.toHaveBeenCalled()
+        const request = fetch.mock.calls.find(
+          ([, options]) => options?.method === 'POST',
+        )
+        const input = JSON.parse(String(request?.[1]?.body))
+        expect(input).toMatchObject({ title, type, description })
+        await act(async () => {
+          finishSave({
+            ok: true,
+            json: async () => ({ ...input, id: 'saved-item' }),
+          } as Response)
+        })
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(onToast).toHaveBeenCalledTimes(1)
+        expect(onToast.mock.calls[0][0].detail).toEqual({
+          title: `${label} criado com sucesso`,
+          itemTitle: title,
+          description,
+          variant: 'success',
+        })
+      } finally {
+        window.removeEventListener('colabora:toast', onToast)
+      }
+    },
+  )
+
   it('shows Skeletons while tasks are still loading', async () => {
     let resolve!: (tasks: Task[]) => void
     api.list.mockReturnValue(

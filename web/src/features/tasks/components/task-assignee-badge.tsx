@@ -27,11 +27,20 @@ const assignmentBadges = {
   },
 } as const
 
-export function TaskAssigneeBadge({ task }: { task: Task }) {
+export function TaskAssigneeBadge({
+  task,
+  showLabel = false,
+}: {
+  task: Task
+  showLabel?: boolean
+}) {
   const { user } = useAuth()
   const assignee = task.assignedTo
   const assignment =
-    assignee && assignee.id !== task.createdById && task.assignmentStatus
+    !showLabel &&
+    assignee &&
+    assignee.id !== task.createdById &&
+    task.assignmentStatus
       ? assignmentBadges[task.assignmentStatus]
       : null
   const name = assignee?.name?.trim() || 'Sem responsável'
@@ -50,9 +59,10 @@ export function TaskAssigneeBadge({ task }: { task: Task }) {
   return (
     <p className="flex w-full min-w-0 items-center gap-2 text-xs text-muted-foreground">
       <span
-        aria-label={`Responsável: ${name}`}
+        aria-hidden={showLabel || undefined}
+        aria-label={showLabel ? undefined : `Responsável: ${name}`}
         className="grid size-6 shrink-0 place-items-center overflow-hidden rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground"
-        role="img"
+        role={showLabel ? undefined : 'img'}
       >
         {preset && Icon ? (
           <span
@@ -71,7 +81,9 @@ export function TaskAssigneeBadge({ task }: { task: Task }) {
           initials
         )}
       </span>
-      <span className="min-w-0 truncate">{name}</span>
+      <span className={showLabel ? 'min-w-0 text-sm' : 'min-w-0 truncate'}>
+        {showLabel ? `Responsável: ${assignee ? name : 'não atribuído'}` : name}
+      </span>
       {assignment ? (
         <span
           aria-label={`Aceite do responsável: ${assignment.label}`}

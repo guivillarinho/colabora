@@ -75,6 +75,7 @@ it('fills the date while typing and saves the recognized local time', async () =
   await user.type(screen.getByLabelText('Título'), 'Enviar proposta às 9h30')
   expect(screen.getByLabelText('Data e hora')).toHaveValue('2026-11-04T09:30')
   expect(screen.getByRole('status')).toHaveTextContent('Horário reconhecido:')
+  await user.type(screen.getByLabelText('Descrição'), 'Revisar o orçamento')
   await user.click(screen.getByRole('button', { name: 'Salvar tarefa' }))
   await waitFor(() =>
     expect(api.create).toHaveBeenCalledWith(
@@ -87,16 +88,12 @@ it('fills the date while typing and saves the recognized local time', async () =
   const notification = dispatch.mock.calls
     .map(([event]) => event as CustomEvent)
     .find((event) => event.type === 'colabora:toast')
-  expect(notification?.detail).toEqual(
-    expect.objectContaining({
-      title: 'Tarefa criada',
-      duration: 2000,
-      description: expect.stringContaining('Enviar proposta às 9h30'),
-    }),
-  )
-  expect(notification?.detail.description).toContain('Tempo estimado:')
-  expect(notification?.detail.description).toContain('Lembretes:')
-  expect(notification?.detail.description).not.toContain('Sincronizada')
+  expect(notification?.detail).toEqual({
+    title: 'Tarefa criada com sucesso',
+    itemTitle: 'Enviar proposta às 9h30',
+    description: 'Revisar o orçamento',
+    variant: 'success',
+  })
   dispatch.mockRestore()
 })
 

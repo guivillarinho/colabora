@@ -1,3 +1,4 @@
+import { showToast } from '@/lib/toast'
 import {
   CardSelectionActions,
   SelectionCircle,
@@ -10,8 +11,8 @@ import {
   googleCalendars,
   googleCalendarLinks,
 } from '@/features/google/google-api'
-import { TaskAssigneeBadge } from '@/features/tasks/components/task-assignee-badge'
 import { TaskSummary, taskSummaryClassName } from './components/task-summary'
+import { TaskAssigneeBadge } from '@/features/tasks/components/task-assignee-badge'
 import { TaskAssignment } from '@/features/tasks/components/task-assignment'
 import { apiRequest } from '@/lib/http-client'
 import { useAuth } from '@/features/auth/auth-context'
@@ -44,6 +45,7 @@ import {
   SlidersHorizontal,
   Timer,
   Trash2,
+  X,
 } from 'lucide-react'
 
 import { MutedText, PageTitle, SectionTitle } from '@/components/typography'
@@ -54,6 +56,7 @@ import { isFutureReminder, ReminderField } from '@/components/reminder-field'
 import { GoogleSyncHint } from '@/features/google/google-sync-hint'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -71,7 +74,6 @@ import {
 import type { Task } from '@/features/tasks/types/task'
 import { TaskExecutionTime } from '@/features/tasks/components/task-execution-time'
 import { TaskFormDialog } from '@/features/tasks/components/task-form-dialog'
-import { TaskPeople } from '@/features/tasks/components/task-people'
 import { isTimedTask, taskWindow } from '@/features/tasks/task-kind'
 import { LinkedText } from '@/components/linked-text'
 import {
@@ -324,6 +326,15 @@ export function AgendaPage() {
       body: JSON.stringify(input),
     })
     setItems((current) => [...current, saved])
+    showToast({
+      title:
+        saved.type === 'event'
+          ? 'Evento criado com sucesso'
+          : 'Projeto criado com sucesso',
+      itemTitle: saved.title,
+      description: saved.description ?? undefined,
+      variant: 'success',
+    })
     setCreateOpen(false)
     setError(null)
   }
@@ -962,6 +973,7 @@ export function AgendaDetails({
   return (
     <Dialog open={Boolean(item)} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
+        showCloseButton={false}
         onCloseAutoFocus={
           returnFocus
             ? (event) => {
@@ -973,9 +985,21 @@ export function AgendaDetails({
         className="flex max-h-[85svh] flex-col overflow-hidden sm:max-w-lg [overflow-wrap:anywhere]"
       >
         <DialogHeader className="shrink-0 min-w-0">
-          <DialogTitle className="pr-8 leading-snug">
-            {item?.title ?? 'Detalhes'}
-          </DialogTitle>
+          <div className="flex items-center justify-between gap-2">
+            <DialogTitle className="min-w-0 leading-snug">
+              {item?.title ?? 'Detalhes'}
+            </DialogTitle>
+            <DialogClose asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Fechar"
+              >
+                <X aria-hidden="true" />
+              </Button>
+            </DialogClose>
+          </div>
           <div className="flex items-center justify-between gap-2">
             <DialogDescription className="min-w-0">
               {item?.type === 'task'
@@ -1029,8 +1053,7 @@ export function AgendaDetails({
                   <AgendaTaskStatus status={task.status} />
                   <TaskKindLabel task={task} />
                 </div>
-                <TaskAssigneeBadge task={task} />
-                <TaskPeople task={task} />
+                <TaskAssigneeBadge task={task} showLabel />
                 <TaskAssignment task={task} />
                 <TaskExecutionTime task={task} />
               </>

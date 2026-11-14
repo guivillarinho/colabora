@@ -74,21 +74,21 @@ it('changes the header on scroll, restores it at the top and cleans up its liste
   expect(remove).toHaveBeenCalledWith('scroll', scrollCall[1])
 })
 
-it('shows the task confirmation centered at the top with the full text', () => {
+it('preserves the detailed confirmation when editing a task', () => {
   render(<AppShell />)
   const description =
     '“Enviar proposta” na categoria Trabalho, prioridade Alta. Prazo 04/11/2026, 09:30. Sincronizada com a lista “Trabalho” no Google Tasks.'
   act(() => {
     window.dispatchEvent(
       new CustomEvent('colabora:toast', {
-        detail: { title: 'Tarefa criada', description },
+        detail: { title: 'Tarefa atualizada', description },
       }),
     )
   })
   const alert = screen.getByRole('status')
-  expect(alert).toHaveTextContent('Tarefa criada')
+  expect(alert).toHaveTextContent('Tarefa atualizada')
   expect(alert).toHaveTextContent(description)
-  expect(alert.parentElement).toHaveClass('top-4', 'justify-center')
+  expect(alert).toHaveClass('top-4', 'justify-center')
 })
 
 it('starts with the scrolled appearance when restoring a scroll position', () => {
@@ -97,29 +97,52 @@ it('starts with the scrolled appearance when restoring a scroll position', () =>
   expect(screen.getByRole('banner')).toHaveAttribute('data-scrolled', 'true')
 })
 
-it('animates the creation alert and dismisses it after two seconds', () => {
+it('shows a dismissible success alert with item details and expires it after six seconds', () => {
+  const title = 'Tarefa criada com sucesso'
+  const itemTitle = 'Título longo '.repeat(8).trim()
+  const description = 'Trecho da descrição da tarefa.'
   jest.useFakeTimers()
   try {
     render(<AppShell />)
-    act(() => {
+    const publish = () => {
       window.dispatchEvent(
         new CustomEvent('colabora:toast', {
-          detail: {
-            title: 'Tarefa criada',
-            description: 'Título completo\nDescrição completa',
-            duration: 2000,
-          },
+          detail: { title, itemTitle, description, variant: 'success' },
         }),
       )
-    })
-    act(() => jest.advanceTimersByTime(1999))
-    expect(screen.getByRole('status')).toHaveTextContent('Descrição completa')
-    expect(screen.getByRole('status')).toHaveAttribute('data-slot', 'alert')
-    expect(screen.getByRole('status')).toHaveClass(
+    }
+    const status = screen.getByRole('status')
+    expect(status).toBeEmptyDOMElement()
+    act(publish)
+    const alert = status.querySelector('[data-slot="alert"]')
+    const alertTitle = screen.getByText(title)
+    expect(status).toHaveTextContent(title)
+    expect(alert).toHaveClass(
+      'bg-green-50',
+      'border-green-300',
+      'text-green-950',
       'motion-safe:slide-in-from-top-8',
     )
+    const item = screen.getByText(itemTitle)
+    expect(item).toHaveClass('truncate')
+    expect(item).toHaveAttribute('title', itemTitle)
+    expect(screen.getByText(description)).toHaveClass('line-clamp-2')
+    expect(alertTitle.previousElementSibling).toHaveClass('lucide-circle-check')
+    expect(alertTitle.previousElementSibling).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    )
+    const dismiss = screen.getByRole('button', { name: 'Fechar notificação' })
+    expect(alertTitle.nextElementSibling).toBe(dismiss)
+    expect(dismiss.nextElementSibling).toBe(item.parentElement)
+    expect(dismiss.querySelector('svg')).toHaveClass('lucide-x')
+    fireEvent.click(dismiss)
+    expect(status).toBeEmptyDOMElement()
+    act(publish)
+    act(() => jest.advanceTimersByTime(5999))
+    expect(status).toHaveTextContent(title)
     act(() => jest.advanceTimersByTime(1))
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(status).toBeEmptyDOMElement()
   } finally {
     jest.useRealTimers()
   }

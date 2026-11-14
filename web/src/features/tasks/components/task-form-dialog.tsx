@@ -348,6 +348,16 @@ function TaskFormContent({
     resetFields()
     onOpenChange?.(false)
     form.reset()
+    if (!task) {
+      showToast({
+        title: 'Tarefa criada com sucesso',
+        itemTitle: title,
+        description: input.description,
+        variant: 'success',
+      })
+      return
+    }
+
     const savedDue =
       dueDate && creationMode !== 'timer'
         ? sameDate
@@ -359,9 +369,7 @@ function TaskFormContent({
     ]
     const schedule = savedDue
       ? `Prazo ${formatDueDate(savedDue)}.`
-      : !editing && creationMode === 'timer'
-        ? 'O timer começa agora.'
-        : 'Sem prazo.'
+      : 'Sem prazo.'
     const description = [
       `“${title}” na categoria ${selectedCategory.name}, prioridade ${priorityLabel}.`,
       schedule,
@@ -379,9 +387,8 @@ function TaskFormContent({
       )
     }
     showToast({
-      title: editing ? 'Tarefa atualizada' : 'Tarefa criada',
+      title: 'Tarefa atualizada',
       description: description.join('\n'),
-      duration: editing ? 6000 : 2000,
     })
   }
 

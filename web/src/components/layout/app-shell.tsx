@@ -34,7 +34,7 @@ export function AppShell() {
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<ToastMessage>).detail
-      if (detail?.title && detail.description) {
+      if (detail?.title) {
         setToast(detail)
       }
     }
@@ -70,6 +70,24 @@ export function AppShell() {
       setLoggingOut(false)
     }
   }
+
+  const isSuccessToast = toast?.variant === 'success'
+  const dismissToast = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label="Fechar notificação"
+      className={
+        isSuccessToast
+          ? 'size-8 hover:bg-green-100 hover:text-green-950 dark:hover:bg-green-100'
+          : undefined
+      }
+      onClick={() => setToast(null)}
+    >
+      <X aria-hidden="true" />
+    </Button>
+  )
 
   return (
     <div className="colabora-app min-h-svh md:grid md:grid-cols-[14rem_minmax(0,1fr)]">
@@ -163,31 +181,50 @@ export function AppShell() {
         <AppNav center={<CreateTaskDialog variant="icon" />} layout="bottom" />
       </div>
       <ProductivityAdviceDialog advice={advice} onClose={clearAdvice} />
-      {toast ? (
-        <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
+      <div
+        role="status"
+        aria-atomic="true"
+        className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4"
+      >
+        {toast ? (
           <Alert
-            role="status"
-            aria-live="polite"
-            className="pointer-events-auto max-h-[calc(100svh-2rem)] w-full max-w-lg overflow-y-auto shadow-lg motion-safe:animate-in motion-safe:slide-in-from-top-8 motion-safe:fade-in motion-safe:duration-200"
+            role="presentation"
+            variant={toast.variant}
+            className={`pointer-events-auto max-h-[calc(100svh-2rem)] w-full max-w-lg overflow-y-auto motion-safe:animate-in motion-safe:slide-in-from-top-8 motion-safe:fade-in motion-safe:duration-200 ${isSuccessToast ? '' : 'shadow-lg'}`}
           >
             <CircleCheck aria-hidden="true" />
-            <AlertTitle>{toast.title}</AlertTitle>
-            <AlertDescription className="min-w-0 whitespace-pre-line break-words [overflow-wrap:anywhere]">
-              {toast.description}
-            </AlertDescription>
-            <AlertAction>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Fechar notificação"
-                onClick={() => setToast(null)}
-              >
-                <X aria-hidden="true" />
-              </Button>
-            </AlertAction>
+            <AlertTitle
+              className={isSuccessToast ? 'min-w-0 leading-snug' : undefined}
+            >
+              {toast.title}
+            </AlertTitle>
+            {isSuccessToast ? (
+              <>
+                {dismissToast}
+                <div className="col-start-2 col-end-4 grid min-w-0 gap-0.5 pb-1 leading-snug">
+                  <p className="truncate font-medium" title={toast.itemTitle}>
+                    {toast.itemTitle}
+                  </p>
+                  {toast.description ? (
+                    <p className="line-clamp-2 text-green-800 [overflow-wrap:anywhere]">
+                      {toast.description}
+                    </p>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <>
+                {toast.description ? (
+                  <AlertDescription className="min-w-0 whitespace-pre-line break-words [overflow-wrap:anywhere]">
+                    {toast.description}
+                  </AlertDescription>
+                ) : null}
+                <AlertAction>{dismissToast}</AlertAction>
+              </>
+            )}
           </Alert>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   )
 }
